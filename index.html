@@ -16,7 +16,7 @@
             <div class="sidebar">
                 <div class="fence-info">
                     <div class="fence-count-display">
-                        <span class="player-label player1-color">Player 1:</span> 
+                        <span class="player-label player1-color">Player:</span> 
                         <span id="player1-fences">10</span> fences
                     </div>
                     <div class="fence-count-display">
@@ -44,12 +44,66 @@
                     </div>
                 </div>
                 
-                <button class="action-btn" id="new-game">New Game</button>
+                <div class="game-buttons">
+                    <button class="action-btn" id="start-game">Start Game</button>
+                    <div class="button-row" id="game-controls" style="display: none;">
+                        <button class="action-btn half-width" id="new-game">New Game</button>
+                        <button class="action-btn half-width" id="rules-btn">Rules</button>
+                    </div>
+                </div>
                 
                 <div class="message-display" id="message">
-                    Make your move!
+                    Click "Start Game" to begin!
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-btn" id="close-rules">&times;</span>
+            <h2>🎯 Quoridor Rules</h2>
+            
+            <div class="rules-section">
+                <h3>🎯 Objective</h3>
+                <p>Be the first player to reach the opposite side of the board.</p>
+                <ul>
+                    <li><strong>Player:</strong> Start at the bottom, reach the top row</li>
+                    <li><strong>Computer:</strong> Starts at the top, reach the bottom row</li>
+                </ul>
+            </div>
+
+            <div class="rules-section">
+                <h3>🚶 Movement</h3>
+                <p>On your turn, you can either <strong>move your pawn</strong> or <strong>place a fence</strong>.</p>
+                <ul>
+                    <li>Move one square horizontally or vertically</li>
+                    <li>If another pawn blocks your path, you can <strong>jump over</strong> them</li>
+                    <li>If you can't jump straight, you can jump <strong>diagonally</strong></li>
+                    <li>Use the arrow buttons (↑ ← → ↓) to move</li>
+                </ul>
+            </div>
+
+            <div class="rules-section">
+                <h3>🚧 Fence Placement</h3>
+                <p>You can place fences to block your opponent's movement.</p>
+                <ul>
+                    <li>Each player starts with <strong>10 fences</strong></li>
+                    <li>Hover over fence slots to see placement preview</li>
+                    <li><span style="color: #32CD32;">Green preview</span> = valid placement</li>
+                    <li><span style="color: #DC143C;">Red preview</span> = invalid placement</li>
+                    <li>Click on fence slots to place fences</li>
+                    <li>You cannot completely block an opponent's path to their goal</li>
+                </ul>
+            </div>
+
+            <div class="rules-section">
+                <h3>🏆 Winning</h3>
+                <p>The first player to reach any square on their target row wins!</p>
+            </div>
+
+            <button class="action-btn" id="close-rules-btn">Got it!</button>
         </div>
     </div>
 

@@ -70,6 +70,7 @@ class QuoridorGame {
         this.currentPlayerIndex = 0;
         this.fences = [];
         this.gameOver = false;
+        this.gameStarted = false; // New flag to track if game has been started
         this.fencePlacementMode = 'active'; // Always active for human player
         this.ai = new QuoridorAI('easy'); // Initialize with easy difficulty
         
@@ -83,11 +84,8 @@ class QuoridorGame {
         this.setupEventListeners();
         this.updateUI();
         
-        // Show valid moves for human player immediately when game starts
-        // Use setTimeout to ensure DOM is fully rendered
-        setTimeout(() => {
-            this.showValidMovesForHuman();
-        }, 0);
+        // Show start button and don't show valid moves until game is started
+        this.showStartButton();
     }
 
     initializeBoard() {
@@ -142,8 +140,21 @@ class QuoridorGame {
         document.getElementById('move-left').addEventListener('click', () => this.makeMove('left'));
         document.getElementById('move-right').addEventListener('click', () => this.makeMove('right'));
         
-        // New game button
+        // Game control buttons
+        document.getElementById('start-game').addEventListener('click', () => this.startGame());
         document.getElementById('new-game').addEventListener('click', () => this.newGame());
+        document.getElementById('rules-btn').addEventListener('click', () => this.showRules());
+        
+        // Rules modal controls
+        document.getElementById('close-rules').addEventListener('click', () => this.hideRules());
+        document.getElementById('close-rules-btn').addEventListener('click', () => this.hideRules());
+        
+        // Close modal when clicking outside of it
+        document.getElementById('rules-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'rules-modal') {
+                this.hideRules();
+            }
+        });
         
         // Difficulty selector
         document.getElementById('difficulty-select').addEventListener('change', (e) => {
@@ -400,7 +411,7 @@ class QuoridorGame {
     }
 
     makeMove(direction) {
-        if (this.gameOver || this.getCurrentPlayer().name !== "Human") return;
+        if (this.gameOver || !this.gameStarted || this.getCurrentPlayer().name !== "Human") return;
 
         const player = this.getCurrentPlayer();
         const directions = {
@@ -476,7 +487,7 @@ class QuoridorGame {
     }
 
     handleFenceClick(fenceSlot) {
-        if (!this.fencePlacementMode || this.gameOver || this.getCurrentPlayer().name !== "Human") return;
+        if (!this.fencePlacementMode || this.gameOver || !this.gameStarted || this.getCurrentPlayer().name !== "Human") return;
 
         const fenceType = fenceSlot.dataset.fenceType;
         const row = parseInt(fenceSlot.dataset.row);
@@ -592,9 +603,9 @@ class QuoridorGame {
         document.getElementById('player1-fences').textContent = this.players[0].fencesRemaining;
         document.getElementById('player2-fences').textContent = this.players[1].fencesRemaining;
         
-        // Enable/disable controls based on current player
+        // Enable/disable controls based on current player and game state
         const currentPlayer = this.getCurrentPlayer();
-        const isHumanTurn = currentPlayer.name === "Human" && !this.gameOver;
+        const isHumanTurn = currentPlayer.name === "Human" && !this.gameOver && this.gameStarted;
         document.querySelectorAll('.direction-btn').forEach(btn => {
             btn.disabled = !isHumanTurn;
         });
@@ -640,7 +651,7 @@ class QuoridorGame {
     showMessage(text, type = 'info') {
         const messageDisplay = document.getElementById('message');
         messageDisplay.textContent = text;
-        messageDisplay.className = `message-display message-${type}`;
+        messageDisplay.className = 'message-display'; // Always use the same styling
         
         // Clear message after 3 seconds
         setTimeout(() => {
@@ -662,6 +673,7 @@ class QuoridorGame {
         this.fences = [];
         this.currentPlayerIndex = 0;
         this.gameOver = false;
+        this.gameStarted = true; // Set to true since this is called after initial start
         this.winner = null;
         
         // Automatically enable fence placement mode for human player at start
@@ -672,6 +684,10 @@ class QuoridorGame {
         this.players[0].fencesRemaining = 10;
         this.players[1].position = new Position(0, 4);
         this.players[1].fencesRemaining = 10;
+        
+        // Ensure proper button visibility (game controls should be visible)
+        document.getElementById('start-game').style.display = 'none';
+        document.getElementById('game-controls').style.display = 'flex';
         
         // Update display
         this.updateBoardDisplay();
@@ -693,19 +709,16 @@ class QuoridorGame {
         // Clear any existing valid move indicators first
         this.clearValidMoves();
         
-        // Always show valid moves for human player at game start, or when it's their turn
+        // Only show valid moves if game has started and it's human's turn
         const humanPlayer = this.players[0]; // Human is always player 1
-        if (!this.gameOver) {
-            // Show moves if it's human's turn OR if we're at the start of the game (player index 0)
-            if (this.getCurrentPlayer().name === "Human") {
-                const validMoves = this.getValidMoves(humanPlayer);
-                validMoves.forEach(move => {
-                    const cell = document.querySelector(`[data-row="${move.row}"][data-col="${move.col}"]`);
-                    if (cell && !cell.classList.contains('player1') && !cell.classList.contains('player2')) {
-                        cell.classList.add('valid-move');
-                    }
-                });
-            }
+        if (this.gameStarted && !this.gameOver && this.getCurrentPlayer().name === "Human") {
+            const validMoves = this.getValidMoves(humanPlayer);
+            validMoves.forEach(move => {
+                const cell = document.querySelector(`[data-row="${move.row}"][data-col="${move.col}"]`);
+                if (cell && !cell.classList.contains('player1') && !cell.classList.contains('player2')) {
+                    cell.classList.add('valid-move');
+                }
+            });
         }
     }
 
@@ -734,8 +747,8 @@ class QuoridorGame {
     }
 
     showFencePreview(fenceSlot) {
-        // Only show preview during human's turn and when game is not over
-        if (this.getCurrentPlayer().name !== "Human" || this.gameOver) {
+        // Only show preview during human's turn and when game is started and not over
+        if (this.getCurrentPlayer().name !== "Human" || this.gameOver || !this.gameStarted) {
             return;
         }
         
@@ -803,6 +816,44 @@ class QuoridorGame {
         document.querySelectorAll('.fence-post-preview').forEach(element => {
             element.classList.remove('fence-post-preview');
         });
+    }
+
+    showStartButton() {
+        // Show start button and hide game controls initially
+        document.getElementById('start-game').style.display = 'block';
+        document.getElementById('game-controls').style.display = 'none';
+        
+        // Disable movement controls until game starts
+        document.querySelectorAll('.direction-btn').forEach(btn => {
+            btn.disabled = true;
+        });
+    }
+
+    startGame() {
+        this.gameStarted = true;
+        
+        // Hide start button and show game controls
+        document.getElementById('start-game').style.display = 'none';
+        document.getElementById('game-controls').style.display = 'flex';
+        
+        // Enable controls and show valid moves
+        this.updateUI();
+        
+        // Show valid moves for human player immediately when game starts
+        // Use setTimeout to ensure DOM is fully rendered
+        setTimeout(() => {
+            this.showValidMovesForHuman();
+        }, 0);
+        
+        this.showMessage('Game started! Make your move.', 'info');
+    }
+
+    showRules() {
+        document.getElementById('rules-modal').style.display = 'flex';
+    }
+
+    hideRules() {
+        document.getElementById('rules-modal').style.display = 'none';
     }
 }
 

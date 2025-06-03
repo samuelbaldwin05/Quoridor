@@ -70,7 +70,7 @@ class QuoridorAI {
                     return {
                         type: 'fence',
                         fence: highImpactFence,
-                        message: `Computer placed a strategic ${highImpactFence.orientation} fence`
+                        message: `Computer placed a fence`
                     };
                 }
             }
@@ -86,7 +86,7 @@ class QuoridorAI {
                     return {
                         type: 'fence',
                         fence: strategicFence,
-                        message: `Computer placed a blocking ${strategicFence.orientation} fence`
+                        message: `Computer placed a fence`
                     };
                 }
                 // If can't place direct fence, try side fence
@@ -95,14 +95,14 @@ class QuoridorAI {
                     return {
                         type: 'fence',
                         fence: sideFence,
-                        message: `Computer placed a side ${sideFence.orientation} fence`
+                        message: `Computer placed a fence`
                     };
                 }
                 // Fall through to movement if fence placement fails
             }
             
-            // 50% chance to deviate from optimal move for first 4 moves only
-            if (this.moveCount <= 4 && Math.random() < 0.5) {
+            // 40% chance to deviate from optimal move for first 3 moves only
+            if (this.moveCount <= 3 && Math.random() < 0.4) {
                 const lateralMove = this.findLateralMove(validMoves, player);
                 if (lateralMove) {
                     return {
