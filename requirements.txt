@@ -1,0 +1,15 @@
+# Quoridor Game Requirements
+# 
+# This game is built using only Python standard library modules,
+# so no external dependencies are required.
+#
+# Minimum Python version: 3.7+
+#
+# Standard library modules used:
+# - random (for computer player moves and evolution)
+# - copy (for game state management)
+# - typing (for type hints)
+# - enum (for game enums)
+# - collections (for BFS pathfinding)
+#
+# No external packages required! 
