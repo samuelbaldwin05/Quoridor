@@ -76,9 +76,13 @@ body {
     background: #aad751;
 }
 
-.cell:hover {
+.cell:hover:not(.player1):not(.player2) {
     background: #e02d50 !important;
     box-shadow: 0 0 4px rgba(240, 230, 140, 0.4);
+}
+
+.valid-move {
+    background: #90EE90 !important;
 }
 
 .fence-slot {
@@ -145,6 +149,32 @@ body {
     background: #A0522D !important;
     width: 16px !important;
     height: 16px !important;
+}
+
+/* Fence preview styles */
+.fence-preview-valid {
+    background: #CD853F !important;
+}
+
+.fence-preview-invalid {
+    background: rgba(220, 20, 60, 0.7) !important;
+}
+
+.fence-post-preview {
+    background: #CD853F !important;
+    width: 16px !important;
+    height: 16px !important;
+}
+
+@keyframes fencePreviewPulse {
+    0%, 100% { 
+        opacity: 0.6; 
+        transform: scale(1);
+    }
+    50% { 
+        opacity: 0.9; 
+        transform: scale(1.05);
+    }
 }
 
 .sidebar {

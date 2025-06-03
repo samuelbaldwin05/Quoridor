@@ -109,12 +109,16 @@ class QuoridorGame {
                         cell.dataset.row = (row - 1) / 2;
                         cell.dataset.col = col / 2;
                         cell.addEventListener('click', () => this.handleFenceClick(cell));
+                        cell.addEventListener('mouseenter', () => this.showFencePreview(cell));
+                        cell.addEventListener('mouseleave', () => this.hideFencePreview());
                     } else if (row % 2 === 0 && col % 2 === 1) {
                         // Vertical fence slot (between columns)
                         cell.dataset.fenceType = 'vertical';
                         cell.dataset.row = row / 2;
                         cell.dataset.col = (col - 1) / 2;
                         cell.addEventListener('click', () => this.handleFenceClick(cell));
+                        cell.addEventListener('mouseenter', () => this.showFencePreview(cell));
+                        cell.addEventListener('mouseleave', () => this.hideFencePreview());
                     }
                     // Corner intersections don't get click handlers
                 }
@@ -152,7 +156,14 @@ class QuoridorGame {
     switchPlayer() {
         this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
         this.fencePlacementMode = null;
+        
+        // Clear any existing fence previews when switching players
+        this.hideFencePreview();
+        
         this.updateUI();
+        
+        // Show valid moves for human player when it becomes their turn
+        this.showValidMovesForHuman();
         
         // If it's computer's turn, make computer move after a delay
         if (this.getCurrentPlayer().name === "Computer" && !this.gameOver) {
@@ -202,6 +213,35 @@ class QuoridorGame {
                     !this.isMovementBlocked(newPos, jumpPos) &&
                     !this.isPositionOccupied(jumpPos)) {
                     validMoves.push(jumpPos);
+                } else {
+                    // Straight jump is blocked - check for diagonal jumps
+                    // When moving vertically (up/down), check left and right diagonal jumps
+                    // When moving horizontally (left/right), check up and down diagonal jumps
+                    
+                    const diagonalDirections = [];
+                    if (dir.row !== 0) {
+                        // Moving vertically, so check left and right diagonals
+                        diagonalDirections.push({ row: 0, col: -1 }); // left
+                        diagonalDirections.push({ row: 0, col: 1 });  // right
+                    } else {
+                        // Moving horizontally, so check up and down diagonals
+                        diagonalDirections.push({ row: -1, col: 0 }); // up
+                        diagonalDirections.push({ row: 1, col: 0 });  // down
+                    }
+                    
+                    for (const diagDir of diagonalDirections) {
+                        const diagJumpPos = new Position(
+                            newPos.row + diagDir.row,
+                            newPos.col + diagDir.col
+                        );
+                        
+                        // Check if diagonal jump is valid
+                        if (this.isValidPosition(diagJumpPos) &&
+                            !this.isMovementBlocked(newPos, diagJumpPos) &&
+                            !this.isPositionOccupied(diagJumpPos)) {
+                            validMoves.push(diagJumpPos);
+                        }
+                    }
                 }
             } else {
                 // Normal move - no player blocking
@@ -216,26 +256,53 @@ class QuoridorGame {
         // Check bounds - fences must span exactly 2 movement squares
         if (fence.orientation === 'horizontal') {
             // Horizontal fence: check if it can span 2 columns
-            if (fence.row < 0 || fence.row >= this.size - 1) return false;
-            if (fence.col < 0 || fence.col >= this.size - 1) return false;
+            if (fence.row < 0 || fence.row >= this.size - 1) {
+                console.log(`Horizontal fence bounds error: row=${fence.row}, valid range: 0-${this.size-2}`);
+                return false;
+            }
+            if (fence.col < 0 || fence.col >= this.size - 1) {
+                console.log(`Horizontal fence bounds error: col=${fence.col}, valid range: 0-${this.size-2}`);
+                return false;
+            }
         } else {
             // Vertical fence: check if it can span 2 rows  
-            if (fence.row < 0 || fence.row >= this.size - 1) return false;
-            if (fence.col < 0 || fence.col >= this.size - 1) return false;
+            if (fence.row < 0 || fence.row >= this.size - 1) {
+                console.log(`Vertical fence bounds error: row=${fence.row}, valid range: 0-${this.size-2}`);
+                return false;
+            }
+            if (fence.col < 0 || fence.col >= this.size - 1) {
+                console.log(`Vertical fence bounds error: col=${fence.col}, valid range: 0-${this.size-2}`);
+                return false;
+            }
         }
 
         // Check if fence already exists
-        if (this.fences.some(f => f.equals(fence))) return false;
+        if (this.fences.some(f => f.equals(fence))) {
+            console.log(`Fence already exists at row=${fence.row}, col=${fence.col}, orientation=${fence.orientation}`);
+            return false;
+        }
+
+        // Check for fence post overlaps
+        if (this.wouldFencePostOverlap(fence)) {
+            console.log(`Fence post would overlap with existing fence post`);
+            return false;
+        }
 
         // Check intersections
         for (const existingFence of this.fences) {
-            if (this.fencesIntersect(fence, existingFence)) return false;
+            if (this.fencesIntersect(fence, existingFence)) {
+                console.log(`Fence intersection detected with existing fence at row=${existingFence.row}, col=${existingFence.col}, orientation=${existingFence.orientation}`);
+                return false;
+            }
         }
 
         // Check if fence would block any player's path
         const tempFences = [...this.fences, fence];
         for (const player of this.players) {
-            if (!this.hasPathToGoal(player, tempFences)) return false;
+            if (!this.hasPathToGoal(player, tempFences)) {
+                console.log(`Fence would block ${player.name}'s path to goal`);
+                return false;
+            }
         }
 
         return true;
@@ -243,6 +310,7 @@ class QuoridorGame {
 
     fencesIntersect(fence1, fence2) {
         if (fence1.orientation === fence2.orientation) {
+            // Same orientation fences overlap if they're on the same row/col and their spans overlap
             if (fence1.orientation === 'horizontal') {
                 return fence1.row === fence2.row &&
                        !(fence1.col + 1 < fence2.col || fence2.col + 1 < fence1.col);
@@ -251,17 +319,29 @@ class QuoridorGame {
                        !(fence1.row + 1 < fence2.row || fence2.row + 1 < fence1.row);
             }
         } else {
-            // For perpendicular fences, they only intersect if they cross at their centers
+            // Different orientations: check if they actually cross through each other
             const hFence = fence1.orientation === 'horizontal' ? fence1 : fence2;
             const vFence = fence1.orientation === 'vertical' ? fence1 : fence2;
             
-            // They intersect only if the vertical fence's column position is within 
-            // the horizontal fence's span AND the horizontal fence's row position 
-            // is within the vertical fence's span
-            const hFenceSpansVertical = hFence.col < vFence.col && vFence.col < hFence.col + 1;
-            const vFenceSpansHorizontal = vFence.row < hFence.row && hFence.row < vFence.row + 1;
+            // A horizontal fence at (row, col) spans columns col to col+1 at row
+            // A vertical fence at (row, col) spans rows row to row+1 at col
             
-            return hFenceSpansVertical && vFenceSpansHorizontal;
+            // They intersect (cross illegally) if and only if:
+            // 1. The vertical fence's column is strictly within the horizontal fence's column span
+            // 2. AND the horizontal fence's row is strictly within the vertical fence's row span
+            
+            // For integer coordinates:
+            // hFence spans columns [hFence.col, hFence.col+1] at row hFence.row
+            // vFence spans rows [vFence.row, vFence.row+1] at column vFence.col
+            
+            // They cross if vFence.col is between hFence.col and hFence.col+1 (exclusive)
+            // AND hFence.row is between vFence.row and vFence.row+1 (exclusive)
+            
+            // Since all coordinates are integers, "strictly between" means never true
+            // So perpendicular fences with integer coordinates can never truly cross
+            // They can only meet at endpoints (which should be allowed)
+            
+            return false; // Allow all perpendicular fence combinations
         }
     }
 
@@ -327,7 +407,7 @@ class QuoridorGame {
         // Get all valid moves first
         const validMoves = this.getValidMoves(player);
         
-        // Find which valid move matches this direction
+        // Find the best valid move that matches this direction preference
         let targetMove = null;
         
         // Check for single step move first
@@ -338,13 +418,30 @@ class QuoridorGame {
         
         targetMove = validMoves.find(pos => pos.equals(singleStepPos));
         
-        // If no single step move, check for jump move
+        // If no single step move, check for straight jump move
         if (!targetMove) {
             const jumpPos = new Position(
                 player.position.row + dir.row * 2,
                 player.position.col + dir.col * 2
             );
             targetMove = validMoves.find(pos => pos.equals(jumpPos));
+        }
+        
+        // If no straight moves, check for diagonal jumps in the requested direction
+        if (!targetMove) {
+            // Look for diagonal moves that are in the general direction requested
+            for (const move of validMoves) {
+                const deltaRow = move.row - player.position.row;
+                const deltaCol = move.col - player.position.col;
+                
+                // Check if this move has a component in the requested direction
+                if ((dir.row !== 0 && Math.sign(deltaRow) === Math.sign(dir.row)) ||
+                    (dir.col !== 0 && Math.sign(deltaCol) === Math.sign(dir.col))) {
+                    // This move is in the requested direction (or diagonal from it)
+                    targetMove = move;
+                    break;
+                }
+            }
         }
 
         if (targetMove) {
@@ -368,6 +465,9 @@ class QuoridorGame {
 
         this.fencePlacementMode = this.fencePlacementMode ? null : 'active';
         this.updateFenceButtons();
+        
+        // Clear any existing fence previews when toggling fence mode
+        this.hideFencePreview();
         
         if (this.fencePlacementMode) {
             this.showMessage('Click a fence slot to place a fence', 'info');
@@ -462,102 +562,37 @@ class QuoridorGame {
         // Place fences with improved visualization
         this.fences.forEach(fence => {
             if (fence.orientation === 'horizontal') {
-                // Horizontal fence spans 2 columns
+                // Horizontal fence spans 2 columns with a post in the middle
                 for (let c = fence.col; c <= fence.col + 1; c++) {
                     const fenceSlot = document.querySelector(`[data-fence-type="horizontal"][data-row="${fence.row}"][data-col="${c}"]`);
                     if (fenceSlot) {
                         fenceSlot.classList.add('horizontal-fence');
                     }
                 }
+                // Add fence post in the middle of the horizontal fence
+                const middlePostRow = fence.row * 2 + 1; // Convert to grid coordinates
+                const middlePostCol = fence.col * 2 + 1; // Middle of the fence span
+                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * 17 + middlePostCol];
+                if (middlePostElement) {
+                    middlePostElement.classList.add('fence-post');
+                }
             } else {
-                // Vertical fence spans 2 rows
+                // Vertical fence spans 2 rows with a post in the middle
                 for (let r = fence.row; r <= fence.row + 1; r++) {
                     const fenceSlot = document.querySelector(`[data-fence-type="vertical"][data-row="${r}"][data-col="${fence.col}"]`);
                     if (fenceSlot) {
                         fenceSlot.classList.add('vertical-fence');
                     }
                 }
-            }
-        });
-
-        // Add fence posts at intersections where fences meet
-        this.addFencePosts();
-        
-        // Show valid moves for human player
-        this.showValidMovesForHuman();
-    }
-
-    addFencePosts() {
-        // Check all intersection points (odd row, odd col in the 17x17 grid)
-        for (let gridRow = 1; gridRow < 17; gridRow += 2) {
-            for (let gridCol = 1; gridCol < 17; gridCol += 2) {
-                const gameRow = (gridRow - 1) / 2;
-                const gameCol = (gridCol - 1) / 2;
-                
-                // Check if there are fences meeting at this intersection
-                const fencesAtIntersection = this.getFencesAtIntersection(gameRow, gameCol);
-                
-                // Show fence post if any fences touch this intersection
-                if (fencesAtIntersection.length >= 1) {
-                    // Find the intersection element in the DOM
-                    const intersectionElement = document.querySelector(`.board`).children[gridRow * 17 + gridCol];
-                    if (intersectionElement) {
-                        intersectionElement.classList.add('fence-post');
-                    }
+                // Add fence post in the middle of the vertical fence
+                const middlePostRow = fence.row * 2 + 1; // Middle of the fence span
+                const middlePostCol = fence.col * 2 + 1; // Convert to grid coordinates
+                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * 17 + middlePostCol];
+                if (middlePostElement) {
+                    middlePostElement.classList.add('fence-post');
                 }
             }
-        }
-    }
-
-    getFencesAtIntersection(row, col) {
-        const fencesAtIntersection = [];
-        
-        // For each intersection point (row, col), check all 4 directions for fences
-        // that touch this intersection point
-        
-        // Check horizontal fences that pass through this intersection
-        // Horizontal fence from left (ending at this intersection)
-        if (col > 0) {
-            const leftHorizontalFence = this.fences.find(f => 
-                f.orientation === 'horizontal' && 
-                f.row === row && 
-                f.col + 1 === col  // fence ends at this intersection
-            );
-            if (leftHorizontalFence) fencesAtIntersection.push(leftHorizontalFence);
-        }
-        
-        // Horizontal fence to right (starting at this intersection)
-        if (col < this.size - 1) {
-            const rightHorizontalFence = this.fences.find(f => 
-                f.orientation === 'horizontal' && 
-                f.row === row && 
-                f.col === col  // fence starts at this intersection
-            );
-            if (rightHorizontalFence) fencesAtIntersection.push(rightHorizontalFence);
-        }
-        
-        // Check vertical fences that pass through this intersection
-        // Vertical fence from above (ending at this intersection)
-        if (row > 0) {
-            const topVerticalFence = this.fences.find(f => 
-                f.orientation === 'vertical' && 
-                f.row + 1 === row && 
-                f.col === col  // fence ends at this intersection
-            );
-            if (topVerticalFence) fencesAtIntersection.push(topVerticalFence);
-        }
-        
-        // Vertical fence to bottom (starting at this intersection)
-        if (row < this.size - 1) {
-            const bottomVerticalFence = this.fences.find(f => 
-                f.orientation === 'vertical' && 
-                f.row === row && 
-                f.col === col  // fence starts at this intersection
-            );
-            if (bottomVerticalFence) fencesAtIntersection.push(bottomVerticalFence);
-        }
-        
-        return fencesAtIntersection;
+        });
     }
 
     updateUI() {
@@ -683,6 +718,93 @@ class QuoridorGame {
     setDifficulty(difficulty) {
         this.ai = new QuoridorAI(difficulty);
         this.showMessage(`AI difficulty set to ${this.ai.getDifficultyName()}`, 'info');
+    }
+
+    wouldFencePostOverlap(fence) {
+        // Calculate where this fence's post would be located in grid coordinates
+        const newFencePostRow = fence.row * 2 + 1;
+        const newFencePostCol = fence.col * 2 + 1;
+        
+        // Check if any existing fence has a post at the same location
+        for (const existingFence of this.fences) {
+            const existingFencePostRow = existingFence.row * 2 + 1;
+            const existingFencePostCol = existingFence.col * 2 + 1;
+            
+            // If the post positions match, there would be an overlap
+            if (newFencePostRow === existingFencePostRow && newFencePostCol === existingFencePostCol) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    showFencePreview(fenceSlot) {
+        // Only show preview when in fence placement mode
+        if (!this.fencePlacementMode || this.gameOver || this.getCurrentPlayer().name !== "Human") return;
+
+        const fenceType = fenceSlot.dataset.fenceType;
+        const row = parseInt(fenceSlot.dataset.row);
+        const col = parseInt(fenceSlot.dataset.col);
+        const orientation = fenceType;
+
+        const fence = new Fence(row, col, orientation);
+        
+        // Check if this would be a valid fence placement
+        if (!this.isValidFencePlacement(fence)) {
+            // Show invalid preview
+            fenceSlot.classList.add('fence-preview-invalid');
+            return;
+        }
+
+        // Remove any existing previews first
+        this.hideFencePreview();
+
+        // Show valid fence preview
+        if (orientation === 'horizontal') {
+            // Horizontal fence spans 2 columns with a post in the middle
+            for (let c = col; c <= col + 1; c++) {
+                const previewSlot = document.querySelector(`[data-fence-type="horizontal"][data-row="${row}"][data-col="${c}"]`);
+                if (previewSlot) {
+                    previewSlot.classList.add('fence-preview-valid');
+                }
+            }
+            // Add fence post preview in the middle of the horizontal fence
+            const middlePostRow = row * 2 + 1; // Convert to grid coordinates
+            const middlePostCol = col * 2 + 1; // Middle of the fence span
+            const middlePostElement = document.querySelector(`.board`).children[middlePostRow * 17 + middlePostCol];
+            if (middlePostElement) {
+                middlePostElement.classList.add('fence-post-preview');
+            }
+        } else {
+            // Vertical fence spans 2 rows with a post in the middle
+            for (let r = row; r <= row + 1; r++) {
+                const previewSlot = document.querySelector(`[data-fence-type="vertical"][data-row="${r}"][data-col="${col}"]`);
+                if (previewSlot) {
+                    previewSlot.classList.add('fence-preview-valid');
+                }
+            }
+            // Add fence post preview in the middle of the vertical fence
+            const middlePostRow = row * 2 + 1; // Middle of the fence span
+            const middlePostCol = col * 2 + 1; // Convert to grid coordinates
+            const middlePostElement = document.querySelector(`.board`).children[middlePostRow * 17 + middlePostCol];
+            if (middlePostElement) {
+                middlePostElement.classList.add('fence-post-preview');
+            }
+        }
+    }
+
+    hideFencePreview() {
+        // Remove all fence preview classes
+        document.querySelectorAll('.fence-preview-valid').forEach(element => {
+            element.classList.remove('fence-preview-valid');
+        });
+        document.querySelectorAll('.fence-preview-invalid').forEach(element => {
+            element.classList.remove('fence-preview-invalid');
+        });
+        document.querySelectorAll('.fence-post-preview').forEach(element => {
+            element.classList.remove('fence-post-preview');
+        });
     }
 }
 
