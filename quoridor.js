@@ -251,12 +251,17 @@ class QuoridorGame {
                        !(fence1.row + 1 < fence2.row || fence2.row + 1 < fence1.row);
             }
         } else {
+            // For perpendicular fences, they only intersect if they cross at their centers
             const hFence = fence1.orientation === 'horizontal' ? fence1 : fence2;
             const vFence = fence1.orientation === 'vertical' ? fence1 : fence2;
             
-            return hFence.row === vFence.row &&
-                   hFence.col <= vFence.col && vFence.col <= hFence.col + 1 &&
-                   vFence.row <= hFence.row && hFence.row <= vFence.row + 1;
+            // They intersect only if the vertical fence's column position is within 
+            // the horizontal fence's span AND the horizontal fence's row position 
+            // is within the vertical fence's span
+            const hFenceSpansVertical = hFence.col < vFence.col && vFence.col < hFence.col + 1;
+            const vFenceSpansHorizontal = vFence.row < hFence.row && hFence.row < vFence.row + 1;
+            
+            return hFenceSpansVertical && vFenceSpansHorizontal;
         }
     }
 
