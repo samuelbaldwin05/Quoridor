@@ -78,7 +78,6 @@ body {
 
 .cell:hover:not(.player1):not(.player2) {
     background: #e02d50 !important;
-    box-shadow: 0 0 4px rgba(240, 230, 140, 0.4);
 }
 
 .valid-move {

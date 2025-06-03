@@ -70,7 +70,7 @@ class QuoridorGame {
         this.currentPlayerIndex = 0;
         this.fences = [];
         this.gameOver = false;
-        this.fencePlacementMode = null;
+        this.fencePlacementMode = 'active'; // Always active for human player
         this.ai = new QuoridorAI('easy'); // Initialize with easy difficulty
         
         // Initialize players
@@ -82,7 +82,12 @@ class QuoridorGame {
         this.initializeBoard();
         this.setupEventListeners();
         this.updateUI();
-        this.showValidMovesForHuman();
+        
+        // Show valid moves for human player immediately when game starts
+        // Use setTimeout to ensure DOM is fully rendered
+        setTimeout(() => {
+            this.showValidMovesForHuman();
+        }, 0);
     }
 
     initializeBoard() {
@@ -137,9 +142,6 @@ class QuoridorGame {
         document.getElementById('move-left').addEventListener('click', () => this.makeMove('left'));
         document.getElementById('move-right').addEventListener('click', () => this.makeMove('right'));
         
-        // Fence button
-        document.getElementById('place-fence').addEventListener('click', () => this.toggleFenceMode());
-        
         // New game button
         document.getElementById('new-game').addEventListener('click', () => this.newGame());
         
@@ -155,7 +157,13 @@ class QuoridorGame {
 
     switchPlayer() {
         this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
-        this.fencePlacementMode = null;
+        
+        // Automatically enable fence placement mode for human player
+        if (this.getCurrentPlayer().name === "Human" && this.getCurrentPlayer().fencesRemaining > 0) {
+            this.fencePlacementMode = 'active';
+        } else {
+            this.fencePlacementMode = null;
+        }
         
         // Clear any existing fence previews when switching players
         this.hideFencePreview();
@@ -457,23 +465,9 @@ class QuoridorGame {
     }
 
     toggleFenceMode() {
-        if (this.gameOver || this.getCurrentPlayer().name !== "Human") return;
-        if (this.getCurrentPlayer().fencesRemaining <= 0) {
-            this.showMessage('No fences remaining!', 'error');
-            return;
-        }
-
-        this.fencePlacementMode = this.fencePlacementMode ? null : 'active';
-        this.updateFenceButtons();
-        
-        // Clear any existing fence previews when toggling fence mode
-        this.hideFencePreview();
-        
-        if (this.fencePlacementMode) {
-            this.showMessage('Click a fence slot to place a fence', 'info');
-        } else {
-            this.showMessage('Fence placement cancelled', 'info');
-        }
+        // This method is no longer needed since fence mode is always active for human player
+        // Keeping it empty in case it's referenced elsewhere
+        return;
     }
 
     handleCellClick(row, col) {
@@ -498,8 +492,6 @@ class QuoridorGame {
             this.getCurrentPlayer().fencesRemaining--;
             
             this.showMessage(`${orientation.charAt(0).toUpperCase() + orientation.slice(1)} fence placed`, 'success');
-            this.fencePlacementMode = null;
-            this.updateFenceButtons();
             this.updateBoardDisplay();
             
             if (this.checkWinCondition()) return;
@@ -599,7 +591,6 @@ class QuoridorGame {
         // Update fence counts
         document.getElementById('player1-fences').textContent = this.players[0].fencesRemaining;
         document.getElementById('player2-fences').textContent = this.players[1].fencesRemaining;
-        document.getElementById('fence-count').textContent = this.players[0].fencesRemaining;
         
         // Enable/disable controls based on current player
         const currentPlayer = this.getCurrentPlayer();
@@ -607,20 +598,6 @@ class QuoridorGame {
         document.querySelectorAll('.direction-btn').forEach(btn => {
             btn.disabled = !isHumanTurn;
         });
-        
-        const fenceBtn = document.getElementById('place-fence');
-        fenceBtn.disabled = !isHumanTurn || currentPlayer.fencesRemaining <= 0;
-        
-        this.updateFenceButtons();
-    }
-
-    updateFenceButtons() {
-        const fenceBtn = document.getElementById('place-fence');
-        fenceBtn.classList.remove('active');
-        
-        if (this.fencePlacementMode) {
-            fenceBtn.classList.add('active');
-        }
     }
 
     checkWinCondition() {
@@ -644,11 +621,18 @@ class QuoridorGame {
         message.innerHTML = `
             <h2>🎉 ${this.winner.name} Wins! 🎉</h2>
             <p>${this.winner.name} reached ${this.winner.goalRow === 0 ? 'the top' : 'the bottom'} row!</p>
-            <button class="action-btn" onclick="game.newGame(); this.parentElement.parentElement.remove();">Play Again</button>
+            <button class="action-btn" id="play-again-btn">Play Again</button>
         `;
         
         celebration.appendChild(message);
         document.body.appendChild(celebration);
+        
+        // Add event listener to the play again button
+        const playAgainBtn = document.getElementById('play-again-btn');
+        playAgainBtn.addEventListener('click', () => {
+            this.newGame();
+            celebration.remove();
+        });
         
         this.showMessage(`🎉 ${this.winner.name} wins the game! 🎉`, 'success');
     }
@@ -679,7 +663,9 @@ class QuoridorGame {
         this.currentPlayerIndex = 0;
         this.gameOver = false;
         this.winner = null;
-        this.fencePlacementMode = null;
+        
+        // Automatically enable fence placement mode for human player at start
+        this.fencePlacementMode = 'active';
         
         // Reset players
         this.players[0].position = new Position(8, 4);
@@ -690,6 +676,10 @@ class QuoridorGame {
         // Update display
         this.updateBoardDisplay();
         this.updateUI();
+        
+        // Show valid moves for human player immediately after new game
+        this.showValidMovesForHuman();
+        
         this.showMessage('New game started! Make your move.', 'info');
     }
 
@@ -703,15 +693,19 @@ class QuoridorGame {
         // Clear any existing valid move indicators first
         this.clearValidMoves();
         
-        // Only show valid moves when it's the human player's turn and game is not over
-        if (this.getCurrentPlayer().name === "Human" && !this.gameOver) {
-            const validMoves = this.getValidMoves(this.getCurrentPlayer());
-            validMoves.forEach(move => {
-                const cell = document.querySelector(`[data-row="${move.row}"][data-col="${move.col}"]`);
-                if (cell && !cell.classList.contains('player1') && !cell.classList.contains('player2')) {
-                    cell.classList.add('valid-move');
-                }
-            });
+        // Always show valid moves for human player at game start, or when it's their turn
+        const humanPlayer = this.players[0]; // Human is always player 1
+        if (!this.gameOver) {
+            // Show moves if it's human's turn OR if we're at the start of the game (player index 0)
+            if (this.getCurrentPlayer().name === "Human") {
+                const validMoves = this.getValidMoves(humanPlayer);
+                validMoves.forEach(move => {
+                    const cell = document.querySelector(`[data-row="${move.row}"][data-col="${move.col}"]`);
+                    if (cell && !cell.classList.contains('player1') && !cell.classList.contains('player2')) {
+                        cell.classList.add('valid-move');
+                    }
+                });
+            }
         }
     }
 
@@ -740,9 +734,11 @@ class QuoridorGame {
     }
 
     showFencePreview(fenceSlot) {
-        // Only show preview when in fence placement mode
-        if (!this.fencePlacementMode || this.gameOver || this.getCurrentPlayer().name !== "Human") return;
-
+        // Only show preview during human's turn and when game is not over
+        if (this.getCurrentPlayer().name !== "Human" || this.gameOver) {
+            return;
+        }
+        
         const fenceType = fenceSlot.dataset.fenceType;
         const row = parseInt(fenceSlot.dataset.row);
         const col = parseInt(fenceSlot.dataset.col);
@@ -751,46 +747,48 @@ class QuoridorGame {
         const fence = new Fence(row, col, orientation);
         
         // Check if this would be a valid fence placement
-        if (!this.isValidFencePlacement(fence)) {
-            // Show invalid preview
-            fenceSlot.classList.add('fence-preview-invalid');
-            return;
-        }
-
+        const isValid = this.isValidFencePlacement(fence) && 
+                       this.getCurrentPlayer().fencesRemaining > 0;
+        
         // Remove any existing previews first
         this.hideFencePreview();
 
-        // Show valid fence preview
-        if (orientation === 'horizontal') {
-            // Horizontal fence spans 2 columns with a post in the middle
-            for (let c = col; c <= col + 1; c++) {
-                const previewSlot = document.querySelector(`[data-fence-type="horizontal"][data-row="${row}"][data-col="${c}"]`);
-                if (previewSlot) {
-                    previewSlot.classList.add('fence-preview-valid');
+        if (isValid) {
+            // Show complete fence preview in green for valid placements
+            if (orientation === 'horizontal') {
+                // Horizontal fence spans 2 columns with a post in the middle
+                for (let c = col; c <= col + 1; c++) {
+                    const previewSlot = document.querySelector(`[data-fence-type="horizontal"][data-row="${row}"][data-col="${c}"]`);
+                    if (previewSlot) {
+                        previewSlot.classList.add('fence-preview-valid');
+                    }
                 }
-            }
-            // Add fence post preview in the middle of the horizontal fence
-            const middlePostRow = row * 2 + 1; // Convert to grid coordinates
-            const middlePostCol = col * 2 + 1; // Middle of the fence span
-            const middlePostElement = document.querySelector(`.board`).children[middlePostRow * 17 + middlePostCol];
-            if (middlePostElement) {
-                middlePostElement.classList.add('fence-post-preview');
+                // Add fence post preview in the middle of the horizontal fence
+                const middlePostRow = row * 2 + 1; // Convert to grid coordinates
+                const middlePostCol = col * 2 + 1; // Middle of the fence span
+                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * 17 + middlePostCol];
+                if (middlePostElement) {
+                    middlePostElement.classList.add('fence-post-preview');
+                }
+            } else {
+                // Vertical fence spans 2 rows with a post in the middle
+                for (let r = row; r <= row + 1; r++) {
+                    const previewSlot = document.querySelector(`[data-fence-type="vertical"][data-row="${r}"][data-col="${col}"]`);
+                    if (previewSlot) {
+                        previewSlot.classList.add('fence-preview-valid');
+                    }
+                }
+                // Add fence post preview in the middle of the vertical fence
+                const middlePostRow = row * 2 + 1; // Middle of the fence span
+                const middlePostCol = col * 2 + 1; // Convert to grid coordinates
+                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * 17 + middlePostCol];
+                if (middlePostElement) {
+                    middlePostElement.classList.add('fence-post-preview');
+                }
             }
         } else {
-            // Vertical fence spans 2 rows with a post in the middle
-            for (let r = row; r <= row + 1; r++) {
-                const previewSlot = document.querySelector(`[data-fence-type="vertical"][data-row="${r}"][data-col="${col}"]`);
-                if (previewSlot) {
-                    previewSlot.classList.add('fence-preview-valid');
-                }
-            }
-            // Add fence post preview in the middle of the vertical fence
-            const middlePostRow = row * 2 + 1; // Middle of the fence span
-            const middlePostCol = col * 2 + 1; // Convert to grid coordinates
-            const middlePostElement = document.querySelector(`.board`).children[middlePostRow * 17 + middlePostCol];
-            if (middlePostElement) {
-                middlePostElement.classList.add('fence-post-preview');
-            }
+            // Show only the hovered slot in red for invalid placements
+            fenceSlot.classList.add('fence-preview-invalid');
         }
     }
 
