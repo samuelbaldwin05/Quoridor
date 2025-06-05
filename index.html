@@ -25,15 +25,6 @@
                     </div>
                 </div>
 
-                <!-- <div class="controls-section">
-                    <h3>AI Difficulty</h3>
-                    <select id="difficulty-select" class="difficulty-selector">
-                        <option value="easy">Easy</option>
-                        <option value="medium">Medium (Coming Soon)</option>
-                        <option value="hard">Hard (Coming Soon)</option>
-                    </select>
-                </div> -->
-                
                 <div class="controls-section">
                     <h3>Movement</h3>
                     <div class="direction-controls">
@@ -104,6 +95,61 @@
             </div>
 
             <button class="action-btn" id="close-rules-btn">Got it!</button>
+            
+            <!-- Settings Section -->
+            <div class="settings-section">
+                <h3>⚙️ Settings</h3>
+                
+                <div class="setting-item">
+                    <label for="bot-selector">AI Opponent:</label>
+                    <select id="bot-selector" class="bot-selector">
+                        <option value="bot1">Bot 1 - Basic Strategic</option>
+                        <option value="bot2" selected>Bot 2 - Advantage Focused</option>
+                    </select>
+                </div>
+                
+                <div class="setting-item">
+                    <label for="keyboard-toggle">Keyboard Controls:</label>
+                    <input type="checkbox" id="keyboard-toggle" class="keyboard-toggle" checked>
+                </div>
+                
+                <div class="setting-item">
+                    <label for="click-move-toggle">Click to Move:</label>
+                    <input type="checkbox" id="click-move-toggle" class="click-move-toggle" checked>
+                </div>
+                
+                <div class="setting-item">
+                    <button class="dev-btn" id="dev-mode-btn">Development Mode</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dev Stats Display -->
+    <div id="dev-stats" class="dev-stats" style="display: none;">
+        <div class="stat-item">
+            <span class="stat-label">Bot:</span>
+            <span id="stat-bot-name">Bot 2</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Move:</span>
+            <span id="stat-move-number">1</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">AI Avg:</span>
+            <span id="stat-ai-time">0ms</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Human Path:</span>
+            <span id="stat-human-path">8</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">AI Path:</span>
+            <span id="stat-ai-path">8</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Advantage:</span>
+            <span id="stat-advantage">0</span>
         </div>
     </div>
 

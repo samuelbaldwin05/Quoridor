@@ -70,9 +70,17 @@ class QuoridorGame {
         this.currentPlayerIndex = 0;
         this.fences = [];
         this.gameOver = false;
-        this.gameStarted = false; // New flag to track if game has been started
-        this.fencePlacementMode = 'active'; // Always active for human player
-        this.ai = new QuoridorAI('easy'); // Initialize with easy difficulty
+        this.gameStarted = false; // Track if game has started
+        this.fencePlacementMode = 'active'; // Set fence placement mode to 'active' for human players
+        this.ai = new QuoridorAI(); // Initialize AI with default settings
+        
+        // Development mode tracking
+        this.moveNumber = 1;
+        this.lastAiMoveTime = 0;
+        this.aiMoveTimes = []; // Track all AI move times for averaging
+        this.devModeEnabled = false;
+        this.keyboardEnabled = true; // Track keyboard controls setting
+        this.clickMoveEnabled = true; // Track click-to-move setting
         
         // Initialize players
         this.players = [
@@ -156,10 +164,97 @@ class QuoridorGame {
             }
         });
         
-        // Difficulty selector
-        document.getElementById('difficulty-select').addEventListener('change', (e) => {
-            this.setDifficulty(e.target.value);
+        // Bot selector event listener
+        document.getElementById('bot-selector').addEventListener('change', (e) => {
+            this.switchBot(e.target.value);
         });
+
+        // Development mode event listener
+        document.getElementById('dev-mode-btn').addEventListener('click', () => {
+            this.toggleDevMode();
+        });
+
+        // Keyboard controls toggle event listener
+        document.getElementById('keyboard-toggle').addEventListener('change', (e) => {
+            this.toggleKeyboardControls(e.target.checked);
+        });
+
+        // Click-to-move toggle event listener
+        document.getElementById('click-move-toggle').addEventListener('change', (e) => {
+            this.toggleClickMoveControls(e.target.checked);
+        });
+
+        // Keyboard event listeners
+        this.setupKeyboardControls();
+    }
+
+    setupKeyboardControls() {
+        // Add keyboard event listener for movement
+        document.addEventListener('keydown', (e) => {
+            // Only process keyboard input if keyboard controls are enabled
+            if (!this.keyboardEnabled) return;
+            
+            // Only allow keyboard input during human's turn
+            if (this.gameOver || !this.gameStarted || this.getCurrentPlayer().name !== "Human") return;
+            
+            // Don't process keys if user is typing in an input/select element
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+            
+            let direction = null;
+            
+            switch (e.key.toLowerCase()) {
+                case 'arrowup':
+                case 'w':
+                    direction = 'up';
+                    break;
+                case 'arrowdown':
+                case 's':
+                    direction = 'down';
+                    break;
+                case 'arrowleft':
+                case 'a':
+                    direction = 'left';
+                    break;
+                case 'arrowright':
+                case 'd':
+                    direction = 'right';
+                    break;
+            }
+            
+            if (direction) {
+                e.preventDefault(); // Prevent default browser behavior (scrolling, etc.)
+                this.makeMove(direction);
+                
+                // Visual feedback - briefly highlight the corresponding button
+                const buttonId = `move-${direction}`;
+                const button = document.getElementById(buttonId);
+                if (button) {
+                    button.style.transform = 'scale(0.95)';
+                    button.style.background = '#CD853F';
+                    setTimeout(() => {
+                        button.style.transform = '';
+                        button.style.background = '';
+                    }, 150);
+                }
+            }
+        });
+    }
+
+    toggleKeyboardControls(enabled) {
+        this.keyboardEnabled = enabled;
+        const status = enabled ? 'enabled' : 'disabled';
+        this.showMessage(`Keyboard controls ${status}`, 'info');
+    }
+
+    toggleClickMoveControls(enabled) {
+        this.clickMoveEnabled = enabled;
+        const status = enabled ? 'enabled' : 'disabled';
+        this.showMessage(`Click-to-move ${status}`, 'info');
+        
+        // Update visual feedback for valid moves when setting changes
+        if (this.gameStarted && this.getCurrentPlayer().name === "Human") {
+            this.showValidMovesForHuman();
+        }
     }
 
     getCurrentPlayer() {
@@ -173,7 +268,7 @@ class QuoridorGame {
         if (this.getCurrentPlayer().name === "Human" && this.getCurrentPlayer().fencesRemaining > 0) {
             this.fencePlacementMode = 'active';
         } else {
-            this.fencePlacementMode = null;
+        this.fencePlacementMode = null;
         }
         
         // Clear any existing fence previews when switching players
@@ -469,6 +564,8 @@ class QuoridorGame {
             this.updateBoardDisplay();
             
             if (this.checkWinCondition()) return;
+            this.moveNumber++;
+            this.updateDevStats();
             this.switchPlayer();
         } else {
             this.showMessage('Invalid move!', 'error');
@@ -478,12 +575,37 @@ class QuoridorGame {
     toggleFenceMode() {
         // This method is no longer needed since fence mode is always active for human player
         // Keeping it empty in case it's referenced elsewhere
-        return;
+            return;
     }
 
     handleCellClick(row, col) {
-        // Disabled click-to-move functionality - only use direction buttons
-        return;
+        // Only allow click-to-move if enabled and it's human's turn
+        if (!this.clickMoveEnabled || this.gameOver || !this.gameStarted || this.getCurrentPlayer().name !== "Human") {
+            return;
+        }
+
+        const player = this.getCurrentPlayer();
+        const targetPos = new Position(row, col);
+        
+        // Check if this is a valid move
+        if (this.isValidMove(player, targetPos)) {
+            player.position = targetPos;
+            this.showMessage(`Human moved to ${targetPos.toChessNotation()}`, 'success');
+            this.updateBoardDisplay();
+            
+            if (this.checkWinCondition()) return;
+            this.moveNumber++;
+            this.updateDevStats();
+            this.switchPlayer();
+        } else {
+            // Provide helpful feedback for invalid clicks
+            const validMoves = this.getValidMoves(player);
+            if (validMoves.length === 0) {
+                this.showMessage('No valid moves available!', 'error');
+            } else {
+                this.showMessage('Invalid move! Click on a highlighted green square.', 'error');
+            }
+        }
     }
 
     handleFenceClick(fenceSlot) {
@@ -506,6 +628,8 @@ class QuoridorGame {
             this.updateBoardDisplay();
             
             if (this.checkWinCondition()) return;
+            this.moveNumber++;
+            this.updateDevStats();
             this.switchPlayer();
         } else {
             this.showMessage('Invalid fence placement!', 'error');
@@ -517,8 +641,15 @@ class QuoridorGame {
 
         const player = this.getCurrentPlayer();
         
+        // Track AI move timing for dev mode
+        const startTime = performance.now();
+        
         // Use the AI module to make a move
         const aiDecision = this.ai.makeMove(this, player);
+        
+        // Calculate move time and add to tracking array
+        this.lastAiMoveTime = Math.round(performance.now() - startTime);
+        this.aiMoveTimes.push(this.lastAiMoveTime);
         
         if (aiDecision) {
             if (aiDecision.type === 'fence') {
@@ -529,6 +660,8 @@ class QuoridorGame {
                 this.updateBoardDisplay();
                 
                 if (this.checkWinCondition()) return;
+                this.moveNumber++;
+                this.updateDevStats();
                 this.switchPlayer();
             } else if (aiDecision.type === 'move') {
                 // AI decided to move
@@ -537,6 +670,8 @@ class QuoridorGame {
                 this.updateBoardDisplay();
                 
                 if (this.checkWinCondition()) return;
+                this.moveNumber++;
+                this.updateDevStats();
                 this.switchPlayer();
             }
         }
@@ -676,6 +811,11 @@ class QuoridorGame {
         this.gameStarted = true; // Set to true since this is called after initial start
         this.winner = null;
         
+        // Reset dev mode tracking
+        this.moveNumber = 1;
+        this.lastAiMoveTime = 0;
+        this.aiMoveTimes = []; // Reset AI move times tracking
+        
         // Automatically enable fence placement mode for human player at start
         this.fencePlacementMode = 'active';
         
@@ -696,12 +836,17 @@ class QuoridorGame {
         // Show valid moves for human player immediately after new game
         this.showValidMovesForHuman();
         
+        // Update dev stats if in dev mode
+        this.updateDevStats();
+        
         this.showMessage('New game started! Make your move.', 'info');
     }
 
     clearValidMoves() {
         document.querySelectorAll('.valid-move').forEach(cell => {
             cell.classList.remove('valid-move');
+            cell.style.cursor = 'default';
+            cell.removeAttribute('title');
         });
     }
 
@@ -717,14 +862,18 @@ class QuoridorGame {
                 const cell = document.querySelector(`[data-row="${move.row}"][data-col="${move.col}"]`);
                 if (cell && !cell.classList.contains('player1') && !cell.classList.contains('player2')) {
                     cell.classList.add('valid-move');
+                    
+                    // Add visual feedback for click-to-move when enabled
+                    if (this.clickMoveEnabled) {
+                        cell.style.cursor = 'pointer';
+                        cell.title = `Click to move to ${move.toChessNotation()}`;
+                    } else {
+                        cell.style.cursor = 'default';
+                        cell.title = `Use arrow keys or WASD to move to ${move.toChessNotation()}`;
+                    }
                 }
             });
         }
-    }
-
-    setDifficulty(difficulty) {
-        this.ai = new QuoridorAI(difficulty);
-        this.showMessage(`AI difficulty set to ${this.ai.getDifficultyName()}`, 'info');
     }
 
     wouldFencePostOverlap(fence) {
@@ -843,6 +992,7 @@ class QuoridorGame {
         // Use setTimeout to ensure DOM is fully rendered
         setTimeout(() => {
             this.showValidMovesForHuman();
+            this.updateDevStats(); // Update dev stats after game starts
         }, 0);
         
         this.showMessage('Game started! Make your move.', 'info');
@@ -854,6 +1004,73 @@ class QuoridorGame {
 
     hideRules() {
         document.getElementById('rules-modal').style.display = 'none';
+    }
+
+    toggleDevMode() {
+        this.devModeEnabled = !this.devModeEnabled;
+        const devStats = document.getElementById('dev-stats');
+        const devBtn = document.getElementById('dev-mode-btn');
+        
+        if (this.devModeEnabled) {
+            devStats.style.display = 'block';
+            devBtn.style.background = '#4CAF50';
+            devBtn.textContent = 'Dev Mode ON';
+            this.showMessage('Development mode enabled', 'info');
+        } else {
+            devStats.style.display = 'none';
+            devBtn.style.background = '#666';
+            devBtn.textContent = 'Development Mode';
+            this.showMessage('Development mode disabled', 'info');
+        }
+        
+        // Update stats if game is active
+        if (this.gameStarted) {
+            this.updateDevStats();
+        }
+    }
+
+    updateDevStats() {
+        if (!this.devModeEnabled) return;
+        
+        // Calculate shortest paths using AI's dijkstra method
+        const humanPath = this.ai.dijkstraDistance(this, this.players[0].position, this.players[0].goalRow);
+        const aiPath = this.ai.dijkstraDistance(this, this.players[1].position, this.players[1].goalRow);
+        const advantage = humanPath - aiPath;
+        
+        // Calculate average AI move time
+        const avgAiTime = this.aiMoveTimes.length > 0 
+            ? Math.round(this.aiMoveTimes.reduce((sum, time) => sum + time, 0) / this.aiMoveTimes.length)
+            : 0;
+        
+        // Get current bot name
+        const botName = this.ai.botType === 'bot1' ? 'Bot 1' : 'Bot 2';
+        
+        // Update stats display
+        document.getElementById('stat-bot-name').textContent = botName;
+        document.getElementById('stat-move-number').textContent = this.moveNumber;
+        document.getElementById('stat-ai-time').textContent = avgAiTime + 'ms';
+        document.getElementById('stat-human-path').textContent = humanPath === Infinity ? '∞' : humanPath;
+        document.getElementById('stat-ai-path').textContent = aiPath === Infinity ? '∞' : aiPath;
+        document.getElementById('stat-advantage').textContent = advantage === Infinity ? '∞' : (advantage > 0 ? '+' + advantage : advantage);
+    }
+
+    // Switch AI bot and restart game if in progress
+    switchBot(botType) {
+        this.ai = new QuoridorAI(botType);
+        
+        // Show message about bot change
+        const botName = botType === 'bot1' ? 'Bot 1 - Basic Strategic' : 'Bot 2 - Advantage Focused';
+        this.showMessage(`Switched to ${botName}`, 'info');
+        
+        // Update dev stats immediately to show new bot name
+        this.updateDevStats();
+        
+        // If game is in progress, restart it
+        if (this.gameStarted) {
+            setTimeout(() => {
+                this.newGame();
+            }, 1000);
+        }
     }
 }
 
