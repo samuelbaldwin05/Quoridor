@@ -131,6 +131,11 @@ class QuoridorGame {
         this.keyboardEnabled = true; // Track keyboard controls setting
         this.clickMoveEnabled = true; // Track click-to-move setting
         
+        // Scoreboard tracking
+        this.scoreboardEnabled = false; // Track scoreboard visibility setting
+        this.playerWins = 0; // Track human player wins
+        this.computerWins = 0; // Track computer wins
+        
         // Initialize players
         this.players = [
             new Player(1, new Position(8, 4), 0, "Human"),
@@ -193,7 +198,10 @@ class QuoridorGame {
     setupEventListeners() {
         // Game control buttons
         document.getElementById('start-game').addEventListener('click', () => this.startGame());
-        document.getElementById('new-game').addEventListener('click', () => this.newGame());
+        document.getElementById('new-game').addEventListener('click', () => {
+            this.audioManager.play('start');
+            this.newGame();
+        });
         document.getElementById('show-rules').addEventListener('click', () => {
             document.getElementById('rules-modal').style.display = 'flex';
         });
@@ -239,6 +247,16 @@ class QuoridorGame {
             const volume = parseInt(e.target.value) / 100; // Convert to 0-1 range
             this.audioManager.setVolume(volume);
             document.getElementById('volume-display').textContent = `${e.target.value}%`;
+        });
+
+        // Scoreboard toggle
+        document.getElementById('scoreboard-toggle').addEventListener('change', (e) => {
+            this.toggleScoreboard(e.target.checked);
+        });
+
+        // Reset scoreboard button
+        document.getElementById('reset-scoreboard').addEventListener('click', () => {
+            this.resetScoreboard();
         });
 
         // Development mode toggle
@@ -824,11 +842,18 @@ class QuoridorGame {
     }
 
     showWinner() {
-        // Play appropriate sound based on who won
+        // Track the win
         if (this.winner.name === "Human") {
+            this.playerWins++;
             this.audioManager.play('win1');
         } else {
+            this.computerWins++;
             this.audioManager.play('lose');
+        }
+        
+        // Update scoreboard display if enabled
+        if (this.scoreboardEnabled) {
+            this.updateScoreboardDisplay();
         }
         
         const celebration = document.createElement('div');
@@ -848,6 +873,7 @@ class QuoridorGame {
         // Add event listener to the play again button
         const playAgainBtn = document.getElementById('play-again-btn');
         playAgainBtn.addEventListener('click', () => {
+            this.audioManager.play('start');
             this.newGame();
             celebration.remove();
         });
@@ -1163,6 +1189,32 @@ class QuoridorGame {
         if (this.gameStarted && this.getCurrentPlayer().name === "Human") {
             this.showValidMovesForHuman();
         }
+    }
+
+    toggleScoreboard(enabled) {
+        this.scoreboardEnabled = enabled;
+        const scoreboard = document.getElementById('scoreboard');
+        
+        if (enabled) {
+            scoreboard.style.display = 'flex';
+            this.updateScoreboardDisplay();
+            this.showMessage('Scoreboard enabled', 'info');
+        } else {
+            scoreboard.style.display = 'none';
+            this.showMessage('Scoreboard disabled', 'info');
+        }
+    }
+    
+    updateScoreboardDisplay() {
+        document.getElementById('player-wins').textContent = this.playerWins;
+        document.getElementById('computer-wins').textContent = this.computerWins;
+    }
+    
+    resetScoreboard() {
+        this.playerWins = 0;
+        this.computerWins = 0;
+        this.updateScoreboardDisplay();
+        this.showMessage('Scoreboard reset', 'info');
     }
 }
 

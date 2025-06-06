@@ -21,6 +21,42 @@ body {
     overflow: hidden;
 }
 
+/* Scoreboard styles */
+.scoreboard {
+    background: #A0522D;
+    padding: 15px 20px;
+    border-bottom: 2px solid #8B4513;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    color: #F5DEB3;
+}
+
+.score-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.score-label {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.score-value {
+    font-size: 24px;
+    font-weight: bold;
+    min-width: 30px;
+    text-align: center;
+}
+
+.score-divider {
+    font-size: 20px;
+    font-weight: bold;
+    color: #F5DEB3;
+}
+
 .game-area {
     display: flex;
     gap: 20px;
@@ -191,6 +227,33 @@ body {
     color: #F5DEB3;
 }
 
+/* Scoreboard specific styling */
+.fence-info:has(#player-wins) {
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.score-label {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.score-number {
+    font-size: 24px;
+    font-weight: bold;
+    color: #F5DEB3;
+}
+
+.score-separator {
+    font-size: 20px;
+    font-weight: bold;
+    color: #F5DEB3;
+    margin: 0 4px;
+}
+
 .fence-count-display {
     margin-bottom: 8px;
     font-size: 14px;
@@ -206,10 +269,12 @@ body {
 
 .player1-color {
     color: #DC143C;
+    text-shadow: 1px 1px 0 #8a0f0f, -1px 1px 0 #8a0f0f, 1px -1px 0 #8a0f0f, -1px -1px 0 #8a0f0f;
 }
 
 .player2-color {
     color: #4169E1;
+    text-shadow: 1px 1px 0 #2b24b2, -1px 1px 0 #2b24b2, 1px -1px 0 #2b24b2, -1px -1px 0 #2b24b2;
 }
 
 .controls-section {
@@ -360,7 +425,6 @@ body {
 .message-display {
     padding: 12px;
     border-radius: 4px;
-    margin-top: 15px;
     text-align: center;
     font-weight: 500;
     border: 2px solid transparent;
@@ -450,7 +514,6 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin: 20px 0;
 }
 
 .button-row {

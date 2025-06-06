@@ -8,19 +8,29 @@
 </head>
 <body>
     <div class="simple-container">
+        
         <div class="game-area">
             <div class="board-container">
                 <div class="board" id="board"></div>
             </div>
             
             <div class="sidebar">
+                                <!-- Scoreboard Section -->
+                <div class="fence-info" id="scoreboard" style="display: none;">
+                    <span class="score-label player2-color">Player</span>
+                    <span class="score-number" id="player-wins">0</span>
+                    <span class="score-separator">-</span>
+                    <span class="score-number" id="computer-wins">0</span>
+                    <span class="score-label player1-color">Computer</span>
+                </div>
+
                 <div class="fence-info">
                     <div class="fence-count-display">
-                        <span class="player-label player1-color">Player:</span> 
+                        <span class="player-label player2-color">Player:</span> 
                         <span id="player1-fences">10</span> fences
                     </div>
                     <div class="fence-count-display">
-                        <span class="player-label player2-color">Computer:</span> 
+                        <span class="player-label player1-color">Computer:</span> 
                         <span id="player2-fences">10</span> fences
                     </div>
                 </div>
@@ -127,6 +137,17 @@
                         <input type="checkbox" id="sound-toggle" checked>
                         Enable Sound Effects
                     </label>
+                </div>
+                
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="scoreboard-toggle">
+                        Show Scoreboard
+                    </label>
+                </div>
+                
+                <div class="setting-item">
+                    <button class="action-btn" id="reset-scoreboard" style="margin-top: 8px;">Reset Scoreboard</button>
                 </div>
                 
                 <div class="setting-item">
