@@ -613,14 +613,43 @@ body {
     margin-bottom: 15px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 15px;
+    gap: 10px;
 }
 
 .setting-item label {
-    color: #555;
     font-weight: 500;
-    flex-shrink: 0;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.setting-item input[type="checkbox"] {
+    transform: scale(1.2);
+    cursor: pointer;
+}
+
+.setting-item input[type="range"] {
+    flex: 1;
+    margin: 0 10px;
+    accent-color: #2c3e50;
+}
+
+#volume-display {
+    min-width: 40px;
+    text-align: center;
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+.rules-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
 }
 
 .bot-selector {

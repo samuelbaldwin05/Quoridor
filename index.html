@@ -39,7 +39,7 @@
                     <button class="action-btn" id="start-game">Start Game</button>
                     <div class="button-row" id="game-controls" style="display: none;">
                         <button class="action-btn half-width" id="new-game">New Game</button>
-                        <button class="action-btn half-width" id="rules-btn">Rules</button>
+                        <button class="action-btn half-width" id="show-rules">Rules</button>
                     </div>
                 </div>
                 
@@ -101,26 +101,44 @@
                 <h3>⚙️ Settings</h3>
                 
                 <div class="setting-item">
-                    <label for="bot-selector">AI Opponent:</label>
-                    <select id="bot-selector" class="bot-selector">
+                    <label for="ai-select">AI Opponent:</label>
+                    <select id="ai-select" class="bot-selector">
                         <option value="bot1">Bot 1 - Basic Strategic</option>
                         <option value="bot2" selected>Bot 2 - Advantage Focused</option>
                     </select>
                 </div>
                 
                 <div class="setting-item">
-                    <label for="keyboard-toggle">Keyboard Controls:</label>
-                    <input type="checkbox" id="keyboard-toggle" class="keyboard-toggle" checked>
+                    <label>
+                        <input type="checkbox" id="keyboard-toggle" checked>
+                        Enable Keyboard Controls (Arrow Keys & WASD)
+                    </label>
                 </div>
                 
                 <div class="setting-item">
-                    <label for="click-move-toggle">Click to Move:</label>
-                    <input type="checkbox" id="click-move-toggle" class="click-move-toggle" checked>
+                    <label>
+                        <input type="checkbox" id="click-move-toggle" checked>
+                        Enable Click to Move
+                    </label>
                 </div>
                 
                 <div class="setting-item">
-                    <button class="dev-btn" id="dev-mode-btn">Development Mode</button>
+                    <label>
+                        <input type="checkbox" id="sound-toggle" checked>
+                        Enable Sound Effects
+                    </label>
                 </div>
+                
+                <div class="setting-item">
+                    <label for="volume-slider">Sound Volume:</label>
+                    <input type="range" id="volume-slider" min="0" max="100" value="70">
+                    <span id="volume-display">70%</span>
+                </div>
+            </div>
+            
+            <div class="rules-controls">
+                <button class="close-btn" id="close-rules-bottom">&times;</button>
+                <button class="dev-btn" id="dev-toggle">Dev</button>
             </div>
         </div>
     </div>

@@ -10,6 +10,16 @@ class QuoridorAI {
         this.previousPosition = null; // Track AI's previous position to avoid unnecessary backtracking
     }
 
+    // Method to change the bot type
+    setOpponent(botType) {
+        this.botType = botType;
+        // Reset tracking when switching bots
+        this.moveCount = 0;
+        this.humanMoveHistory = [];
+        this.bestHumanMove = null;
+        this.previousPosition = null;
+    }
+
     // Main method to make a move - routes to appropriate bot
     makeMove(game, player) {
         // Track AI's previous position before making a move

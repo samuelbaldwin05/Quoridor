@@ -1,4 +1,52 @@
 // Quoridor Game - JavaScript Implementation
+
+// Audio Manager for handling sound effects
+class AudioManager {
+    constructor() {
+        this.sounds = {
+            start: new Audio('SoundEffects/start.mp3'),
+            click: new Audio('SoundEffects/click.mp3'),
+            clack: new Audio('SoundEffects/clack.mp3'),
+            win1: new Audio('SoundEffects/win1.mp3'),
+            lose: new Audio('SoundEffects/lose.mp3')
+        };
+        
+        // Set default volume levels
+        Object.values(this.sounds).forEach(audio => {
+            audio.volume = 0.7; // Set to 70% volume
+        });
+        
+        this.enabled = true; // Allow users to disable sounds if needed
+    }
+    
+    play(soundName) {
+        if (!this.enabled || !this.sounds[soundName]) return;
+        
+        try {
+            // Reset the audio to beginning and play
+            this.sounds[soundName].currentTime = 0;
+            this.sounds[soundName].play().catch(error => {
+                // Handle autoplay restrictions gracefully
+                console.log('Audio play prevented:', error);
+            });
+        } catch (error) {
+            console.log('Audio error:', error);
+        }
+    }
+    
+    setEnabled(enabled) {
+        this.enabled = enabled;
+    }
+    
+    setVolume(volume) {
+        // Volume should be between 0 and 1
+        const normalizedVolume = Math.max(0, Math.min(1, volume));
+        Object.values(this.sounds).forEach(audio => {
+            audio.volume = normalizedVolume;
+        });
+    }
+}
+
 class Position {
     constructor(row, col) {
         this.row = row;
@@ -73,6 +121,7 @@ class QuoridorGame {
         this.gameStarted = false; // Track if game has started
         this.fencePlacementMode = 'active'; // Set fence placement mode to 'active' for human players
         this.ai = new QuoridorAI(); // Initialize AI with default settings
+        this.audioManager = new AudioManager(); // Initialize audio manager
         
         // Development mode tracking
         this.moveNumber = 1;
@@ -142,87 +191,105 @@ class QuoridorGame {
     }
 
     setupEventListeners() {
-        // Movement buttons
+        // Game control buttons
+        document.getElementById('start-game').addEventListener('click', () => this.startGame());
+        document.getElementById('new-game').addEventListener('click', () => this.newGame());
+        document.getElementById('show-rules').addEventListener('click', () => {
+            document.getElementById('rules-modal').style.display = 'flex';
+        });
+        document.getElementById('close-rules').addEventListener('click', () => {
+            document.getElementById('rules-modal').style.display = 'none';
+        });
+        document.getElementById('close-rules-btn').addEventListener('click', () => {
+            document.getElementById('rules-modal').style.display = 'none';
+        });
+        document.getElementById('close-rules-bottom').addEventListener('click', () => {
+            document.getElementById('rules-modal').style.display = 'none';
+        });
+
+        // Direction buttons
         document.getElementById('move-up').addEventListener('click', () => this.makeMove('up'));
         document.getElementById('move-down').addEventListener('click', () => this.makeMove('down'));
         document.getElementById('move-left').addEventListener('click', () => this.makeMove('left'));
         document.getElementById('move-right').addEventListener('click', () => this.makeMove('right'));
-        
-        // Game control buttons
-        document.getElementById('start-game').addEventListener('click', () => this.startGame());
-        document.getElementById('new-game').addEventListener('click', () => this.newGame());
-        document.getElementById('rules-btn').addEventListener('click', () => this.showRules());
-        
-        // Rules modal controls
-        document.getElementById('close-rules').addEventListener('click', () => this.hideRules());
-        document.getElementById('close-rules-btn').addEventListener('click', () => this.hideRules());
-        
-        // Close modal when clicking outside of it
-        document.getElementById('rules-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'rules-modal') {
-                this.hideRules();
-            }
-        });
-        
-        // Bot selector event listener
-        document.getElementById('bot-selector').addEventListener('change', (e) => {
-            this.switchBot(e.target.value);
+
+        // Settings event listeners
+        document.getElementById('ai-select').addEventListener('change', (e) => {
+            this.ai.setOpponent(e.target.value);
+            this.showMessage(`AI opponent set to: ${e.target.value}`, 'info');
         });
 
-        // Development mode event listener
-        document.getElementById('dev-mode-btn').addEventListener('click', () => {
-            this.toggleDevMode();
-        });
-
-        // Keyboard controls toggle event listener
+        // Keyboard controls toggle
         document.getElementById('keyboard-toggle').addEventListener('change', (e) => {
             this.toggleKeyboardControls(e.target.checked);
         });
 
-        // Click-to-move toggle event listener
+        // Click-to-move toggle
         document.getElementById('click-move-toggle').addEventListener('change', (e) => {
             this.toggleClickMoveControls(e.target.checked);
         });
 
-        // Keyboard event listeners
-        this.setupKeyboardControls();
-    }
+        // Sound controls
+        document.getElementById('sound-toggle').addEventListener('change', (e) => {
+            this.audioManager.setEnabled(e.target.checked);
+            this.showMessage(`Sound effects ${e.target.checked ? 'enabled' : 'disabled'}`, 'info');
+        });
 
-    setupKeyboardControls() {
-        // Add keyboard event listener for movement
-        document.addEventListener('keydown', (e) => {
-            // Only process keyboard input if keyboard controls are enabled
-            if (!this.keyboardEnabled) return;
+        document.getElementById('volume-slider').addEventListener('input', (e) => {
+            const volume = parseInt(e.target.value) / 100; // Convert to 0-1 range
+            this.audioManager.setVolume(volume);
+            document.getElementById('volume-display').textContent = `${e.target.value}%`;
+        });
+
+        // Development mode toggle
+        document.getElementById('dev-toggle').addEventListener('click', () => {
+            this.devModeEnabled = !this.devModeEnabled;
+            const devStats = document.getElementById('dev-stats');
             
-            // Only allow keyboard input during human's turn
-            if (this.gameOver || !this.gameStarted || this.getCurrentPlayer().name !== "Human") return;
+            if (this.devModeEnabled) {
+                devStats.style.display = 'block';
+                this.updateDevStats();
+                this.showMessage('Development mode enabled', 'info');
+            } else {
+                devStats.style.display = 'none';
+                this.showMessage('Development mode disabled', 'info');
+            }
+        });
+
+        // Keyboard controls for movement (single event listener)
+        document.addEventListener('keydown', (e) => {
+            if (!this.keyboardEnabled || this.gameOver || !this.gameStarted || this.getCurrentPlayer().name !== "Human") return;
             
             // Don't process keys if user is typing in an input/select element
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
             
             let direction = null;
             
-            switch (e.key.toLowerCase()) {
-                case 'arrowup':
+            switch(e.key) {
+                case 'ArrowUp':
                 case 'w':
+                case 'W':
                     direction = 'up';
                     break;
-                case 'arrowdown':
+                case 'ArrowDown':
                 case 's':
+                case 'S':
                     direction = 'down';
                     break;
-                case 'arrowleft':
+                case 'ArrowLeft':
                 case 'a':
+                case 'A':
                     direction = 'left';
                     break;
-                case 'arrowright':
+                case 'ArrowRight':
                 case 'd':
+                case 'D':
                     direction = 'right';
                     break;
             }
             
             if (direction) {
-                e.preventDefault(); // Prevent default browser behavior (scrolling, etc.)
+                e.preventDefault();
                 this.makeMove(direction);
                 
                 // Visual feedback - briefly highlight the corresponding button
@@ -238,23 +305,6 @@ class QuoridorGame {
                 }
             }
         });
-    }
-
-    toggleKeyboardControls(enabled) {
-        this.keyboardEnabled = enabled;
-        const status = enabled ? 'enabled' : 'disabled';
-        this.showMessage(`Keyboard controls ${status}`, 'info');
-    }
-
-    toggleClickMoveControls(enabled) {
-        this.clickMoveEnabled = enabled;
-        const status = enabled ? 'enabled' : 'disabled';
-        this.showMessage(`Click-to-move ${status}`, 'info');
-        
-        // Update visual feedback for valid moves when setting changes
-        if (this.gameStarted && this.getCurrentPlayer().name === "Human") {
-            this.showValidMovesForHuman();
-        }
     }
 
     getCurrentPlayer() {
@@ -559,6 +609,9 @@ class QuoridorGame {
         }
 
         if (targetMove) {
+            // Play movement sound
+            this.audioManager.play('click');
+            
             player.position = targetMove;
             this.showMessage(`Human moved to ${targetMove.toChessNotation()}`, 'success');
             this.updateBoardDisplay();
@@ -589,6 +642,9 @@ class QuoridorGame {
         
         // Check if this is a valid move
         if (this.isValidMove(player, targetPos)) {
+            // Play movement sound
+            this.audioManager.play('click');
+            
             player.position = targetPos;
             this.showMessage(`Human moved to ${targetPos.toChessNotation()}`, 'success');
             this.updateBoardDisplay();
@@ -621,6 +677,9 @@ class QuoridorGame {
         const fence = new Fence(row, col, orientation);
         
         if (this.isValidFencePlacement(fence)) {
+            // Play fence placement sound
+            this.audioManager.play('clack');
+            
             this.fences.push(fence);
             this.getCurrentPlayer().fencesRemaining--;
             
@@ -653,6 +712,9 @@ class QuoridorGame {
         
         if (aiDecision) {
             if (aiDecision.type === 'fence') {
+                // Play fence placement sound for AI
+                this.audioManager.play('clack');
+                
                 // AI decided to place a fence
                 this.fences.push(aiDecision.fence);
                 player.fencesRemaining--;
@@ -664,6 +726,9 @@ class QuoridorGame {
                 this.updateDevStats();
                 this.switchPlayer();
             } else if (aiDecision.type === 'move') {
+                // Play movement sound for AI
+                this.audioManager.play('click');
+                
                 // AI decided to move
                 player.position = aiDecision.position;
                 this.showMessage(aiDecision.message, 'info');
@@ -759,6 +824,13 @@ class QuoridorGame {
     }
 
     showWinner() {
+        // Play appropriate sound based on who won
+        if (this.winner.name === "Human") {
+            this.audioManager.play('win1');
+        } else {
+            this.audioManager.play('lose');
+        }
+        
         const celebration = document.createElement('div');
         celebration.className = 'winner-celebration';
         
@@ -979,6 +1051,9 @@ class QuoridorGame {
     }
 
     startGame() {
+        // Play game start sound
+        this.audioManager.play('start');
+        
         this.gameStarted = true;
         
         // Hide start button and show game controls
@@ -1070,6 +1145,23 @@ class QuoridorGame {
             setTimeout(() => {
                 this.newGame();
             }, 1000);
+        }
+    }
+
+    toggleKeyboardControls(enabled) {
+        this.keyboardEnabled = enabled;
+        const status = enabled ? 'enabled' : 'disabled';
+        this.showMessage(`Keyboard controls ${status}`, 'info');
+    }
+
+    toggleClickMoveControls(enabled) {
+        this.clickMoveEnabled = enabled;
+        const status = enabled ? 'enabled' : 'disabled';
+        this.showMessage(`Click-to-move ${status}`, 'info');
+        
+        // Update visual feedback for valid moves when setting changes
+        if (this.gameStarted && this.getCurrentPlayer().name === "Human") {
+            this.showValidMovesForHuman();
         }
     }
 }
