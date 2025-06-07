@@ -164,7 +164,7 @@ class QuoridorGame {
                 
                 if (row % 2 === 0 && col % 2 === 0) {
                     // Player cell (movement squares)
-                    cell.className = 'cell';
+                    cell.className = 'cell flex-center';
                     cell.dataset.row = row / 2;
                     cell.dataset.col = col / 2;
                     cell.addEventListener('click', () => this.handleCellClick(row / 2, col / 2));
@@ -771,7 +771,7 @@ class QuoridorGame {
     updateBoardDisplay() {
         // Clear all player and fence classes
         document.querySelectorAll('.cell').forEach(cell => {
-            cell.className = 'cell';
+            cell.className = 'cell flex-center';
             cell.textContent = '';
         });
         
@@ -873,14 +873,14 @@ class QuoridorGame {
         }
         
         const celebration = document.createElement('div');
-        celebration.className = 'winner-celebration';
+        celebration.className = 'winner-celebration flex-center';
         
         const message = document.createElement('div');
         message.className = 'winner-message';
         message.innerHTML = `
             <h2>🎉 ${this.winner.name} Wins! 🎉</h2>
             <p>${this.winner.name} reached ${this.winner.goalRow === 0 ? 'the top' : 'the bottom'} row!</p>
-            <button class="action-btn" id="play-again-btn">Play Again</button>
+            <button class="btn action-btn" id="play-again-btn">Play Again</button>
         `;
         
         celebration.appendChild(message);
@@ -1297,7 +1297,7 @@ class QuoridorGame {
                 
                 // Create debug info element
                 const debugInfo = document.createElement('div');
-                debugInfo.className = 'debug-info';
+                debugInfo.className = 'debug-info flex-column flex-between flex-center';
                 debugInfo.innerHTML = `
                     <div class="position">(${row}, ${col})</div>
                     <div class="distance">${distanceDisplay}</div>

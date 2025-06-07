@@ -2,21 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Quoridor</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="simple-container">
         
-        <div class="game-area">
-            <div class="board-container">
+        <div class="game-area flex flex-gap-lg" style="padding: 20px;">
+            <div class="board-container flex-center">
                 <div class="board" id="board"></div>
             </div>
             
-            <div class="sidebar">
+            <div class="sidebar flex-column flex-gap-lg">
                                 <!-- Scoreboard Section -->
-                <div class="fence-info" id="scoreboard">
+                <div class="panel fence-info flex-center flex-gap-sm" id="scoreboard">
                     <span class="score-label player2-color">Player</span>
                     <span class="score-number" id="player-wins">0</span>
                     <span class="score-separator">-</span>
@@ -24,7 +24,7 @@
                     <span class="score-label player1-color">Computer</span>
                 </div>
 
-                <div class="fence-info">
+                <div class="panel fence-info">
                     <div class="fence-count-display">
                         <span class="player-label player2-color">Player:</span> 
                         <span id="player1-fences">10</span> fences
@@ -35,21 +35,21 @@
                     </div>
                 </div>
 
-                <div class="controls-section">
+                <div class="panel controls-section">
                     <h3>Movement</h3>
                     <div class="direction-controls">
-                        <button class="direction-btn" id="move-up">↑</button>
-                        <button class="direction-btn" id="move-left">←</button>
-                        <button class="direction-btn" id="move-right">→</button>
-                        <button class="direction-btn" id="move-down">↓</button>
+                        <button class="btn direction-btn flex-center" id="move-up">↑</button>
+                        <button class="btn direction-btn flex-center" id="move-left">←</button>
+                        <button class="btn direction-btn flex-center" id="move-right">→</button>
+                        <button class="btn direction-btn flex-center" id="move-down">↓</button>
                     </div>
                 </div>
                 
-                <div class="game-buttons">
-                    <button class="action-btn" id="start-game">Start Game</button>
-                    <div class="button-row" id="game-controls" style="display: none;">
-                        <button class="action-btn half-width" id="new-game">New Game</button>
-                        <button class="action-btn half-width" id="show-rules">Rules</button>
+                <div class="game-buttons flex-column flex-gap-md">
+                    <button class="btn action-btn" id="start-game">Start Game</button>
+                    <div class="button-row flex flex-gap-md" id="game-controls" style="display: none;">
+                        <button class="btn action-btn half-width" id="new-game">New Game</button>
+                        <button class="btn action-btn half-width" id="show-rules">Rules</button>
                     </div>
                 </div>
                 
@@ -61,7 +61,7 @@
     </div>
 
     <!-- Rules Modal -->
-    <div id="rules-modal" class="modal" style="display: none;">
+    <div id="rules-modal" class="modal flex-center" style="display: none;">
         <div class="modal-content">
             <span class="close-btn" id="close-rules">&times;</span>
             <h2>🎯 Quoridor Rules</h2>
@@ -103,13 +103,13 @@
                 <p>The first player to reach any square on their target row wins!</p>
             </div>
 
-            <button class="action-btn" id="close-rules-btn">Got it!</button>
+            <button class="btn action-btn" id="close-rules-btn">Got it!</button>
             
             <!-- Settings Section -->
             <div class="settings-section">
                 <h3>⚙️ Settings</h3>
                 
-                <div class="setting-item">
+                <div class="setting-item flex flex-gap-md">
                     <label for="ai-select">AI Opponent:</label>
                     <select id="ai-select" class="bot-selector">
                         <option value="bot0">Bot 0 - Movement Only</option>
@@ -118,76 +118,76 @@
                     </select>
                 </div>
                 
-                <div class="setting-item">
-                    <label>
+                <div class="setting-item flex flex-gap-md">
+                    <label class="flex flex-gap-sm">
                         <input type="checkbox" id="keyboard-toggle" checked>
                         Enable Keyboard Controls (Arrow Keys & WASD)
                     </label>
                 </div>
                 
-                <div class="setting-item">
-                    <label>
+                <div class="setting-item flex flex-gap-md">
+                    <label class="flex flex-gap-sm">
                         <input type="checkbox" id="click-move-toggle" checked>
                         Enable Click to Move
                     </label>
                 </div>
                 
-                <div class="setting-item">
-                    <label>
+                <div class="setting-item flex flex-gap-md">
+                    <label class="flex flex-gap-sm">
                         <input type="checkbox" id="sound-toggle" checked>
                         Enable Sound Effects
                     </label>
                 </div>
                 
-                <div class="setting-item">
-                    <label>
+                <div class="setting-item flex flex-gap-md">
+                    <label class="flex flex-gap-sm">
                         <input type="checkbox" id="scoreboard-toggle" checked> 
                         Show Scoreboard
                     </label>
                 </div>
                 
-                <div class="setting-item">
-                    <button class="action-btn" id="reset-scoreboard" style="margin-top: 8px;">Reset Scoreboard</button>
+                <div class="setting-item flex flex-gap-md">
+                    <button class="btn action-btn" id="reset-scoreboard" style="margin-top: 8px;">Reset Scoreboard</button>
                 </div>
                 
-                <div class="setting-item">
+                <div class="setting-item flex flex-gap-md">
                     <label for="volume-slider">Sound Volume:</label>
                     <input type="range" id="volume-slider" min="0" max="100" value="70">
                     <span id="volume-display">70%</span>
                 </div>
             </div>
             
-            <div class="rules-controls">
+            <div class="rules-controls flex-between">
                 <button class="close-btn" id="close-rules-bottom">&times;</button>
-                <button class="dev-btn" id="dev-toggle">Game Stats</button>
-                <button class="dev-btn" id="debug-overlay-toggle">Debug Overlay</button>
+                <button class="btn dev-btn" id="dev-toggle">Game Stats</button>
+                <button class="btn dev-btn" id="debug-overlay-toggle">Debug Overlay</button>
             </div>
         </div>
     </div>
 
     <!-- Dev Stats Display -->
     <div id="dev-stats" class="dev-stats" style="display: none;">
-        <div class="stat-item">
+        <div class="stat-item flex-between">
             <span class="stat-label">Bot:</span>
             <span id="stat-bot-name">Bot 2</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-item flex-between">
             <span class="stat-label">Move:</span>
             <span id="stat-move-number">1</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-item flex-between">
             <span class="stat-label">AI Avg:</span>
             <span id="stat-ai-time">0ms</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-item flex-between">
             <span class="stat-label">Human Path:</span>
             <span id="stat-human-path">8</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-item flex-between">
             <span class="stat-label">AI Path:</span>
             <span id="stat-ai-path">8</span>
         </div>
-        <div class="stat-item">
+        <div class="stat-item flex-between">
             <span class="stat-label">Advantage:</span>
             <span id="stat-advantage">0</span>
         </div>
