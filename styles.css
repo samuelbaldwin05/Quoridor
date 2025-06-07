@@ -97,6 +97,7 @@ body {
     transition: all 0.2s ease;
     width: 32px;
     height: 32px;
+    position: relative;
 }
 
 /* Proper checkerboard pattern using mathematical approach */
@@ -148,14 +149,14 @@ body {
     justify-self: center;
 }
 
-.player1 {
+.player2 {
     background: #DC143C !important;
     color: white;
     border: 2px solid #9f1f1f !important;
     border-radius: 50%;
 }
 
-.player2 {
+.player1 {
     background: #4169E1 !important;
     color: white;
     border: 2px solid #0000CD !important;
@@ -667,7 +668,7 @@ body {
 }
 
 .settings-section h3 {
-    color: #4CAF50;
+    color: #242424;
     margin-bottom: 15px;
     font-size: 1.1em;
 }
@@ -770,4 +771,47 @@ body {
 .click-move-toggle:focus {
     outline: 2px solid #4CAF50;
     outline-offset: 2px;
+}
+
+/* Debug overlay styles */
+.debug-info {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 6px;
+    line-height: 1;
+    z-index: 100;
+    border-radius: 2px;
+    padding: 1px;
+}
+
+.debug-info .position {
+    color: #000;
+    font-size: 7px;
+}
+
+.debug-info .distance {
+    color: black;
+    font-size: 7px;
+}
+
+.debug-info .paths {
+    color: black;
+    font-size: 9px;
+    text-align: center;
+}
+
+.debug-info .human-path {
+    color: blue;
+}
+
+.debug-info .ai-path {
+    color: red;
 } 

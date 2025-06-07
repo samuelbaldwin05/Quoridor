@@ -132,9 +132,12 @@ class QuoridorGame {
         this.clickMoveEnabled = true; // Track click-to-move setting
         
         // Scoreboard tracking
-        this.scoreboardEnabled = false; // Track scoreboard visibility setting
+        this.scoreboardEnabled = true; // Track scoreboard visibility setting
         this.playerWins = 0; // Track human player wins
         this.computerWins = 0; // Track computer wins
+        
+        // Debug overlay tracking
+        this.debugOverlayEnabled = false; // Track debug overlay visibility setting
         
         // Initialize players
         this.players = [
@@ -322,6 +325,11 @@ class QuoridorGame {
                     }, 150);
                 }
             }
+        });
+
+        // Debug overlay toggle
+        document.getElementById('debug-overlay-toggle').addEventListener('click', () => {
+            this.toggleDebugOverlay(!this.debugOverlayEnabled);
         });
     }
 
@@ -814,6 +822,14 @@ class QuoridorGame {
                 }
             }
         });
+
+        // Update UI
+        this.updateUI();
+        
+        // Update debug overlay if enabled
+        if (this.debugOverlayEnabled) {
+            this.showDebugOverlay();
+        }
     }
 
     updateUI() {
@@ -913,6 +929,9 @@ class QuoridorGame {
         this.moveNumber = 1;
         this.lastAiMoveTime = 0;
         this.aiMoveTimes = []; // Reset AI move times tracking
+        
+        // Reset AI state for new game
+        this.ai.resetGameState();
         
         // Automatically enable fence placement mode for human player at start
         this.fencePlacementMode = 'active';
@@ -1143,16 +1162,17 @@ class QuoridorGame {
             ? Math.round(this.aiMoveTimes.reduce((sum, time) => sum + time, 0) / this.aiMoveTimes.length)
             : 0;
         
-        // Get current bot name
-        const botName = this.ai.botType === 'bot1' ? 'Bot 1' : 'Bot 2';
+        // Get current bot name for dev stats (short format)
+        const botNameShort = this.ai.botType === 'bot0' ? 'Bot 0' : 
+                            this.ai.botType === 'bot1' ? 'Bot 1' : 'Bot 2';
         
         // Update stats display
-        document.getElementById('stat-bot-name').textContent = botName;
+        document.getElementById('stat-bot-name').textContent = botNameShort;
         document.getElementById('stat-move-number').textContent = this.moveNumber;
         document.getElementById('stat-ai-time').textContent = avgAiTime + 'ms';
-        document.getElementById('stat-human-path').textContent = humanPath === Infinity ? '∞' : humanPath;
-        document.getElementById('stat-ai-path').textContent = aiPath === Infinity ? '∞' : aiPath;
-        document.getElementById('stat-advantage').textContent = advantage === Infinity ? '∞' : (advantage > 0 ? '+' + advantage : advantage);
+        document.getElementById('stat-human-path').textContent = humanPath === Infinity ? '∞' : humanPath.toFixed(2);
+        document.getElementById('stat-ai-path').textContent = aiPath === Infinity ? '∞' : aiPath.toFixed(2);
+        document.getElementById('stat-advantage').textContent = advantage === Infinity ? '∞' : (advantage > 0 ? '+' + advantage.toFixed(2) : advantage.toFixed(2));
     }
 
     // Switch AI bot and restart game if in progress
@@ -1160,7 +1180,8 @@ class QuoridorGame {
         this.ai = new QuoridorAI(botType);
         
         // Show message about bot change
-        const botName = botType === 'bot1' ? 'Bot 1 - Basic Strategic' : 'Bot 2 - Advantage Focused';
+        const botName = botType === 'bot0' ? 'Bot 0 - Movement Only' :
+                        botType === 'bot1' ? 'Bot 1 - Basic Strategic' : 'Bot 2 - Advantage Focused';
         this.showMessage(`Switched to ${botName}`, 'info');
         
         // Update dev stats immediately to show new bot name
@@ -1215,6 +1236,94 @@ class QuoridorGame {
         this.computerWins = 0;
         this.updateScoreboardDisplay();
         this.showMessage('Scoreboard reset', 'info');
+    }
+
+    toggleDebugOverlay(enabled) {
+        this.debugOverlayEnabled = enabled;
+        
+        if (enabled) {
+            this.showDebugOverlay();
+            this.showMessage('Debug overlay enabled', 'info');
+        } else {
+            this.hideDebugOverlay();
+            this.showMessage('Debug overlay disabled', 'info');
+        }
+    }
+
+    showDebugOverlay() {
+        // Remove any existing debug overlays first
+        this.hideDebugOverlay();
+        
+        if (!this.gameStarted) return;
+        
+        const humanPlayer = this.players.find(p => p.name === "Human");
+        const aiPlayer = this.players.find(p => p.name === "Computer");
+        
+        // Use AI's pathfinding methods directly (no duplication!)
+        const humanPathData = this.ai.getShortestPathFromPosition(this, humanPlayer);
+        const aiPathData = this.ai.getShortestPathFromPosition(this, aiPlayer);
+        
+        for (let row = 0; row < this.size; row++) {
+            for (let col = 0; col < this.size; col++) {
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                if (!cell) continue;
+                
+                const position = new Position(row, col);
+                
+                // Check if this position is on either player's optimal path
+                const isOnHumanPath = humanPathData.path.some(p => p.row === row && p.col === col);
+                const isOnAiPath = aiPathData.path.some(p => p.row === row && p.col === col);
+                
+                // Use AI's methods for all calculations (no duplication!)
+                const fenceDistance = this.ai.calculateFenceDistance(this, position);
+                const fenceProximityPenalty = this.ai.calculateFenceProximityPenalty(this, position);
+                const opposingPlayerPenalty = this.calculateOpposingPlayerPenaltyUsingAI(position);
+                const totalPenalty = fenceProximityPenalty + opposingPlayerPenalty;
+                const squareValue = 1 + totalPenalty;
+                
+                // Format: fence_distance/square_value (show 'x' if no fences, no decimals for fence distance, 2 decimals for square value)
+                const fenceDistanceDisplay = fenceDistance === Infinity ? 'x' : Math.round(fenceDistance).toString();
+                const distanceDisplay = `${fenceDistanceDisplay}/${squareValue.toFixed(2)}`;
+                
+                // Create path indicators with individual spans for coloring
+                let pathIndicators = '';
+                if (isOnHumanPath && isOnAiPath) {
+                    pathIndicators = '<span class="human-path">O</span><span class="ai-path">X</span>';
+                } else if (isOnHumanPath) {
+                    pathIndicators = '<span class="human-path">O</span>';
+                } else if (isOnAiPath) {
+                    pathIndicators = '<span class="ai-path">X</span>';
+                }
+                
+                // Create debug info element
+                const debugInfo = document.createElement('div');
+                debugInfo.className = 'debug-info';
+                debugInfo.innerHTML = `
+                    <div class="position">(${row}, ${col})</div>
+                    <div class="distance">${distanceDisplay}</div>
+                    <div class="paths">${pathIndicators}</div>
+                `;
+                
+                cell.appendChild(debugInfo);
+            }
+        }
+    }
+
+    // Helper method to calculate opposing player penalty using AI's logic
+    calculateOpposingPlayerPenaltyUsingAI(position) {
+        const humanPlayer = this.players.find(p => p.name === "Human");
+        const aiPlayer = this.players.find(p => p.name === "Computer");
+        
+        // Determine which player we're calculating for based on current turn
+        const currentPlayer = this.getCurrentPlayer();
+        
+        // Use AI's method directly
+        return this.ai.calculateOpposingPlayerPenalty(this, position, currentPlayer);
+    }
+
+    hideDebugOverlay() {
+        const debugInfos = document.querySelectorAll('.debug-info');
+        debugInfos.forEach(info => info.remove());
     }
 }
 

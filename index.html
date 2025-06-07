@@ -16,7 +16,7 @@
             
             <div class="sidebar">
                                 <!-- Scoreboard Section -->
-                <div class="fence-info" id="scoreboard" style="display: none;">
+                <div class="fence-info" id="scoreboard">
                     <span class="score-label player2-color">Player</span>
                     <span class="score-number" id="player-wins">0</span>
                     <span class="score-separator">-</span>
@@ -73,26 +73,25 @@
                     <li><strong>Player:</strong> Start at the bottom, reach the top row</li>
                     <li><strong>Computer:</strong> Starts at the top, reach the bottom row</li>
                 </ul>
+                <p>On your turn, you can either <strong>move your pawn</strong> or <strong>place a fence</strong> to block your opponent.</p>
             </div>
 
             <div class="rules-section">
                 <h3>🚶 Movement</h3>
-                <p>On your turn, you can either <strong>move your pawn</strong> or <strong>place a fence</strong>.</p>
                 <ul>
                     <li>Move one square horizontally or vertically</li>
                     <li>If another pawn blocks your path, you can <strong>jump over</strong> them</li>
                     <li>If you can't jump straight, you can jump <strong>diagonally</strong></li>
-                    <li>Use the arrow buttons (↑ ← → ↓) to move</li>
+                    <li>Use the arrow buttons, WASD, or click on the board to move</li>
                 </ul>
             </div>
 
             <div class="rules-section">
                 <h3>🚧 Fence Placement</h3>
-                <p>You can place fences to block your opponent's movement.</p>
                 <ul>
                     <li>Each player starts with <strong>10 fences</strong></li>
                     <li>Hover over fence slots to see placement preview</li>
-                    <li><span style="color: #32CD32;">Green preview</span> = valid placement</li>
+                    <li><span style="color: #cda932;">Brown preview</span> = valid placement</li>
                     <li><span style="color: #DC143C;">Red preview</span> = invalid placement</li>
                     <li>Click on fence slots to place fences</li>
                     <li>You cannot completely block an opponent's path to their goal</li>
@@ -113,6 +112,7 @@
                 <div class="setting-item">
                     <label for="ai-select">AI Opponent:</label>
                     <select id="ai-select" class="bot-selector">
+                        <option value="bot0">Bot 0 - Movement Only</option>
                         <option value="bot1">Bot 1 - Basic Strategic</option>
                         <option value="bot2" selected>Bot 2 - Advantage Focused</option>
                     </select>
@@ -141,7 +141,7 @@
                 
                 <div class="setting-item">
                     <label>
-                        <input type="checkbox" id="scoreboard-toggle">
+                        <input type="checkbox" id="scoreboard-toggle" checked> 
                         Show Scoreboard
                     </label>
                 </div>
@@ -159,7 +159,8 @@
             
             <div class="rules-controls">
                 <button class="close-btn" id="close-rules-bottom">&times;</button>
-                <button class="dev-btn" id="dev-toggle">Dev</button>
+                <button class="dev-btn" id="dev-toggle">Game Stats</button>
+                <button class="dev-btn" id="debug-overlay-toggle">Debug Overlay</button>
             </div>
         </div>
     </div>
