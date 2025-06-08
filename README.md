@@ -13,6 +13,11 @@ Players have the ability to jump over other players if they are adjacent.
 Each side starts with 10 fences, which go between tiles and are 2 tiles long. Tiles block paths for both players, and must be gone around. You cannot completely block either players path to the end. 
 
 
+One can place one tile, or make one move each turn
+
+
+This is the jist of the game, but the rules can be found on the site as well.
+
 ## Bot Design
 
 There are two weaker bots, bot 0 was used for testing, and bot 1 was an earlier iteration. Bot 2 is the main bot. It follows a simple logic order to determine which move it will play. 
