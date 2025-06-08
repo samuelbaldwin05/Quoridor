@@ -57,6 +57,19 @@ If the bot finds no move that satisfies any of these priority conditions (this s
 
 A couple of considerations I had for improving this project in the future included:
 
+
 Making a pass and play mode
+
 Using evolution to further improve bots
+
+Forward thinking in decision making
+
 Online play
+
+
+## How I Made It
+This was my first attempt using Cursor to almost single handedly complete a project. Most of the code was written by Cursor. At first, I attempted making very broad requests and seeing what the output would be, but this resulted in something I was not looking for almost every single time. I made sure that Cursor was writing code in an object oriented manner, and directed every step along the way, with very clear direction of what I wanted it to produce, and how I wanted the code to be organized. I would then review and test the code before moving on. The project took roughly 30 hours to complete, but the bulk of the work not including finicky tweaks took less than 8 (Bot 1 was the computer at this time, but additional improvements were made as well as upgrading to Bot 2). I had multiple play testers (friends & fam) test along the way to try to figure out where the bot was falling short and what improvements I could make. Initially, I was interested in an evolutionary approach, but after attempting both this, and a forward thinking approach (letting the bot calculate a move in advance), these were way slower than I hoped. I may revisit these in the future, but for now I am quite satisfied with the result.
+
+To play, just click the website link to my github pages Quoridor page
+
+See if you can beat it!
