@@ -32,13 +32,20 @@ If the player is within 3 tiles of the goal AND 4 moves away from winning, the b
 ### 5. Best Move
 The best move decision is where much of the complexity comes from. Each tile has a weight associated with it, default of 1 for every square. To improve decision making and avoid being boxed in penalties are added to specific tiles:
 
+
 0 tiles away from walls (adjacent): Penalty = +0.1
+
 1 tiles away from walls: Penalty = +.05
+
 2 tiles away from walls: Penalty = +.03
+
 3 tiles away from walls: Penalty = +.01
+
 1 tile away from player: Penalty = +.1
 
+
 Using these tile weights as edge weights, and with tiles seperated by fences having their edges removed, dijkstras algorithm is ran. And the bot will choose the next move in the shortest path.
+
 
 This calculation is also used to determine player proximity to goal, and how much a fence placement will increase the players path. 
 
