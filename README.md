@@ -69,7 +69,11 @@ Using evolution to further improve bots
 
 Forward thinking in decision making
 
+Added move possibilities for bots, considering how moves will eventually fully block sections of the board, defensive fence posts to block the player from strong fence placements
+
 Online play
+
+Different color themes (classic board game, futuristic, etc.)
 
 
 ## How I Made It
