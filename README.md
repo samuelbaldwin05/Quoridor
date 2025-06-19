@@ -63,17 +63,15 @@ If the bot finds no move that satisfies any of these priority conditions (this s
 A couple of considerations I had for improving this project in the future included:
 
 
-Making a pass and play mode
-
 Using evolution to further improve bots
 
 Forward thinking in decision making
 
 Added move possibilities for bots, considering how moves will eventually fully block sections of the board, defensive fence posts to block the player from strong fence placements
 
-Online play
-
 Different color themes (classic board game, futuristic, etc.)
+
+Making a pass and play mode
 
 
 ## How I Made It
