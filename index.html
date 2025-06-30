@@ -107,15 +107,28 @@
             
             <!-- Settings Section -->
             <div class="settings-section">
-                <h3>⚙️ Settings</h3>
+                <h3>Game Settings</h3>
                 
                 <div class="setting-item flex flex-gap-md">
-                    <label for="ai-select">AI Opponent:</label>
-                    <select id="ai-select" class="bot-selector">
-                        <option value="bot0">Bot 0 - Movement Only</option>
-                        <option value="bot1">Bot 1 - Basic Strategic</option>
-                        <option value="bot2" selected>Bot 2 - Advantage Focused</option>
-                    </select>
+                    <label class="flex flex-gap-sm">
+                        <span>Theme:</span>
+                        <select id="theme-select" class="bot-selector">
+                            <option value="modern" selected>Modern</option>
+                            <option value="classic">Classic</option>
+                            <option value="sunny-day">Sunny Day</option>
+                        </select>
+                    </label>
+                </div>
+                
+                <div class="setting-item flex flex-gap-md">
+                    <label class="flex flex-gap-sm">
+                        <span>AI Difficulty:</span>
+                        <select id="ai-select" class="bot-selector">
+                            <option value="bot0">Easy (Bot 0)</option>
+                            <option value="bot1">Medium (Bot 1)</option>
+                            <option value="bot2" selected>Hard (Bot 2)</option>
+                        </select>
+                    </label>
                 </div>
                 
                 <div class="setting-item flex flex-gap-md">

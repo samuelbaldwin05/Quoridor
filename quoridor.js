@@ -120,7 +120,7 @@ class QuoridorGame {
         this.gameOver = false;
         this.gameStarted = false; // Track if game has started
         this.fencePlacementMode = 'active'; // Set fence placement mode to 'active' for human players
-        this.ai = new QuoridorAI(); // Initialize AI with default settings
+        this.ai = new QuoridorAI('bot2'); // Initialize AI with default settings
         this.audioManager = new AudioManager(); // Initialize audio manager
         
         // Development mode tracking
@@ -144,6 +144,10 @@ class QuoridorGame {
             new Player(1, new Position(8, 4), 0, "Human"),
             new Player(2, new Position(0, 4), 8, "Computer")
         ];
+        
+        // Initialize theme
+        this.currentTheme = 'modern';
+        this.initializeTheme();
         
         this.initializeBoard();
         this.setupEventListeners();
@@ -227,7 +231,11 @@ class QuoridorGame {
         // Settings event listeners
         document.getElementById('ai-select').addEventListener('change', (e) => {
             this.ai.setOpponent(e.target.value);
-            this.showMessage(`AI opponent set to: ${e.target.value}`, 'info');
+        });
+
+        // Theme selector
+        document.getElementById('theme-select').addEventListener('change', (e) => {
+            this.applyTheme(e.target.value);
         });
 
         // Keyboard controls toggle
@@ -1324,6 +1332,150 @@ class QuoridorGame {
     hideDebugOverlay() {
         const debugInfos = document.querySelectorAll('.debug-info');
         debugInfos.forEach(info => info.remove());
+    }
+
+    // Initialize theme
+    initializeTheme() {
+        const themeSelect = document.getElementById('theme-select');
+        if (themeSelect) {
+            themeSelect.value = this.currentTheme;
+            this.applyTheme(this.currentTheme);
+        }
+    }
+    
+    // Apply theme
+    applyTheme(themeName) {
+        const root = document.documentElement;
+        
+        if (themeName === 'modern') {
+            // Apply Modern theme
+            root.style.setProperty('--primary-bg', 'var(--modern-primary-bg)');
+            root.style.setProperty('--secondary-bg', 'var(--modern-secondary-bg)');
+            root.style.setProperty('--tertiary-bg', 'var(--modern-tertiary-bg)');
+            root.style.setProperty('--board-bg', 'var(--modern-board-bg)');
+            root.style.setProperty('--cell-bg', 'var(--modern-cell-bg)');
+            root.style.setProperty('--cell-alt-bg', 'var(--modern-cell-alt-bg)');
+            
+            root.style.setProperty('--ui-brown', 'var(--modern-ui-brown)');
+            root.style.setProperty('--ui-brown-dark', 'var(--modern-ui-brown-dark)');
+            root.style.setProperty('--ui-brown-darker', 'var(--modern-ui-brown-darker)');
+            root.style.setProperty('--ui-accent', 'var(--modern-ui-accent)');
+            
+            root.style.setProperty('--player1-color', 'var(--modern-player1-color)');
+            root.style.setProperty('--player1-border', 'var(--modern-player1-border)');
+            root.style.setProperty('--player1-shadow', 'var(--modern-player1-shadow)');
+            root.style.setProperty('--player2-color', 'var(--modern-player2-color)');
+            root.style.setProperty('--player2-border', 'var(--modern-player2-border)');
+            root.style.setProperty('--player2-shadow', 'var(--modern-player2-shadow)');
+            
+            root.style.setProperty('--text-primary', 'var(--modern-text-primary)');
+            root.style.setProperty('--text-dark', 'var(--modern-text-dark)');
+            root.style.setProperty('--text-medium', 'var(--modern-text-medium)');
+            root.style.setProperty('--text-light', 'var(--modern-text-light)');
+            root.style.setProperty('--text-muted', 'var(--modern-text-muted)');
+            
+            root.style.setProperty('--valid-move', 'var(--modern-valid-move)');
+            root.style.setProperty('--hover-danger', 'var(--modern-hover-danger)');
+            root.style.setProperty('--preview-valid', 'var(--modern-preview-valid)');
+            root.style.setProperty('--preview-invalid', 'var(--modern-preview-invalid)');
+            
+            root.style.setProperty('--modal-bg', 'var(--modern-modal-bg)');
+            root.style.setProperty('--modal-overlay', 'var(--modern-modal-overlay)');
+            root.style.setProperty('--modal-accent', 'var(--modern-modal-accent)');
+            root.style.setProperty('--modal-border', 'var(--modern-modal-border)');
+            
+            root.style.setProperty('--dev-bg', 'var(--modern-dev-bg)');
+            root.style.setProperty('--dev-border', 'var(--modern-dev-border)');
+            root.style.setProperty('--dev-text', 'var(--modern-dev-text)');
+            root.style.setProperty('--dev-label', 'var(--modern-dev-label)');
+            root.style.setProperty('--dev-btn', 'var(--modern-dev-btn)');
+        } else if (themeName === 'sunny-day') {
+            // Apply Sunny Day theme
+            root.style.setProperty('--primary-bg', 'var(--sunny-primary-bg)');
+            root.style.setProperty('--secondary-bg', 'var(--sunny-secondary-bg)');
+            root.style.setProperty('--tertiary-bg', 'var(--sunny-tertiary-bg)');
+            root.style.setProperty('--board-bg', 'var(--sunny-board-bg)');
+            root.style.setProperty('--cell-bg', 'var(--sunny-cell-bg)');
+            root.style.setProperty('--cell-alt-bg', 'var(--sunny-cell-alt-bg)');
+            
+            root.style.setProperty('--ui-brown', 'var(--sunny-ui-brown)');
+            root.style.setProperty('--ui-brown-dark', 'var(--sunny-ui-brown-dark)');
+            root.style.setProperty('--ui-brown-darker', 'var(--sunny-ui-brown-darker)');
+            root.style.setProperty('--ui-accent', 'var(--sunny-ui-accent)');
+            
+            root.style.setProperty('--player1-color', 'var(--sunny-player1-color)');
+            root.style.setProperty('--player1-border', 'var(--sunny-player1-border)');
+            root.style.setProperty('--player1-shadow', 'var(--sunny-player1-shadow)');
+            root.style.setProperty('--player2-color', 'var(--sunny-player2-color)');
+            root.style.setProperty('--player2-border', 'var(--sunny-player2-border)');
+            root.style.setProperty('--player2-shadow', 'var(--sunny-player2-shadow)');
+            
+            root.style.setProperty('--text-primary', 'var(--sunny-text-primary)');
+            root.style.setProperty('--text-dark', 'var(--sunny-text-dark)');
+            root.style.setProperty('--text-medium', 'var(--sunny-text-medium)');
+            root.style.setProperty('--text-light', 'var(--sunny-text-light)');
+            root.style.setProperty('--text-muted', 'var(--sunny-text-muted)');
+            
+            root.style.setProperty('--valid-move', 'var(--sunny-valid-move)');
+            root.style.setProperty('--hover-danger', 'var(--sunny-hover-danger)');
+            root.style.setProperty('--preview-valid', 'var(--sunny-preview-valid)');
+            root.style.setProperty('--preview-invalid', 'var(--sunny-preview-invalid)');
+            
+            root.style.setProperty('--modal-bg', 'var(--sunny-modal-bg)');
+            root.style.setProperty('--modal-overlay', 'var(--sunny-modal-overlay)');
+            root.style.setProperty('--modal-accent', 'var(--sunny-modal-accent)');
+            root.style.setProperty('--modal-border', 'var(--sunny-modal-border)');
+            
+            root.style.setProperty('--dev-bg', 'var(--sunny-dev-bg)');
+            root.style.setProperty('--dev-border', 'var(--sunny-dev-border)');
+            root.style.setProperty('--dev-text', 'var(--sunny-dev-text)');
+            root.style.setProperty('--dev-label', 'var(--sunny-dev-label)');
+            root.style.setProperty('--dev-btn', 'var(--sunny-dev-btn)');
+        } else {
+            // Apply Classic theme (default)
+            root.style.setProperty('--primary-bg', 'var(--classic-primary-bg)');
+            root.style.setProperty('--secondary-bg', 'var(--classic-secondary-bg)');
+            root.style.setProperty('--tertiary-bg', 'var(--classic-tertiary-bg)');
+            root.style.setProperty('--board-bg', 'var(--classic-board-bg)');
+            root.style.setProperty('--cell-bg', 'var(--classic-cell-bg)');
+            root.style.setProperty('--cell-alt-bg', 'var(--classic-cell-alt-bg)');
+            
+            root.style.setProperty('--ui-brown', 'var(--classic-ui-brown)');
+            root.style.setProperty('--ui-brown-dark', 'var(--classic-ui-brown-dark)');
+            root.style.setProperty('--ui-brown-darker', 'var(--classic-ui-brown-darker)');
+            root.style.setProperty('--ui-accent', 'var(--classic-ui-accent)');
+            
+            root.style.setProperty('--player1-color', 'var(--classic-player1-color)');
+            root.style.setProperty('--player1-border', 'var(--classic-player1-border)');
+            root.style.setProperty('--player1-shadow', 'var(--classic-player1-shadow)');
+            root.style.setProperty('--player2-color', 'var(--classic-player2-color)');
+            root.style.setProperty('--player2-border', 'var(--classic-player2-border)');
+            root.style.setProperty('--player2-shadow', 'var(--classic-player2-shadow)');
+            
+            root.style.setProperty('--text-primary', 'var(--classic-text-primary)');
+            root.style.setProperty('--text-dark', 'var(--classic-text-dark)');
+            root.style.setProperty('--text-medium', 'var(--classic-text-medium)');
+            root.style.setProperty('--text-light', 'var(--classic-text-light)');
+            root.style.setProperty('--text-muted', 'var(--classic-text-muted)');
+            
+            root.style.setProperty('--valid-move', 'var(--classic-valid-move)');
+            root.style.setProperty('--hover-danger', 'var(--classic-hover-danger)');
+            root.style.setProperty('--preview-valid', 'var(--classic-preview-valid)');
+            root.style.setProperty('--preview-invalid', 'var(--classic-preview-invalid)');
+            
+            root.style.setProperty('--modal-bg', 'var(--classic-modal-bg)');
+            root.style.setProperty('--modal-overlay', 'var(--classic-modal-overlay)');
+            root.style.setProperty('--modal-accent', 'var(--classic-modal-accent)');
+            root.style.setProperty('--modal-border', 'var(--classic-modal-border)');
+            
+            root.style.setProperty('--dev-bg', 'var(--classic-dev-bg)');
+            root.style.setProperty('--dev-border', 'var(--classic-dev-border)');
+            root.style.setProperty('--dev-text', 'var(--classic-dev-text)');
+            root.style.setProperty('--dev-label', 'var(--classic-dev-label)');
+            root.style.setProperty('--dev-btn', 'var(--classic-dev-btn)');
+        }
+        
+        this.currentTheme = themeName;
     }
 }
 

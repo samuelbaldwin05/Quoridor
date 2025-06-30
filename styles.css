@@ -1,52 +1,172 @@
-/* CSS Variables for Colors */
+/* Theme System */
 :root {
-    /* Primary Colors */
-    --primary-bg: #5195a8;
-    --secondary-bg: #1f657a;
-    --tertiary-bg: #4a752c;
-    --board-bg: #578a34;
-    --cell-bg: #a2d149;
-    --cell-alt-bg: #aad751;
+    /* Sunny Day Theme (Default) */
+    --sunny-primary-bg: #5195a8;
+    --sunny-secondary-bg: #1f657a;
+    --sunny-tertiary-bg: #4a752c;
+    --sunny-board-bg: #578a34;
+    --sunny-cell-bg: #a2d149;
+    --sunny-cell-alt-bg: #aad751;
     
-    /* UI Colors */
-    --ui-brown: #A0522D;
-    --ui-brown-dark: #8B4513;
-    --ui-brown-darker: #654321;
-    --ui-accent: #CD853F;
+    --sunny-ui-brown: #A0522D;
+    --sunny-ui-brown-dark: #8B4513;
+    --sunny-ui-brown-darker: #654321;
+    --sunny-ui-accent: #CD853F;
     
-    /* Player Colors */
-    --player1-color: #4169E1;
-    --player1-border: #0000CD;
-    --player1-shadow: #2b24b2;
-    --player2-color: #DC143C;
-    --player2-border: #9f1f1f;
-    --player2-shadow: #8a0f0f;
+    --sunny-player1-color: #4169E1;
+    --sunny-player1-border: #0000CD;
+    --sunny-player1-shadow: #2b24b2;
+    --sunny-player2-color: #DC143C;
+    --sunny-player2-border: #9f1f1f;
+    --sunny-player2-shadow: #8a0f0f;
     
-    /* Text Colors */
-    --text-primary: #F5DEB3;
-    --text-dark: #333;
-    --text-medium: #555;
-    --text-light: #666;
-    --text-muted: #999;
+    --sunny-text-primary: #F5DEB3;
+    --sunny-text-dark: #333;
+    --sunny-text-medium: #555;
+    --sunny-text-light: #666;
+    --sunny-text-muted: #999;
     
-    /* State Colors */
-    --valid-move: #90EE90;
-    --hover-danger: #e02d50;
-    --preview-valid: var(--ui-accent);
-    --preview-invalid: rgba(220, 20, 60, 0.7);
+    --sunny-valid-move: #90EE90;
+    --sunny-hover-danger: #e02d50;
+    --sunny-preview-valid: #CD853F;
+    --sunny-preview-invalid: rgba(220, 20, 60, 0.7);
     
-    /* Modal Colors */
-    --modal-bg: #fff;
-    --modal-overlay: rgba(0, 0, 0, 0.5);
-    --modal-accent: #4CAF50;
-    --modal-border: #e0e0e0;
+    --sunny-modal-bg: #fff;
+    --sunny-modal-overlay: rgba(0, 0, 0, 0.5);
+    --sunny-modal-accent: #4CAF50;
+    --sunny-modal-border: #e0e0e0;
     
-    /* Dev Stats Colors */
-    --dev-bg: rgba(31, 101, 122, 0.95);
-    --dev-border: var(--primary-bg);
-    --dev-text: var(--text-primary);
-    --dev-label: #a0d8ea;
-    --dev-btn: #666;
+    --sunny-dev-bg: rgba(31, 101, 122, 0.95);
+    --sunny-dev-border: #5195a8;
+    --sunny-dev-text: #F5DEB3;
+    --sunny-dev-label: #a0d8ea;
+    --sunny-dev-btn: #666;
+    
+    /* Modern Theme (formerly Classic) */
+    --modern-primary-bg: #2c3e50;
+    --modern-secondary-bg: #34495e;
+    --modern-tertiary-bg: #7f8c8d;
+    --modern-board-bg: #95a5a6;
+    --modern-cell-bg: #ecf0f1;
+    --modern-cell-alt-bg: #bdc3c7;
+    
+    --modern-ui-brown: #8B4513;
+    --modern-ui-brown-dark: #654321;
+    --modern-ui-brown-darker: #3e2723;
+    --modern-ui-accent: #D2691E;
+    
+    --modern-player1-color: #3498db;
+    --modern-player1-border: #2980b9;
+    --modern-player1-shadow: #1f4e79;
+    --modern-player2-color: #e74c3c;
+    --modern-player2-border: #c0392b;
+    --modern-player2-shadow: #922b21;
+    
+    --modern-text-primary: #ecf0f1;
+    --modern-text-dark: #2c3e50;
+    --modern-text-medium: #34495e;
+    --modern-text-light: #7f8c8d;
+    --modern-text-muted: #95a5a6;
+    
+    --modern-valid-move: #2ecc71;
+    --modern-hover-danger: #e74c3c;
+    --modern-preview-valid: #f39c12;
+    --modern-preview-invalid: rgba(231, 76, 60, 0.7);
+    
+    --modern-modal-bg: #fff;
+    --modern-modal-overlay: rgba(0, 0, 0, 0.5);
+    --modern-modal-accent: #27ae60;
+    --modern-modal-border: #bdc3c7;
+    
+    --modern-dev-bg: rgba(44, 62, 80, 0.95);
+    --modern-dev-border: #34495e;
+    --modern-dev-text: #ecf0f1;
+    --modern-dev-label: #3498db;
+    --modern-dev-btn: #7f8c8d;
+    
+    /* Classic Theme (Woody/Wooden) */
+    --classic-primary-bg: #8B4513;
+    --classic-secondary-bg: #A0522D;
+    --classic-tertiary-bg: #CD853F;
+    --classic-board-bg: #DEB887;
+    --classic-cell-bg: #F5DEB3;
+    --classic-cell-alt-bg: #DEB887;
+    
+    --classic-ui-brown: #654321;
+    --classic-ui-brown-dark: #3e2723;
+    --classic-ui-brown-darker: #2d1810;
+    --classic-ui-accent: #D2691E;
+    
+    --classic-player1-color: #4169E1;
+    --classic-player1-border: #0000CD;
+    --classic-player1-shadow: #2b24b2;
+    --classic-player2-color: #DC143C;
+    --classic-player2-border: #8B0000;
+    --classic-player2-shadow: #660000;
+    
+    --classic-text-primary: #2F1B14;
+    --classic-text-dark: #1a0f0a;
+    --classic-text-medium: #3e2723;
+    --classic-text-light: #654321;
+    --classic-text-muted: #8B4513;
+    
+    --classic-valid-move: #90EE90;
+    --classic-hover-danger: #CD5C5C;
+    --classic-preview-valid: #32CD32;
+    --classic-preview-invalid: rgba(220, 20, 60, 0.7);
+    
+    --classic-modal-bg: #F5DEB3;
+    --classic-modal-overlay: rgba(47, 27, 20, 0.7);
+    --classic-modal-accent: #228B22;
+    --classic-modal-border: #DEB887;
+    
+    --classic-dev-bg: rgba(139, 69, 19, 0.95);
+    --classic-dev-border: #A0522D;
+    --classic-dev-text: #F5DEB3;
+    --classic-dev-label: #4169E1;
+    --classic-dev-btn: #654321;
+    
+    /* Active Theme Variables (Default to Modern) */
+    --primary-bg: var(--modern-primary-bg);
+    --secondary-bg: var(--modern-secondary-bg);
+    --tertiary-bg: var(--modern-tertiary-bg);
+    --board-bg: var(--modern-board-bg);
+    --cell-bg: var(--modern-cell-bg);
+    --cell-alt-bg: var(--modern-cell-alt-bg);
+    
+    --ui-brown: var(--modern-ui-brown);
+    --ui-brown-dark: var(--modern-ui-brown-dark);
+    --ui-brown-darker: var(--modern-ui-brown-darker);
+    --ui-accent: var(--modern-ui-accent);
+    
+    --player1-color: var(--modern-player1-color);
+    --player1-border: var(--modern-player1-border);
+    --player1-shadow: var(--modern-player1-shadow);
+    --player2-color: var(--modern-player2-color);
+    --player2-border: var(--modern-player2-border);
+    --player2-shadow: var(--modern-player2-shadow);
+    
+    --text-primary: var(--modern-text-primary);
+    --text-dark: var(--modern-text-dark);
+    --text-medium: var(--modern-text-medium);
+    --text-light: var(--modern-text-light);
+    --text-muted: var(--modern-text-muted);
+    
+    --valid-move: var(--modern-valid-move);
+    --hover-danger: var(--modern-hover-danger);
+    --preview-valid: var(--modern-preview-valid);
+    --preview-invalid: var(--modern-preview-invalid);
+    
+    --modal-bg: var(--modern-modal-bg);
+    --modal-overlay: var(--modern-modal-overlay);
+    --modal-accent: var(--modern-modal-accent);
+    --modal-border: var(--modern-modal-border);
+    
+    --dev-bg: var(--modern-dev-bg);
+    --dev-border: var(--modern-dev-border);
+    --dev-text: var(--modern-dev-text);
+    --dev-label: var(--modern-dev-label);
+    --dev-btn: var(--modern-dev-btn);
     
     /* Sizes */
     --cell-size: 32px;
