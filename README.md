@@ -55,7 +55,7 @@ Using these tile weights as edge weights, and with tiles seperated by fences hav
 This calculation is also used to determine player proximity to goal, and how much a fence placement will increase the players path. 
 
 ### 6. Random Move Fallback
-If the bot finds no move that satisfies any of these priority conditions (this should never happen, but just in case), the bot will make a random move.
+If the bot finds no move that satisfies any of these priority conditions (this will almost never happen), the bot will make a random move.
 
 
 ## Future Improvements
