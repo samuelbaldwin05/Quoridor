@@ -10,6 +10,7 @@ class QuoridorAI {
         this.previousPosition = null; // Track AI's previous position to avoid unnecessary backtracking
         this.bot2OpeningPattern = null; // Track Bot 2's opening pattern
         this.bot2OpeningStep = 0; // Track Bot 2's opening step
+        this.lastMoveType = null; // Track the type of the last move made
     }
 
     // Method to change the bot type
@@ -22,6 +23,7 @@ class QuoridorAI {
         this.previousPosition = null;
         this.bot2OpeningPattern = null;
         this.bot2OpeningStep = 0;
+        this.lastMoveType = null;
     }
 
     // Reset AI state for new game
@@ -32,6 +34,7 @@ class QuoridorAI {
         this.previousPosition = null;
         this.bot2OpeningPattern = null;
         this.bot2OpeningStep = 0;
+        this.lastMoveType = null;
     }
 
     // Main method to make a move - routes to appropriate bot
@@ -159,6 +162,7 @@ class QuoridorAI {
         if (this.moveCount <= 1 && Math.random() < 0.75) {
             const openingMove = this.findBot2OpeningMove(game, player);
             if (openingMove) {
+                this.lastMoveType = 'Opening Strategy';
                 return {
                     type: 'move',
                     position: openingMove,
@@ -173,6 +177,7 @@ class QuoridorAI {
             // SECOND PRIORITY: Check if we can win in one move
             const winningMove = this.findWinningMove(game, player, validMoves);
             if (winningMove) {
+                this.lastMoveType = 'Winning Move';
                 return {
                     type: 'move',
                     position: winningMove,
@@ -192,6 +197,7 @@ class QuoridorAI {
             if (player.fencesRemaining > 0) {
                 const highImpactFence = this.findHighImpactFence(game, opponent);
                 if (highImpactFence) {
+                    this.lastMoveType = 'High Impact Fence';
                     return {
                         type: 'fence',
                         fence: highImpactFence,
@@ -208,6 +214,7 @@ class QuoridorAI {
             if (shouldPlaceFence) {
                 const strategicFence = this.findStrategicFence(game, opponent);
                 if (strategicFence) {
+                    this.lastMoveType = 'Strategic Fence';
                     return {
                         type: 'fence',
                         fence: strategicFence,
@@ -217,6 +224,7 @@ class QuoridorAI {
                 // If can't place direct fence, try side fence
                 const sideFence = this.findSideFence(game, opponent);
                 if (sideFence) {
+                    this.lastMoveType = 'Strategic Side Fence';
                     return {
                         type: 'fence',
                         fence: sideFence,
@@ -229,6 +237,7 @@ class QuoridorAI {
             // Use Dijkstra to find best move (now includes jumping)
             const bestMove = this.findBestMoveWithDijkstra(game, player);
             if (bestMove) {
+                this.lastMoveType = 'Best Move With Dijkstra';
                 return {
                     type: 'move',
                     position: bestMove,
@@ -237,6 +246,7 @@ class QuoridorAI {
             } else {
                 // Fallback to any valid move
                 const fallbackMove = validMoves[0];
+                this.lastMoveType = 'Fallback Move';
                 return {
                     type: 'move',
                     position: fallbackMove,
