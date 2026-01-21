@@ -40,57 +40,25 @@ class QuoridorGame {
         this.themeManager = new ThemeManager('modern');
         this.themeManager.initializeTheme();
         
+        // Initialize UI renderers
+        this.boardRenderer = new BoardRenderer(this);
+        this.uiManager = new UIManager(this);
+        
         this.initializeBoard();
         this.setupEventListeners();
-        this.updateUI();
+        this.uiManager.updateUI();
         
         // Show start button and don't show valid moves until game is started
-        this.showStartButton();
+        this.uiManager.showStartButton();
     }
 
     initializeBoard() {
-        const board = document.getElementById('board');
-        board.innerHTML = '';
-        
-        // Create grid (9 cells + 8 fence slots in each direction)
-        for (let row = 0; row < GAME_CONFIG.GRID_SIZE; row++) {
-            for (let col = 0; col < GAME_CONFIG.GRID_SIZE; col++) {
-                const cell = document.createElement('div');
-                
-                if (row % 2 === 0 && col % 2 === 0) {
-                    // Player cell (movement squares)
-                    cell.className = 'cell flex-center';
-                    cell.dataset.row = row / 2;
-                    cell.dataset.col = col / 2;
-                    cell.addEventListener('click', () => this.handleCellClick(row / 2, col / 2));
-                } else {
-                    // Fence slot
-                    cell.className = 'fence-slot';
-                    if (row % 2 === 1 && col % 2 === 0) {
-                        // Horizontal fence slot (between rows)
-                        cell.dataset.fenceType = 'horizontal';
-                        cell.dataset.row = (row - 1) / 2;
-                        cell.dataset.col = col / 2;
-                        cell.addEventListener('click', () => this.handleFenceClick(cell));
-                        cell.addEventListener('mouseenter', () => this.showFencePreview(cell));
-                        cell.addEventListener('mouseleave', () => this.hideFencePreview());
-                    } else if (row % 2 === 0 && col % 2 === 1) {
-                        // Vertical fence slot (between columns)
-                        cell.dataset.fenceType = 'vertical';
-                        cell.dataset.row = row / 2;
-                        cell.dataset.col = (col - 1) / 2;
-                        cell.addEventListener('click', () => this.handleFenceClick(cell));
-                        cell.addEventListener('mouseenter', () => this.showFencePreview(cell));
-                        cell.addEventListener('mouseleave', () => this.hideFencePreview());
-                    }
-                    // Corner intersections don't get click handlers
-                }
-                
-                board.appendChild(cell);
-            }
-        }
-        
-        this.updateBoardDisplay();
+        this.boardRenderer.initializeBoard(
+            (row, col) => this.handleCellClick(row, col),
+            (cell) => this.handleFenceClick(cell),
+            (cell) => this.boardRenderer.showFencePreview(cell),
+            () => this.boardRenderer.hideFencePreview()
+        );
     }
 
     setupEventListeners() {
@@ -147,7 +115,7 @@ class QuoridorGame {
         // Sound controls
         document.getElementById('sound-toggle').addEventListener('change', (e) => {
             this.audioManager.setEnabled(e.target.checked);
-            this.showMessage(`Sound effects ${e.target.checked ? 'enabled' : 'disabled'}`, 'info');
+            this.uiManager.showMessage(`Sound effects ${e.target.checked ? 'enabled' : 'disabled'}`, 'info');
         });
 
         document.getElementById('volume-slider').addEventListener('input', (e) => {
@@ -173,11 +141,11 @@ class QuoridorGame {
             
             if (this.devModeEnabled) {
                 devStats.style.display = 'block';
-                this.updateDevStats();
-                this.showMessage('Development mode enabled', 'info');
+                this.uiManager.updateDevStats();
+                this.uiManager.showMessage('Development mode enabled', 'info');
             } else {
                 devStats.style.display = 'none';
-                this.showMessage('Development mode disabled', 'info');
+                this.uiManager.showMessage('Development mode disabled', 'info');
             }
         });
 
@@ -252,12 +220,12 @@ class QuoridorGame {
         }
         
         // Clear any existing fence previews when switching players
-        this.hideFencePreview();
+        this.boardRenderer.hideFencePreview();
         
-        this.updateUI();
+        this.uiManager.updateUI();
         
         // Show valid moves for human player when it becomes their turn
-        this.showValidMovesForHuman();
+        this.boardRenderer.showValidMovesForHuman();
         
         // If it's computer's turn, make computer move (with optional delay)
         if (this.getCurrentPlayer().name === "Computer" && !this.gameOver) {
@@ -547,15 +515,16 @@ class QuoridorGame {
             this.audioManager.play('click');
             
             player.position = targetMove;
-            this.showMessage(`Human moved to ${targetMove.toChessNotation()}`, 'success');
-            this.updateBoardDisplay();
+            this.uiManager.showMessage(`Human moved to ${targetMove.toChessNotation()}`, 'success');
+            this.boardRenderer.updateBoardDisplay();
+            this.uiManager.updateUI();
             
             if (this.checkWinCondition()) return;
             this.moveNumber++;
-            this.updateDevStats();
+            this.uiManager.updateDevStats();
             this.switchPlayer();
         } else {
-            this.showMessage('Invalid move!', 'error');
+            this.uiManager.showMessage('Invalid move!', 'error');
         }
     }
 
@@ -580,20 +549,21 @@ class QuoridorGame {
             this.audioManager.play('click');
             
             player.position = targetPos;
-            this.showMessage(`Human moved to ${targetPos.toChessNotation()}`, 'success');
-            this.updateBoardDisplay();
+            this.uiManager.showMessage(`Human moved to ${targetPos.toChessNotation()}`, 'success');
+            this.boardRenderer.updateBoardDisplay();
+            this.uiManager.updateUI();
             
             if (this.checkWinCondition()) return;
             this.moveNumber++;
-            this.updateDevStats();
+            this.uiManager.updateDevStats();
             this.switchPlayer();
         } else {
             // Provide helpful feedback for invalid clicks
             const validMoves = this.getValidMoves(player);
             if (validMoves.length === 0) {
-                this.showMessage('No valid moves available!', 'error');
+                this.uiManager.showMessage('No valid moves available!', 'error');
             } else {
-                this.showMessage('Invalid move! Click on a highlighted green square.', 'error');
+                this.uiManager.showMessage('Invalid move! Click on a highlighted green square.', 'error');
             }
         }
     }
@@ -617,15 +587,16 @@ class QuoridorGame {
             this.fences.push(fence);
             this.getCurrentPlayer().fencesRemaining--;
             
-            this.showMessage(`${orientation.charAt(0).toUpperCase() + orientation.slice(1)} fence placed`, 'success');
-            this.updateBoardDisplay();
+            this.uiManager.showMessage(`${orientation.charAt(0).toUpperCase() + orientation.slice(1)} fence placed`, 'success');
+            this.boardRenderer.updateBoardDisplay();
+            this.uiManager.updateUI();
             
             if (this.checkWinCondition()) return;
             this.moveNumber++;
-            this.updateDevStats();
+            this.uiManager.updateDevStats();
             this.switchPlayer();
         } else {
-            this.showMessage('Invalid fence placement!', 'error');
+            this.uiManager.showMessage('Invalid fence placement!', 'error');
         }
     }
 
@@ -652,12 +623,13 @@ class QuoridorGame {
                 // AI decided to place a fence
                 this.fences.push(aiDecision.fence);
                 player.fencesRemaining--;
-                this.showMessage(aiDecision.message, 'info');
-                this.updateBoardDisplay();
+                this.uiManager.showMessage(aiDecision.message, 'info');
+                this.boardRenderer.updateBoardDisplay();
+                this.uiManager.updateUI();
                 
                 if (this.checkWinCondition()) return;
                 this.moveNumber++;
-                this.updateDevStats();
+                this.uiManager.updateDevStats();
                 this.switchPlayer();
             } else if (aiDecision.type === 'move') {
                 // Play movement sound for AI
@@ -665,92 +637,16 @@ class QuoridorGame {
                 
                 // AI decided to move
                 player.position = aiDecision.position;
-                this.showMessage(aiDecision.message, 'info');
-                this.updateBoardDisplay();
+                this.uiManager.showMessage(aiDecision.message, 'info');
+                this.boardRenderer.updateBoardDisplay();
+                this.uiManager.updateUI();
                 
                 if (this.checkWinCondition()) return;
                 this.moveNumber++;
-                this.updateDevStats();
+                this.uiManager.updateDevStats();
                 this.switchPlayer();
             }
         }
-    }
-
-    updateBoardDisplay() {
-        // Clear all player and fence classes
-        document.querySelectorAll('.cell').forEach(cell => {
-            cell.className = 'cell flex-center';
-            cell.textContent = '';
-        });
-        
-        document.querySelectorAll('.fence-slot').forEach(slot => {
-            slot.className = 'fence-slot';
-        });
-
-        // Place players
-        this.players.forEach(player => {
-            const cell = document.querySelector(`[data-row="${player.position.row}"][data-col="${player.position.col}"]`);
-            if (cell) {
-                cell.classList.add(`player${player.id}`);
-                cell.textContent = player.id;
-            }
-        });
-
-        // Place fences with improved visualization
-        this.fences.forEach(fence => {
-            if (fence.orientation === 'horizontal') {
-                // Horizontal fence spans 2 columns with a post in the middle
-                for (let c = fence.col; c <= fence.col + 1; c++) {
-                    const fenceSlot = document.querySelector(`[data-fence-type="horizontal"][data-row="${fence.row}"][data-col="${c}"]`);
-                    if (fenceSlot) {
-                        fenceSlot.classList.add('horizontal-fence');
-                    }
-                }
-                // Add fence post in the middle of the horizontal fence
-                const middlePostRow = fence.row * 2 + 1; // Convert to grid coordinates
-                const middlePostCol = fence.col * 2 + 1; // Middle of the fence span
-                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * GAME_CONFIG.GRID_SIZE + middlePostCol];
-                if (middlePostElement) {
-                    middlePostElement.classList.add('fence-post');
-                }
-            } else {
-                // Vertical fence spans 2 rows with a post in the middle
-                for (let r = fence.row; r <= fence.row + 1; r++) {
-                    const fenceSlot = document.querySelector(`[data-fence-type="vertical"][data-row="${r}"][data-col="${fence.col}"]`);
-                    if (fenceSlot) {
-                        fenceSlot.classList.add('vertical-fence');
-                    }
-                }
-                // Add fence post in the middle of the vertical fence
-                const middlePostRow = fence.row * 2 + 1; // Middle of the fence span
-                const middlePostCol = fence.col * 2 + 1; // Convert to grid coordinates
-                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * GAME_CONFIG.GRID_SIZE + middlePostCol];
-                if (middlePostElement) {
-                    middlePostElement.classList.add('fence-post');
-                }
-            }
-        });
-
-        // Update UI
-        this.updateUI();
-        
-        // Update debug overlay if enabled
-        if (this.debugOverlayEnabled) {
-            this.showDebugOverlay();
-        }
-    }
-
-    updateUI() {
-        // Update fence counts
-        document.getElementById('player1-fences').textContent = this.players[0].fencesRemaining;
-        document.getElementById('player2-fences').textContent = this.players[1].fencesRemaining;
-        
-        // Enable/disable controls based on current player and game state
-        const currentPlayer = this.getCurrentPlayer();
-        const isHumanTurn = currentPlayer.name === "Human" && !this.gameOver && this.gameStarted;
-        document.querySelectorAll('.direction-btn').forEach(btn => {
-            btn.disabled = !isHumanTurn;
-        });
     }
 
     checkWinCondition() {
@@ -758,65 +654,11 @@ class QuoridorGame {
             if (player.hasWon()) {
                 this.gameOver = true;
                 this.winner = player;
-                this.showWinner();
+                this.uiManager.showWinner(() => this.newGame());
                 return true;
             }
         }
         return false;
-    }
-
-    showWinner() {
-        // Track the win
-        if (this.winner.name === "Human") {
-            this.playerWins++;
-            this.audioManager.play('win1');
-        } else {
-            this.computerWins++;
-            this.audioManager.play('lose');
-        }
-        
-        // Update scoreboard display if enabled
-        if (this.scoreboardEnabled) {
-            this.updateScoreboardDisplay();
-        }
-        
-        const celebration = document.createElement('div');
-        celebration.className = 'winner-celebration flex-center';
-        
-        const message = document.createElement('div');
-        message.className = 'winner-message';
-        message.innerHTML = `
-            <h2>🎉 ${this.winner.name} Wins! 🎉</h2>
-            <p>${this.winner.name} reached ${this.winner.goalRow === 0 ? 'the top' : 'the bottom'} row!</p>
-            <button class="btn action-btn" id="play-again-btn">Play Again</button>
-        `;
-        
-        celebration.appendChild(message);
-        document.body.appendChild(celebration);
-        
-        // Add event listener to the play again button
-        const playAgainBtn = document.getElementById('play-again-btn');
-        playAgainBtn.addEventListener('click', () => {
-            this.audioManager.play('start');
-            this.newGame();
-            celebration.remove();
-        });
-        
-        this.showMessage(`🎉 ${this.winner.name} wins the game! 🎉`, 'success');
-    }
-
-    showMessage(text, type = 'info') {
-        const messageDisplay = document.getElementById('message');
-        messageDisplay.textContent = text;
-        messageDisplay.className = 'message-display'; // Always use the same styling
-        
-        // Clear message after timeout
-        setTimeout(() => {
-            if (messageDisplay.textContent === text) {
-                messageDisplay.textContent = 'Make your move!';
-                messageDisplay.className = 'message-display';
-            }
-        }, GAME_CONFIG.MESSAGE_TIMEOUT_MS);
     }
 
     newGame() {
@@ -855,50 +697,16 @@ class QuoridorGame {
         document.getElementById('game-controls').style.display = 'flex';
         
         // Update display
-        this.updateBoardDisplay();
-        this.updateUI();
+        this.boardRenderer.updateBoardDisplay();
+        this.uiManager.updateUI();
         
         // Show valid moves for human player immediately after new game
-        this.showValidMovesForHuman();
+        this.boardRenderer.showValidMovesForHuman();
         
         // Update dev stats if in dev mode
-        this.updateDevStats();
+        this.uiManager.updateDevStats();
         
-        this.showMessage('New game started! Make your move.', 'info');
-    }
-
-    clearValidMoves() {
-        document.querySelectorAll('.valid-move').forEach(cell => {
-            cell.classList.remove('valid-move');
-            cell.style.cursor = 'default';
-            cell.removeAttribute('title');
-        });
-    }
-
-    showValidMovesForHuman() {
-        // Clear any existing valid move indicators first
-        this.clearValidMoves();
-        
-        // Only show valid moves if game has started and it's human's turn
-        const humanPlayer = this.players[0]; // Human is always player 1
-        if (this.gameStarted && !this.gameOver && this.getCurrentPlayer().name === "Human") {
-            const validMoves = this.getValidMoves(humanPlayer);
-            validMoves.forEach(move => {
-                const cell = document.querySelector(`[data-row="${move.row}"][data-col="${move.col}"]`);
-                if (cell && !cell.classList.contains('player1') && !cell.classList.contains('player2')) {
-                    cell.classList.add('valid-move');
-                    
-                    // Add visual feedback for click-to-move when enabled
-                    if (this.clickMoveEnabled) {
-                        cell.style.cursor = 'pointer';
-                        cell.title = `Click to move to ${move.toChessNotation()}`;
-                    } else {
-                        cell.style.cursor = 'default';
-                        cell.title = `Use arrow keys or WASD to move to ${move.toChessNotation()}`;
-                    }
-                }
-            });
-        }
+        this.uiManager.showMessage('New game started! Make your move.', 'info');
     }
 
     wouldFencePostOverlap(fence) {
@@ -920,89 +728,6 @@ class QuoridorGame {
         return false;
     }
 
-    showFencePreview(fenceSlot) {
-        // Only show preview during human's turn and when game is started and not over
-        if (this.getCurrentPlayer().name !== "Human" || this.gameOver || !this.gameStarted) {
-            return;
-        }
-        
-        const fenceType = fenceSlot.dataset.fenceType;
-        const row = parseInt(fenceSlot.dataset.row);
-        const col = parseInt(fenceSlot.dataset.col);
-        const orientation = fenceType;
-
-        const fence = new Fence(row, col, orientation);
-        
-        // Check if this would be a valid fence placement
-        const isValid = this.isValidFencePlacement(fence) && 
-                       this.getCurrentPlayer().fencesRemaining > 0;
-        
-        // Remove any existing previews first
-        this.hideFencePreview();
-
-        if (isValid) {
-            // Show complete fence preview in green for valid placements
-            if (orientation === 'horizontal') {
-                // Horizontal fence spans 2 columns with a post in the middle
-                for (let c = col; c <= col + 1; c++) {
-                    const previewSlot = document.querySelector(`[data-fence-type="horizontal"][data-row="${row}"][data-col="${c}"]`);
-                    if (previewSlot) {
-                        previewSlot.classList.add('fence-preview-valid');
-                    }
-                }
-                // Add fence post preview in the middle of the horizontal fence
-                const middlePostRow = row * 2 + 1; // Convert to grid coordinates
-                const middlePostCol = col * 2 + 1; // Middle of the fence span
-                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * GAME_CONFIG.GRID_SIZE + middlePostCol];
-                if (middlePostElement) {
-                    middlePostElement.classList.add('fence-post-preview');
-                }
-            } else {
-                // Vertical fence spans 2 rows with a post in the middle
-                for (let r = row; r <= row + 1; r++) {
-                    const previewSlot = document.querySelector(`[data-fence-type="vertical"][data-row="${r}"][data-col="${col}"]`);
-                    if (previewSlot) {
-                        previewSlot.classList.add('fence-preview-valid');
-                    }
-                }
-                // Add fence post preview in the middle of the vertical fence
-                const middlePostRow = row * 2 + 1; // Middle of the fence span
-                const middlePostCol = col * 2 + 1; // Convert to grid coordinates
-                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * GAME_CONFIG.GRID_SIZE + middlePostCol];
-                if (middlePostElement) {
-                    middlePostElement.classList.add('fence-post-preview');
-                }
-            }
-        } else {
-            // Show only the hovered slot in red for invalid placements
-            fenceSlot.classList.add('fence-preview-invalid');
-        }
-    }
-
-    hideFencePreview() {
-        // Remove all fence preview classes
-        document.querySelectorAll('.fence-preview-valid').forEach(element => {
-            element.classList.remove('fence-preview-valid');
-        });
-        document.querySelectorAll('.fence-preview-invalid').forEach(element => {
-            element.classList.remove('fence-preview-invalid');
-        });
-        document.querySelectorAll('.fence-post-preview').forEach(element => {
-            element.classList.remove('fence-post-preview');
-        });
-    }
-
-    showStartButton() {
-        // Show start button and hide game controls initially
-        document.getElementById('start-game').style.display = 'block';
-        document.getElementById('game-controls').style.display = 'none';
-        
-        // Disable movement controls until game starts
-        document.querySelectorAll('.direction-btn').forEach(btn => {
-            btn.disabled = true;
-        });
-    }
-
     startGame() {
         // Play game start sound
         this.audioManager.play('start');
@@ -1010,20 +735,19 @@ class QuoridorGame {
         this.gameStarted = true;
         
         // Hide start button and show game controls
-        document.getElementById('start-game').style.display = 'none';
-        document.getElementById('game-controls').style.display = 'flex';
+        this.uiManager.showGameControls();
         
         // Enable controls and show valid moves
-        this.updateUI();
+        this.uiManager.updateUI();
         
         // Show valid moves for human player immediately when game starts
         // Use setTimeout to ensure DOM is fully rendered
         setTimeout(() => {
-            this.showValidMovesForHuman();
-            this.updateDevStats(); // Update dev stats after game starts
+            this.boardRenderer.showValidMovesForHuman();
+            this.uiManager.updateDevStats(); // Update dev stats after game starts
         }, 0);
         
-        this.showMessage('Game started! Make your move.', 'info');
+        this.uiManager.showMessage('Game started! Make your move.', 'info');
     }
 
     showRules() {
@@ -1043,46 +767,20 @@ class QuoridorGame {
             devStats.style.display = 'block';
             devBtn.style.background = '#4CAF50';
             devBtn.textContent = 'Dev Mode ON';
-            this.showMessage('Development mode enabled', 'info');
+            this.uiManager.showMessage('Development mode enabled', 'info');
         } else {
             devStats.style.display = 'none';
             devBtn.style.background = '#666';
             devBtn.textContent = 'Development Mode';
-            this.showMessage('Development mode disabled', 'info');
+            this.uiManager.showMessage('Development mode disabled', 'info');
         }
         
         // Update stats if game is active
         if (this.gameStarted) {
-            this.updateDevStats();
+            this.uiManager.updateDevStats();
         }
     }
 
-    updateDevStats() {
-        if (!this.devModeEnabled) return;
-        
-        // Calculate shortest paths using AI's dijkstra method
-        const humanPath = this.ai.dijkstraDistance(this, this.players[0].position, this.players[0].goalRow);
-        const aiPath = this.ai.dijkstraDistance(this, this.players[1].position, this.players[1].goalRow);
-        const advantage = humanPath - aiPath;
-        
-        // Calculate average AI move time
-        const avgAiTime = this.aiMoveTimes.length > 0 
-            ? Math.round(this.aiMoveTimes.reduce((sum, time) => sum + time, 0) / this.aiMoveTimes.length)
-            : 0;
-        
-        // Get current bot name for dev stats (short format)
-        const botNameShort = this.ai.botType === 'bot0' ? 'Bot 0' : 
-                            this.ai.botType === 'bot1' ? 'Bot 1' : 'Bot 2';
-        
-        // Update stats display
-        document.getElementById('stat-bot-name').textContent = botNameShort;
-        document.getElementById('stat-move-number').textContent = this.moveNumber;
-        document.getElementById('stat-ai-time').textContent = avgAiTime + 'ms';
-        document.getElementById('stat-human-path').textContent = humanPath === Infinity ? '∞' : humanPath.toFixed(2);
-        document.getElementById('stat-ai-path').textContent = aiPath === Infinity ? '∞' : aiPath.toFixed(2);
-        document.getElementById('stat-advantage').textContent = advantage === Infinity ? '∞' : (advantage > 0 ? '+' + advantage.toFixed(2) : advantage.toFixed(2));
-        document.getElementById('stat-last-move-type').textContent = this.ai.lastMoveType || '-';
-    }
 
     // Switch AI bot and restart game if in progress
     switchBot(botType) {
@@ -1091,10 +789,10 @@ class QuoridorGame {
         // Show message about bot change
         const botName = botType === 'bot0' ? 'Bot 0 - Movement Only' :
                         botType === 'bot1' ? 'Bot 1 - Basic Strategic' : 'Bot 2 - Advantage Focused';
-        this.showMessage(`Switched to ${botName}`, 'info');
+        this.uiManager.showMessage(`Switched to ${botName}`, 'info');
         
         // Update dev stats immediately to show new bot name
-        this.updateDevStats();
+        this.uiManager.updateDevStats();
         
         // If game is in progress, restart it
         if (this.gameStarted) {
@@ -1107,24 +805,24 @@ class QuoridorGame {
     toggleKeyboardControls(enabled) {
         this.keyboardEnabled = enabled;
         const status = enabled ? 'enabled' : 'disabled';
-        this.showMessage(`Keyboard controls ${status}`, 'info');
+        this.uiManager.showMessage(`Keyboard controls ${status}`, 'info');
     }
 
     toggleClickMoveControls(enabled) {
         this.clickMoveEnabled = enabled;
         const status = enabled ? 'enabled' : 'disabled';
-        this.showMessage(`Click-to-move ${status}`, 'info');
+        this.uiManager.showMessage(`Click-to-move ${status}`, 'info');
         
         // Update visual feedback for valid moves when setting changes
         if (this.gameStarted && this.getCurrentPlayer().name === "Human") {
-            this.showValidMovesForHuman();
+            this.boardRenderer.showValidMovesForHuman();
         }
     }
 
     toggleAiMoveDelay(enabled) {
         this.aiMoveDelayEnabled = enabled;
         const status = enabled ? 'enabled' : 'disabled';
-        this.showMessage(`AI move delay ${status}`, 'info');
+        this.uiManager.showMessage(`AI move delay ${status}`, 'info');
     }
 
     toggleScoreboard(enabled) {
@@ -1133,94 +831,30 @@ class QuoridorGame {
         
         if (enabled) {
             scoreboard.style.display = 'flex';
-            this.updateScoreboardDisplay();
-            this.showMessage('Scoreboard enabled', 'info');
+            this.uiManager.updateScoreboardDisplay();
+            this.uiManager.showMessage('Scoreboard enabled', 'info');
         } else {
             scoreboard.style.display = 'none';
-            this.showMessage('Scoreboard disabled', 'info');
+            this.uiManager.showMessage('Scoreboard disabled', 'info');
         }
-    }
-    
-    updateScoreboardDisplay() {
-        document.getElementById('player-wins').textContent = this.playerWins;
-        document.getElementById('computer-wins').textContent = this.computerWins;
     }
     
     resetScoreboard() {
         this.playerWins = 0;
         this.computerWins = 0;
-        this.updateScoreboardDisplay();
-        this.showMessage('Scoreboard reset', 'info');
+        this.uiManager.updateScoreboardDisplay();
+        this.uiManager.showMessage('Scoreboard reset', 'info');
     }
 
     toggleDebugOverlay(enabled) {
         this.debugOverlayEnabled = enabled;
         
         if (enabled) {
-            this.showDebugOverlay();
-            this.showMessage('Debug overlay enabled', 'info');
+            this.boardRenderer.showDebugOverlay();
+            this.uiManager.showMessage('Debug overlay enabled', 'info');
         } else {
-            this.hideDebugOverlay();
-            this.showMessage('Debug overlay disabled', 'info');
-        }
-    }
-
-    showDebugOverlay() {
-        // Remove any existing debug overlays first
-        this.hideDebugOverlay();
-        
-        if (!this.gameStarted) return;
-        
-        const humanPlayer = this.players.find(p => p.name === "Human");
-        const aiPlayer = this.players.find(p => p.name === "Computer");
-        
-        // Use AI's pathfinding methods directly (no duplication!)
-        const humanPathData = this.ai.getShortestPathFromPosition(this, humanPlayer);
-        const aiPathData = this.ai.getShortestPathFromPosition(this, aiPlayer);
-        
-        for (let row = 0; row < this.size; row++) {
-            for (let col = 0; col < this.size; col++) {
-                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
-                if (!cell) continue;
-                
-                const position = new Position(row, col);
-                
-                // Check if this position is on either player's optimal path
-                const isOnHumanPath = humanPathData.path.some(p => p.row === row && p.col === col);
-                const isOnAiPath = aiPathData.path.some(p => p.row === row && p.col === col);
-                
-                // Use AI's methods for all calculations (no duplication!)
-                const fenceDistance = this.ai.calculateFenceDistance(this, position);
-                const fenceProximityPenalty = this.ai.calculateFenceProximityPenalty(this, position);
-                const opposingPlayerPenalty = this.calculateOpposingPlayerPenaltyUsingAI(position);
-                const totalPenalty = fenceProximityPenalty + opposingPlayerPenalty;
-                const squareValue = 1 + totalPenalty;
-                
-                // Format: fence_distance/square_value (show 'x' if no fences, no decimals for fence distance, 2 decimals for square value)
-                const fenceDistanceDisplay = fenceDistance === Infinity ? 'x' : Math.round(fenceDistance).toString();
-                const distanceDisplay = `${fenceDistanceDisplay}/${squareValue.toFixed(2)}`;
-                
-                // Create path indicators with individual spans for coloring
-                let pathIndicators = '';
-                if (isOnHumanPath && isOnAiPath) {
-                    pathIndicators = '<span class="human-path">O</span><span class="ai-path">X</span>';
-                } else if (isOnHumanPath) {
-                    pathIndicators = '<span class="human-path">O</span>';
-                } else if (isOnAiPath) {
-                    pathIndicators = '<span class="ai-path">X</span>';
-                }
-                
-                // Create debug info element
-                const debugInfo = document.createElement('div');
-                debugInfo.className = 'debug-info flex-column flex-between flex-center';
-                debugInfo.innerHTML = `
-                    <div class="position">(${row}, ${col})</div>
-                    <div class="distance">${distanceDisplay}</div>
-                    <div class="paths">${pathIndicators}</div>
-                `;
-                
-                cell.appendChild(debugInfo);
-            }
+            this.boardRenderer.hideDebugOverlay();
+            this.uiManager.showMessage('Debug overlay disabled', 'info');
         }
     }
 
@@ -1234,11 +868,6 @@ class QuoridorGame {
         
         // Use AI's method directly
         return this.ai.calculateOpposingPlayerPenalty(this, position, currentPlayer);
-    }
-
-    hideDebugOverlay() {
-        const debugInfos = document.querySelectorAll('.debug-info');
-        debugInfos.forEach(info => info.remove());
     }
 
 }
