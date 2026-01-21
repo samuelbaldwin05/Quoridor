@@ -1,14 +1,13 @@
 // Quoridor Game - JavaScript Implementation
 // Note: Position, Fence, Player, and AudioManager classes are now in separate files
+// This is now a Controller that coordinates GameEngine, UI, and AI
 
 class QuoridorGame {
     constructor() {
-        this.size = GAME_CONFIG.BOARD_SIZE;
-        this.players = [];
-        this.currentPlayerIndex = 0;
-        this.fences = [];
-        this.gameOver = false;
-        this.gameStarted = false; // Track if game has started
+        // Initialize game engine (pure game logic)
+        this.engine = new GameEngine();
+        
+        // UI and system components
         this.fencePlacementMode = 'active'; // Set fence placement mode to 'active' for human players
         this.ai = new QuoridorAI('bot2'); // Initialize AI with default settings
         this.audioManager = new AudioManager(); // Initialize audio manager
@@ -30,17 +29,14 @@ class QuoridorGame {
         // Debug overlay tracking
         this.debugOverlayEnabled = false; // Track debug overlay visibility setting
         
-        // Initialize players
-        this.players = [
-            new Player(1, new Position(GAME_CONFIG.PLAYER1_START_ROW, GAME_CONFIG.PLAYER1_START_COL), GAME_CONFIG.PLAYER1_GOAL_ROW, "Human"),
-            new Player(2, new Position(GAME_CONFIG.PLAYER2_START_ROW, GAME_CONFIG.PLAYER2_START_COL), GAME_CONFIG.PLAYER2_GOAL_ROW, "Computer")
-        ];
+        // Winner tracking
+        this.winner = null;
         
         // Initialize theme
         this.themeManager = new ThemeManager('modern');
         this.themeManager.initializeTheme();
         
-        // Initialize UI renderers
+        // Initialize UI renderers (pass this controller, not engine)
         this.boardRenderer = new BoardRenderer(this);
         this.uiManager = new UIManager(this);
         
@@ -51,6 +47,18 @@ class QuoridorGame {
         // Show start button and don't show valid moves until game is started
         this.uiManager.showStartButton();
     }
+    
+    // Getters to delegate to engine for backward compatibility
+    get size() { return this.engine.size; }
+    get players() { return this.engine.players; }
+    get fences() { return this.engine.fences; }
+    get currentPlayerIndex() { return this.engine.currentPlayerIndex; }
+    get gameOver() { return this.engine.gameOver; }
+    get gameStarted() { return this.engine.gameStarted; }
+    
+    // Setters for game state (delegate to engine)
+    set gameStarted(value) { this.engine.gameStarted = value; }
+    set gameOver(value) { this.engine.gameOver = value; }
 
     initializeBoard() {
         this.boardRenderer.initializeBoard(
@@ -206,17 +214,17 @@ class QuoridorGame {
     }
 
     getCurrentPlayer() {
-        return this.players[this.currentPlayerIndex];
+        return this.engine.getCurrentPlayer();
     }
 
     switchPlayer() {
-        this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
+        this.engine.switchPlayer();
         
         // Automatically enable fence placement mode for human player
         if (this.getCurrentPlayer().name === "Human" && this.getCurrentPlayer().fencesRemaining > 0) {
             this.fencePlacementMode = 'active';
         } else {
-        this.fencePlacementMode = null;
+            this.fencePlacementMode = null;
         }
         
         // Clear any existing fence previews when switching players
@@ -236,225 +244,46 @@ class QuoridorGame {
             }
         }
     }
-
+    
+    // Delegate game logic methods to engine
     isValidPosition(pos) {
-        return pos.row >= 0 && pos.row < this.size && pos.col >= 0 && pos.col < this.size;
+        return this.engine.isValidPosition(pos);
     }
-
+    
     isPositionOccupied(pos) {
-        return this.players.some(player => player.position.equals(pos));
+        return this.engine.isPositionOccupied(pos);
     }
-
+    
     isMovementBlocked(fromPos, toPos) {
-        return this.fences.some(fence => fence.blocksMovement(fromPos, toPos));
+        return this.engine.isMovementBlocked(fromPos, toPos);
     }
-
+    
     getValidMoves(player) {
-        const validMoves = [];
-        const directions = [
-            { row: -1, col: 0 }, // up
-            { row: 1, col: 0 },  // down
-            { row: 0, col: -1 }, // left
-            { row: 0, col: 1 }   // right
-        ];
-
-        for (const dir of directions) {
-            const newPos = new Position(
-                player.position.row + dir.row,
-                player.position.col + dir.col
-            );
-
-            if (!this.isValidPosition(newPos)) continue;
-            if (this.isMovementBlocked(player.position, newPos)) continue;
-
-            if (this.isPositionOccupied(newPos)) {
-                // There's another player in this position - try to jump straight over
-                const jumpPos = new Position(
-                    newPos.row + dir.row,
-                    newPos.col + dir.col
-                );
-
-                // Check if we can jump straight over
-                if (this.isValidPosition(jumpPos) && 
-                    !this.isMovementBlocked(newPos, jumpPos) &&
-                    !this.isPositionOccupied(jumpPos)) {
-                    validMoves.push(jumpPos);
-                } else {
-                    // Straight jump is blocked - check for diagonal jumps
-                    // When moving vertically (up/down), check left and right diagonal jumps
-                    // When moving horizontally (left/right), check up and down diagonal jumps
-                    
-                    const diagonalDirections = [];
-                    if (dir.row !== 0) {
-                        // Moving vertically, so check left and right diagonals
-                        diagonalDirections.push({ row: 0, col: -1 }); // left
-                        diagonalDirections.push({ row: 0, col: 1 });  // right
-                    } else {
-                        // Moving horizontally, so check up and down diagonals
-                        diagonalDirections.push({ row: -1, col: 0 }); // up
-                        diagonalDirections.push({ row: 1, col: 0 });  // down
-                    }
-                    
-                    for (const diagDir of diagonalDirections) {
-                        const diagJumpPos = new Position(
-                            newPos.row + diagDir.row,
-                            newPos.col + diagDir.col
-                        );
-                        
-                        // Check if diagonal jump is valid
-                        if (this.isValidPosition(diagJumpPos) &&
-                            !this.isMovementBlocked(newPos, diagJumpPos) &&
-                            !this.isPositionOccupied(diagJumpPos)) {
-                            validMoves.push(diagJumpPos);
-                        }
-                    }
-                }
-            } else {
-                // Normal move - no player blocking
-                validMoves.push(newPos);
-            }
-        }
-
-        return validMoves;
+        return this.engine.getValidMoves(player);
     }
-
+    
     isValidFencePlacement(fence) {
-        // Check bounds - fences must span exactly 2 movement squares
-        if (fence.orientation === 'horizontal') {
-            // Horizontal fence: check if it can span 2 columns
-            if (fence.row < 0 || fence.row >= this.size - 1) {
-                console.log(`Horizontal fence bounds error: row=${fence.row}, valid range: 0-${this.size-2}`);
-                return false;
-            }
-            if (fence.col < 0 || fence.col >= this.size - 1) {
-                console.log(`Horizontal fence bounds error: col=${fence.col}, valid range: 0-${this.size-2}`);
-                return false;
-            }
-        } else {
-            // Vertical fence: check if it can span 2 rows  
-            if (fence.row < 0 || fence.row >= this.size - 1) {
-                console.log(`Vertical fence bounds error: row=${fence.row}, valid range: 0-${this.size-2}`);
-                return false;
-            }
-            if (fence.col < 0 || fence.col >= this.size - 1) {
-                console.log(`Vertical fence bounds error: col=${fence.col}, valid range: 0-${this.size-2}`);
-                return false;
-            }
-        }
-
-        // Check if fence already exists
-        if (this.fences.some(f => f.equals(fence))) {
-            console.log(`Fence already exists at row=${fence.row}, col=${fence.col}, orientation=${fence.orientation}`);
-            return false;
-        }
-
-        // Check for fence post overlaps
-        if (this.wouldFencePostOverlap(fence)) {
-            console.log(`Fence post would overlap with existing fence post`);
-            return false;
-        }
-
-        // Check intersections
-        for (const existingFence of this.fences) {
-            if (this.fencesIntersect(fence, existingFence)) {
-                console.log(`Fence intersection detected with existing fence at row=${existingFence.row}, col=${existingFence.col}, orientation=${existingFence.orientation}`);
-                return false;
-            }
-        }
-
-        // Check if fence would block any player's path
-        const tempFences = [...this.fences, fence];
-        for (const player of this.players) {
-            if (!this.hasPathToGoal(player, tempFences)) {
-                console.log(`Fence would block ${player.name}'s path to goal`);
-                return false;
-            }
-        }
-
-        return true;
+        return this.engine.isValidFencePlacement(fence);
     }
-
+    
     fencesIntersect(fence1, fence2) {
-        if (fence1.orientation === fence2.orientation) {
-            // Same orientation fences overlap if they're on the same row/col and their spans overlap
-            if (fence1.orientation === 'horizontal') {
-                return fence1.row === fence2.row &&
-                       !(fence1.col + 1 < fence2.col || fence2.col + 1 < fence1.col);
-            } else {
-                return fence1.col === fence2.col &&
-                       !(fence1.row + 1 < fence2.row || fence2.row + 1 < fence1.row);
-            }
-        } else {
-            // Different orientations: check if they actually cross through each other
-            const hFence = fence1.orientation === 'horizontal' ? fence1 : fence2;
-            const vFence = fence1.orientation === 'vertical' ? fence1 : fence2;
-            
-            // A horizontal fence at (row, col) spans columns col to col+1 at row
-            // A vertical fence at (row, col) spans rows row to row+1 at col
-            
-            // They intersect (cross illegally) if and only if:
-            // 1. The vertical fence's column is strictly within the horizontal fence's column span
-            // 2. AND the horizontal fence's row is strictly within the vertical fence's row span
-            
-            // For integer coordinates:
-            // hFence spans columns [hFence.col, hFence.col+1] at row hFence.row
-            // vFence spans rows [vFence.row, vFence.row+1] at column vFence.col
-            
-            // They cross if vFence.col is between hFence.col and hFence.col+1 (exclusive)
-            // AND hFence.row is between vFence.row and vFence.row+1 (exclusive)
-            
-            // Since all coordinates are integers, "strictly between" means never true
-            // So perpendicular fences with integer coordinates can never truly cross
-            // They can only meet at endpoints (which should be allowed)
-            
-            return false; // Allow all perpendicular fence combinations
-        }
+        return this.engine.fencesIntersect(fence1, fence2);
     }
-
+    
     hasPathToGoal(player, fences) {
-        const visited = new Set();
-        const queue = [player.position];
-        visited.add(`${player.position.row},${player.position.col}`);
-
-        while (queue.length > 0) {
-            const currentPos = queue.shift();
-
-            if (currentPos.row === player.goalRow) {
-                return true;
-            }
-
-            const directions = [
-                { row: -1, col: 0 }, { row: 1, col: 0 },
-                { row: 0, col: -1 }, { row: 0, col: 1 }
-            ];
-
-            for (const dir of directions) {
-                const newPos = new Position(
-                    currentPos.row + dir.row,
-                    currentPos.col + dir.col
-                );
-
-                const posKey = `${newPos.row},${newPos.col}`;
-                
-                if (this.isValidPosition(newPos) && 
-                    !visited.has(posKey) &&
-                    !this.isMovementBlockedByFences(currentPos, newPos, fences)) {
-                    visited.add(posKey);
-                    queue.push(newPos);
-                }
-            }
-        }
-
-        return false;
+        return this.engine.hasPathToGoal(player, fences);
     }
-
+    
     isMovementBlockedByFences(fromPos, toPos, fences) {
-        return fences.some(fence => fence.blocksMovement(fromPos, toPos));
+        return this.engine.isMovementBlockedByFences(fromPos, toPos, fences);
     }
-
+    
     isValidMove(player, targetPos) {
-        const validMoves = this.getValidMoves(player);
-        return validMoves.some(move => move.equals(targetPos));
+        return this.engine.isValidMove(player, targetPos);
+    }
+    
+    wouldFencePostOverlap(fence) {
+        return this.engine.wouldFencePostOverlap(fence);
     }
 
     makeMove(direction) {
@@ -511,18 +340,22 @@ class QuoridorGame {
         }
 
         if (targetMove) {
-            // Play movement sound
-            this.audioManager.play('click');
-            
-            player.position = targetMove;
-            this.uiManager.showMessage(`Human moved to ${targetMove.toChessNotation()}`, 'success');
-            this.boardRenderer.updateBoardDisplay();
-            this.uiManager.updateUI();
-            
-            if (this.checkWinCondition()) return;
-            this.moveNumber++;
-            this.uiManager.updateDevStats();
-            this.switchPlayer();
+            // Try to make the move using engine
+            if (this.engine.tryMove(player, targetMove)) {
+                // Play movement sound
+                this.audioManager.play('click');
+                
+                this.uiManager.showMessage(`Human moved to ${targetMove.toChessNotation()}`, 'success');
+                this.boardRenderer.updateBoardDisplay();
+                this.uiManager.updateUI();
+                
+                if (this.checkWinCondition()) return;
+                this.moveNumber++;
+                this.uiManager.updateDevStats();
+                this.switchPlayer();
+            } else {
+                this.uiManager.showMessage('Invalid move!', 'error');
+            }
         } else {
             this.uiManager.showMessage('Invalid move!', 'error');
         }
@@ -543,12 +376,11 @@ class QuoridorGame {
         const player = this.getCurrentPlayer();
         const targetPos = new Position(row, col);
         
-        // Check if this is a valid move
-        if (this.isValidMove(player, targetPos)) {
+        // Try to make the move using engine
+        if (this.engine.tryMove(player, targetPos)) {
             // Play movement sound
             this.audioManager.play('click');
             
-            player.position = targetPos;
             this.uiManager.showMessage(`Human moved to ${targetPos.toChessNotation()}`, 'success');
             this.boardRenderer.updateBoardDisplay();
             this.uiManager.updateUI();
@@ -580,11 +412,11 @@ class QuoridorGame {
 
         const fence = new Fence(row, col, orientation);
         
-        if (this.isValidFencePlacement(fence)) {
+        // Try to place fence using engine
+        if (this.engine.tryPlaceFence(fence)) {
             // Play fence placement sound
             this.audioManager.play('clack');
             
-            this.fences.push(fence);
             this.getCurrentPlayer().fencesRemaining--;
             
             this.uiManager.showMessage(`${orientation.charAt(0).toUpperCase() + orientation.slice(1)} fence placed`, 'success');
@@ -617,46 +449,46 @@ class QuoridorGame {
         
         if (aiDecision) {
             if (aiDecision.type === 'fence') {
-                // Play fence placement sound for AI
-                this.audioManager.play('clack');
-                
-                // AI decided to place a fence
-                this.fences.push(aiDecision.fence);
-                player.fencesRemaining--;
-                this.uiManager.showMessage(aiDecision.message, 'info');
-                this.boardRenderer.updateBoardDisplay();
-                this.uiManager.updateUI();
-                
-                if (this.checkWinCondition()) return;
-                this.moveNumber++;
-                this.uiManager.updateDevStats();
-                this.switchPlayer();
+                // Try to place fence using engine
+                if (this.engine.tryPlaceFence(aiDecision.fence)) {
+                    // Play fence placement sound for AI
+                    this.audioManager.play('clack');
+                    
+                    player.fencesRemaining--;
+                    this.uiManager.showMessage(aiDecision.message, 'info');
+                    this.boardRenderer.updateBoardDisplay();
+                    this.uiManager.updateUI();
+                    
+                    if (this.checkWinCondition()) return;
+                    this.moveNumber++;
+                    this.uiManager.updateDevStats();
+                    this.switchPlayer();
+                }
             } else if (aiDecision.type === 'move') {
-                // Play movement sound for AI
-                this.audioManager.play('click');
-                
-                // AI decided to move
-                player.position = aiDecision.position;
-                this.uiManager.showMessage(aiDecision.message, 'info');
-                this.boardRenderer.updateBoardDisplay();
-                this.uiManager.updateUI();
-                
-                if (this.checkWinCondition()) return;
-                this.moveNumber++;
-                this.uiManager.updateDevStats();
-                this.switchPlayer();
+                // Try to make move using engine
+                if (this.engine.tryMove(player, aiDecision.position)) {
+                    // Play movement sound for AI
+                    this.audioManager.play('click');
+                    
+                    this.uiManager.showMessage(aiDecision.message, 'info');
+                    this.boardRenderer.updateBoardDisplay();
+                    this.uiManager.updateUI();
+                    
+                    if (this.checkWinCondition()) return;
+                    this.moveNumber++;
+                    this.uiManager.updateDevStats();
+                    this.switchPlayer();
+                }
             }
         }
     }
 
     checkWinCondition() {
-        for (const player of this.players) {
-            if (player.hasWon()) {
-                this.gameOver = true;
-                this.winner = player;
-                this.uiManager.showWinner(() => this.newGame());
-                return true;
-            }
+        const winner = this.engine.checkWinCondition();
+        if (winner) {
+            this.winner = winner;
+            this.uiManager.showWinner(() => this.newGame());
+            return true;
         }
         return false;
     }
@@ -668,11 +500,8 @@ class QuoridorGame {
             celebration.remove();
         }
         
-        // Reset game state
-        this.fences = [];
-        this.currentPlayerIndex = 0;
-        this.gameOver = false;
-        this.gameStarted = true; // Set to true since this is called after initial start
+        // Reset game engine state
+        this.engine.reset();
         this.winner = null;
         
         // Reset dev mode tracking
@@ -685,12 +514,6 @@ class QuoridorGame {
         
         // Automatically enable fence placement mode for human player at start
         this.fencePlacementMode = 'active';
-        
-        // Reset players
-        this.players[0].position = new Position(GAME_CONFIG.PLAYER1_START_ROW, GAME_CONFIG.PLAYER1_START_COL);
-        this.players[0].fencesRemaining = GAME_CONFIG.INITIAL_FENCE_COUNT;
-        this.players[1].position = new Position(GAME_CONFIG.PLAYER2_START_ROW, GAME_CONFIG.PLAYER2_START_COL);
-        this.players[1].fencesRemaining = GAME_CONFIG.INITIAL_FENCE_COUNT;
         
         // Ensure proper button visibility (game controls should be visible)
         document.getElementById('start-game').style.display = 'none';
@@ -709,30 +532,12 @@ class QuoridorGame {
         this.uiManager.showMessage('New game started! Make your move.', 'info');
     }
 
-    wouldFencePostOverlap(fence) {
-        // Calculate where this fence's post would be located in grid coordinates
-        const newFencePostRow = fence.row * 2 + 1;
-        const newFencePostCol = fence.col * 2 + 1;
-        
-        // Check if any existing fence has a post at the same location
-        for (const existingFence of this.fences) {
-            const existingFencePostRow = existingFence.row * 2 + 1;
-            const existingFencePostCol = existingFence.col * 2 + 1;
-            
-            // If the post positions match, there would be an overlap
-            if (newFencePostRow === existingFencePostRow && newFencePostCol === existingFencePostCol) {
-                return true;
-            }
-        }
-        
-        return false;
-    }
 
     startGame() {
         // Play game start sound
         this.audioManager.play('start');
         
-        this.gameStarted = true;
+        this.engine.start();
         
         // Hide start button and show game controls
         this.uiManager.showGameControls();
