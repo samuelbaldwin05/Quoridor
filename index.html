@@ -205,8 +205,21 @@
             <span class="stat-label">Advantage:</span>
             <span id="stat-advantage">0</span>
         </div>
+        <div class="stat-item flex-between">
+            <span class="stat-label">Last Move:</span>
+            <span id="stat-last-move-type">-</span>
+        </div>
     </div>
 
+    <!-- Model classes (must load first) -->
+    <script src="models/Position.js"></script>
+    <script src="models/Fence.js"></script>
+    <script src="models/Player.js"></script>
+    
+    <!-- Audio Manager -->
+    <script src="audio/AudioManager.js"></script>
+    
+    <!-- Game logic -->
     <script src="ai.js"></script>
     <script src="quoridor.js"></script>
 </body>

@@ -1,115 +1,5 @@
 // Quoridor Game - JavaScript Implementation
-
-// Audio Manager for handling sound effects
-class AudioManager {
-    constructor() {
-        this.sounds = {
-            start: new Audio('SoundEffects/start.mp3'),
-            click: new Audio('SoundEffects/click.mp3'),
-            clack: new Audio('SoundEffects/clack.mp3'),
-            win1: new Audio('SoundEffects/win1.mp3'),
-            lose: new Audio('SoundEffects/lose.mp3')
-        };
-        
-        // Set default volume levels
-        Object.values(this.sounds).forEach(audio => {
-            audio.volume = 0.7; // Set to 70% volume
-        });
-        
-        this.enabled = true; // Allow users to disable sounds if needed
-    }
-    
-    play(soundName) {
-        if (!this.enabled || !this.sounds[soundName]) return;
-        
-        try {
-            // Reset the audio to beginning and play
-            this.sounds[soundName].currentTime = 0;
-            this.sounds[soundName].play().catch(error => {
-                // Handle autoplay restrictions gracefully
-                console.log('Audio play prevented:', error);
-            });
-        } catch (error) {
-            console.log('Audio error:', error);
-        }
-    }
-    
-    setEnabled(enabled) {
-        this.enabled = enabled;
-    }
-    
-    setVolume(volume) {
-        // Volume should be between 0 and 1
-        const normalizedVolume = Math.max(0, Math.min(1, volume));
-        Object.values(this.sounds).forEach(audio => {
-            audio.volume = normalizedVolume;
-        });
-    }
-}
-
-class Position {
-    constructor(row, col) {
-        this.row = row;
-        this.col = col;
-    }
-
-    equals(other) {
-        return this.row === other.row && this.col === other.col;
-    }
-
-    toChessNotation() {
-        return String.fromCharCode(97 + this.col) + (this.row + 1);
-    }
-}
-
-class Fence {
-    constructor(row, col, orientation) {
-        this.row = row;
-        this.col = col;
-        this.orientation = orientation; // 'horizontal' or 'vertical'
-    }
-
-    equals(other) {
-        return this.row === other.row && 
-               this.col === other.col && 
-               this.orientation === other.orientation;
-    }
-
-    blocksMovement(fromPos, toPos) {
-        if (this.orientation === 'horizontal') {
-            // Horizontal fence blocks vertical movement
-            if (fromPos.col === toPos.col) {
-                const minRow = Math.min(fromPos.row, toPos.row);
-                const maxRow = Math.max(fromPos.row, toPos.row);
-                return this.row >= minRow && this.row < maxRow &&
-                       fromPos.col >= this.col && fromPos.col <= this.col + 1;
-            }
-        } else { // vertical
-            // Vertical fence blocks horizontal movement
-            if (fromPos.row === toPos.row) {
-                const minCol = Math.min(fromPos.col, toPos.col);
-                const maxCol = Math.max(fromPos.col, toPos.col);
-                return this.col >= minCol && this.col < maxCol &&
-                       fromPos.row >= this.row && fromPos.row <= this.row + 1;
-            }
-        }
-        return false;
-    }
-}
-
-class Player {
-    constructor(id, startPos, goalRow, name) {
-        this.id = id;
-        this.position = startPos;
-        this.goalRow = goalRow;
-        this.fencesRemaining = 10;
-        this.name = name;
-    }
-
-    hasWon() {
-        return this.position.row === this.goalRow;
-    }
-}
+// Note: Position, Fence, Player, and AudioManager classes are now in separate files
 
 class QuoridorGame {
     constructor() {
@@ -1181,6 +1071,7 @@ class QuoridorGame {
         document.getElementById('stat-human-path').textContent = humanPath === Infinity ? '∞' : humanPath.toFixed(2);
         document.getElementById('stat-ai-path').textContent = aiPath === Infinity ? '∞' : aiPath.toFixed(2);
         document.getElementById('stat-advantage').textContent = advantage === Infinity ? '∞' : (advantage > 0 ? '+' + advantage.toFixed(2) : advantage.toFixed(2));
+        document.getElementById('stat-last-move-type').textContent = this.ai.lastMoveType || '-';
     }
 
     // Switch AI bot and restart game if in progress
