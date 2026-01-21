@@ -3,7 +3,7 @@
 
 class QuoridorGame {
     constructor() {
-        this.size = 9;
+        this.size = GAME_CONFIG.BOARD_SIZE;
         this.players = [];
         this.currentPlayerIndex = 0;
         this.fences = [];
@@ -20,6 +20,7 @@ class QuoridorGame {
         this.devModeEnabled = false;
         this.keyboardEnabled = true; // Track keyboard controls setting
         this.clickMoveEnabled = true; // Track click-to-move setting
+        this.aiMoveDelayEnabled = true; // Track AI move delay setting
         
         // Scoreboard tracking
         this.scoreboardEnabled = true; // Track scoreboard visibility setting
@@ -31,13 +32,13 @@ class QuoridorGame {
         
         // Initialize players
         this.players = [
-            new Player(1, new Position(8, 4), 0, "Human"),
-            new Player(2, new Position(0, 4), 8, "Computer")
+            new Player(1, new Position(GAME_CONFIG.PLAYER1_START_ROW, GAME_CONFIG.PLAYER1_START_COL), GAME_CONFIG.PLAYER1_GOAL_ROW, "Human"),
+            new Player(2, new Position(GAME_CONFIG.PLAYER2_START_ROW, GAME_CONFIG.PLAYER2_START_COL), GAME_CONFIG.PLAYER2_GOAL_ROW, "Computer")
         ];
         
         // Initialize theme
-        this.currentTheme = 'modern';
-        this.initializeTheme();
+        this.themeManager = new ThemeManager('modern');
+        this.themeManager.initializeTheme();
         
         this.initializeBoard();
         this.setupEventListeners();
@@ -51,9 +52,9 @@ class QuoridorGame {
         const board = document.getElementById('board');
         board.innerHTML = '';
         
-        // Create 17x17 grid (9 cells + 8 fence slots in each direction)
-        for (let row = 0; row < 17; row++) {
-            for (let col = 0; col < 17; col++) {
+        // Create grid (9 cells + 8 fence slots in each direction)
+        for (let row = 0; row < GAME_CONFIG.GRID_SIZE; row++) {
+            for (let col = 0; col < GAME_CONFIG.GRID_SIZE; col++) {
                 const cell = document.createElement('div');
                 
                 if (row % 2 === 0 && col % 2 === 0) {
@@ -125,7 +126,7 @@ class QuoridorGame {
 
         // Theme selector
         document.getElementById('theme-select').addEventListener('change', (e) => {
-            this.applyTheme(e.target.value);
+            this.themeManager.applyTheme(e.target.value);
         });
 
         // Keyboard controls toggle
@@ -136,6 +137,11 @@ class QuoridorGame {
         // Click-to-move toggle
         document.getElementById('click-move-toggle').addEventListener('change', (e) => {
             this.toggleClickMoveControls(e.target.checked);
+        });
+
+        // AI move delay toggle
+        document.getElementById('ai-delay-toggle').addEventListener('change', (e) => {
+            this.toggleAiMoveDelay(e.target.checked);
         });
 
         // Sound controls
@@ -253,9 +259,13 @@ class QuoridorGame {
         // Show valid moves for human player when it becomes their turn
         this.showValidMovesForHuman();
         
-        // If it's computer's turn, make computer move after a delay
+        // If it's computer's turn, make computer move (with optional delay)
         if (this.getCurrentPlayer().name === "Computer" && !this.gameOver) {
-            setTimeout(() => this.makeComputerMove(), 1000);
+            if (this.aiMoveDelayEnabled) {
+                setTimeout(() => this.makeComputerMove(), GAME_CONFIG.AI_MOVE_DELAY_MS);
+            } else {
+                this.makeComputerMove();
+            }
         }
     }
 
@@ -699,7 +709,7 @@ class QuoridorGame {
                 // Add fence post in the middle of the horizontal fence
                 const middlePostRow = fence.row * 2 + 1; // Convert to grid coordinates
                 const middlePostCol = fence.col * 2 + 1; // Middle of the fence span
-                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * 17 + middlePostCol];
+                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * GAME_CONFIG.GRID_SIZE + middlePostCol];
                 if (middlePostElement) {
                     middlePostElement.classList.add('fence-post');
                 }
@@ -714,7 +724,7 @@ class QuoridorGame {
                 // Add fence post in the middle of the vertical fence
                 const middlePostRow = fence.row * 2 + 1; // Middle of the fence span
                 const middlePostCol = fence.col * 2 + 1; // Convert to grid coordinates
-                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * 17 + middlePostCol];
+                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * GAME_CONFIG.GRID_SIZE + middlePostCol];
                 if (middlePostElement) {
                     middlePostElement.classList.add('fence-post');
                 }
@@ -800,13 +810,13 @@ class QuoridorGame {
         messageDisplay.textContent = text;
         messageDisplay.className = 'message-display'; // Always use the same styling
         
-        // Clear message after 3 seconds
+        // Clear message after timeout
         setTimeout(() => {
             if (messageDisplay.textContent === text) {
                 messageDisplay.textContent = 'Make your move!';
                 messageDisplay.className = 'message-display';
             }
-        }, 3000);
+        }, GAME_CONFIG.MESSAGE_TIMEOUT_MS);
     }
 
     newGame() {
@@ -835,10 +845,10 @@ class QuoridorGame {
         this.fencePlacementMode = 'active';
         
         // Reset players
-        this.players[0].position = new Position(8, 4);
-        this.players[0].fencesRemaining = 10;
-        this.players[1].position = new Position(0, 4);
-        this.players[1].fencesRemaining = 10;
+        this.players[0].position = new Position(GAME_CONFIG.PLAYER1_START_ROW, GAME_CONFIG.PLAYER1_START_COL);
+        this.players[0].fencesRemaining = GAME_CONFIG.INITIAL_FENCE_COUNT;
+        this.players[1].position = new Position(GAME_CONFIG.PLAYER2_START_ROW, GAME_CONFIG.PLAYER2_START_COL);
+        this.players[1].fencesRemaining = GAME_CONFIG.INITIAL_FENCE_COUNT;
         
         // Ensure proper button visibility (game controls should be visible)
         document.getElementById('start-game').style.display = 'none';
@@ -943,7 +953,7 @@ class QuoridorGame {
                 // Add fence post preview in the middle of the horizontal fence
                 const middlePostRow = row * 2 + 1; // Convert to grid coordinates
                 const middlePostCol = col * 2 + 1; // Middle of the fence span
-                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * 17 + middlePostCol];
+                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * GAME_CONFIG.GRID_SIZE + middlePostCol];
                 if (middlePostElement) {
                     middlePostElement.classList.add('fence-post-preview');
                 }
@@ -958,7 +968,7 @@ class QuoridorGame {
                 // Add fence post preview in the middle of the vertical fence
                 const middlePostRow = row * 2 + 1; // Middle of the fence span
                 const middlePostCol = col * 2 + 1; // Convert to grid coordinates
-                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * 17 + middlePostCol];
+                const middlePostElement = document.querySelector(`.board`).children[middlePostRow * GAME_CONFIG.GRID_SIZE + middlePostCol];
                 if (middlePostElement) {
                     middlePostElement.classList.add('fence-post-preview');
                 }
@@ -1090,7 +1100,7 @@ class QuoridorGame {
         if (this.gameStarted) {
             setTimeout(() => {
                 this.newGame();
-            }, 1000);
+            }, GAME_CONFIG.BOT_SWITCH_DELAY_MS);
         }
     }
 
@@ -1109,6 +1119,12 @@ class QuoridorGame {
         if (this.gameStarted && this.getCurrentPlayer().name === "Human") {
             this.showValidMovesForHuman();
         }
+    }
+
+    toggleAiMoveDelay(enabled) {
+        this.aiMoveDelayEnabled = enabled;
+        const status = enabled ? 'enabled' : 'disabled';
+        this.showMessage(`AI move delay ${status}`, 'info');
     }
 
     toggleScoreboard(enabled) {
@@ -1225,149 +1241,6 @@ class QuoridorGame {
         debugInfos.forEach(info => info.remove());
     }
 
-    // Initialize theme
-    initializeTheme() {
-        const themeSelect = document.getElementById('theme-select');
-        if (themeSelect) {
-            themeSelect.value = this.currentTheme;
-            this.applyTheme(this.currentTheme);
-        }
-    }
-    
-    // Apply theme
-    applyTheme(themeName) {
-        const root = document.documentElement;
-        
-        if (themeName === 'modern') {
-            // Apply Modern theme
-            root.style.setProperty('--primary-bg', 'var(--modern-primary-bg)');
-            root.style.setProperty('--secondary-bg', 'var(--modern-secondary-bg)');
-            root.style.setProperty('--tertiary-bg', 'var(--modern-tertiary-bg)');
-            root.style.setProperty('--board-bg', 'var(--modern-board-bg)');
-            root.style.setProperty('--cell-bg', 'var(--modern-cell-bg)');
-            root.style.setProperty('--cell-alt-bg', 'var(--modern-cell-alt-bg)');
-            
-            root.style.setProperty('--ui-brown', 'var(--modern-ui-brown)');
-            root.style.setProperty('--ui-brown-dark', 'var(--modern-ui-brown-dark)');
-            root.style.setProperty('--ui-brown-darker', 'var(--modern-ui-brown-darker)');
-            root.style.setProperty('--ui-accent', 'var(--modern-ui-accent)');
-            
-            root.style.setProperty('--player1-color', 'var(--modern-player1-color)');
-            root.style.setProperty('--player1-border', 'var(--modern-player1-border)');
-            root.style.setProperty('--player1-shadow', 'var(--modern-player1-shadow)');
-            root.style.setProperty('--player2-color', 'var(--modern-player2-color)');
-            root.style.setProperty('--player2-border', 'var(--modern-player2-border)');
-            root.style.setProperty('--player2-shadow', 'var(--modern-player2-shadow)');
-            
-            root.style.setProperty('--text-primary', 'var(--modern-text-primary)');
-            root.style.setProperty('--text-dark', 'var(--modern-text-dark)');
-            root.style.setProperty('--text-medium', 'var(--modern-text-medium)');
-            root.style.setProperty('--text-light', 'var(--modern-text-light)');
-            root.style.setProperty('--text-muted', 'var(--modern-text-muted)');
-            
-            root.style.setProperty('--valid-move', 'var(--modern-valid-move)');
-            root.style.setProperty('--hover-danger', 'var(--modern-hover-danger)');
-            root.style.setProperty('--preview-valid', 'var(--modern-preview-valid)');
-            root.style.setProperty('--preview-invalid', 'var(--modern-preview-invalid)');
-            
-            root.style.setProperty('--modal-bg', 'var(--modern-modal-bg)');
-            root.style.setProperty('--modal-overlay', 'var(--modern-modal-overlay)');
-            root.style.setProperty('--modal-accent', 'var(--modern-modal-accent)');
-            root.style.setProperty('--modal-border', 'var(--modern-modal-border)');
-            
-            root.style.setProperty('--dev-bg', 'var(--modern-dev-bg)');
-            root.style.setProperty('--dev-border', 'var(--modern-dev-border)');
-            root.style.setProperty('--dev-text', 'var(--modern-dev-text)');
-            root.style.setProperty('--dev-label', 'var(--modern-dev-label)');
-            root.style.setProperty('--dev-btn', 'var(--modern-dev-btn)');
-        } else if (themeName === 'sunny-day') {
-            // Apply Sunny Day theme
-            root.style.setProperty('--primary-bg', 'var(--sunny-primary-bg)');
-            root.style.setProperty('--secondary-bg', 'var(--sunny-secondary-bg)');
-            root.style.setProperty('--tertiary-bg', 'var(--sunny-tertiary-bg)');
-            root.style.setProperty('--board-bg', 'var(--sunny-board-bg)');
-            root.style.setProperty('--cell-bg', 'var(--sunny-cell-bg)');
-            root.style.setProperty('--cell-alt-bg', 'var(--sunny-cell-alt-bg)');
-            
-            root.style.setProperty('--ui-brown', 'var(--sunny-ui-brown)');
-            root.style.setProperty('--ui-brown-dark', 'var(--sunny-ui-brown-dark)');
-            root.style.setProperty('--ui-brown-darker', 'var(--sunny-ui-brown-darker)');
-            root.style.setProperty('--ui-accent', 'var(--sunny-ui-accent)');
-            
-            root.style.setProperty('--player1-color', 'var(--sunny-player1-color)');
-            root.style.setProperty('--player1-border', 'var(--sunny-player1-border)');
-            root.style.setProperty('--player1-shadow', 'var(--sunny-player1-shadow)');
-            root.style.setProperty('--player2-color', 'var(--sunny-player2-color)');
-            root.style.setProperty('--player2-border', 'var(--sunny-player2-border)');
-            root.style.setProperty('--player2-shadow', 'var(--sunny-player2-shadow)');
-            
-            root.style.setProperty('--text-primary', 'var(--sunny-text-primary)');
-            root.style.setProperty('--text-dark', 'var(--sunny-text-dark)');
-            root.style.setProperty('--text-medium', 'var(--sunny-text-medium)');
-            root.style.setProperty('--text-light', 'var(--sunny-text-light)');
-            root.style.setProperty('--text-muted', 'var(--sunny-text-muted)');
-            
-            root.style.setProperty('--valid-move', 'var(--sunny-valid-move)');
-            root.style.setProperty('--hover-danger', 'var(--sunny-hover-danger)');
-            root.style.setProperty('--preview-valid', 'var(--sunny-preview-valid)');
-            root.style.setProperty('--preview-invalid', 'var(--sunny-preview-invalid)');
-            
-            root.style.setProperty('--modal-bg', 'var(--sunny-modal-bg)');
-            root.style.setProperty('--modal-overlay', 'var(--sunny-modal-overlay)');
-            root.style.setProperty('--modal-accent', 'var(--sunny-modal-accent)');
-            root.style.setProperty('--modal-border', 'var(--sunny-modal-border)');
-            
-            root.style.setProperty('--dev-bg', 'var(--sunny-dev-bg)');
-            root.style.setProperty('--dev-border', 'var(--sunny-dev-border)');
-            root.style.setProperty('--dev-text', 'var(--sunny-dev-text)');
-            root.style.setProperty('--dev-label', 'var(--sunny-dev-label)');
-            root.style.setProperty('--dev-btn', 'var(--sunny-dev-btn)');
-        } else {
-            // Apply Classic theme (default)
-            root.style.setProperty('--primary-bg', 'var(--classic-primary-bg)');
-            root.style.setProperty('--secondary-bg', 'var(--classic-secondary-bg)');
-            root.style.setProperty('--tertiary-bg', 'var(--classic-tertiary-bg)');
-            root.style.setProperty('--board-bg', 'var(--classic-board-bg)');
-            root.style.setProperty('--cell-bg', 'var(--classic-cell-bg)');
-            root.style.setProperty('--cell-alt-bg', 'var(--classic-cell-alt-bg)');
-            
-            root.style.setProperty('--ui-brown', 'var(--classic-ui-brown)');
-            root.style.setProperty('--ui-brown-dark', 'var(--classic-ui-brown-dark)');
-            root.style.setProperty('--ui-brown-darker', 'var(--classic-ui-brown-darker)');
-            root.style.setProperty('--ui-accent', 'var(--classic-ui-accent)');
-            
-            root.style.setProperty('--player1-color', 'var(--classic-player1-color)');
-            root.style.setProperty('--player1-border', 'var(--classic-player1-border)');
-            root.style.setProperty('--player1-shadow', 'var(--classic-player1-shadow)');
-            root.style.setProperty('--player2-color', 'var(--classic-player2-color)');
-            root.style.setProperty('--player2-border', 'var(--classic-player2-border)');
-            root.style.setProperty('--player2-shadow', 'var(--classic-player2-shadow)');
-            
-            root.style.setProperty('--text-primary', 'var(--classic-text-primary)');
-            root.style.setProperty('--text-dark', 'var(--classic-text-dark)');
-            root.style.setProperty('--text-medium', 'var(--classic-text-medium)');
-            root.style.setProperty('--text-light', 'var(--classic-text-light)');
-            root.style.setProperty('--text-muted', 'var(--classic-text-muted)');
-            
-            root.style.setProperty('--valid-move', 'var(--classic-valid-move)');
-            root.style.setProperty('--hover-danger', 'var(--classic-hover-danger)');
-            root.style.setProperty('--preview-valid', 'var(--classic-preview-valid)');
-            root.style.setProperty('--preview-invalid', 'var(--classic-preview-invalid)');
-            
-            root.style.setProperty('--modal-bg', 'var(--classic-modal-bg)');
-            root.style.setProperty('--modal-overlay', 'var(--classic-modal-overlay)');
-            root.style.setProperty('--modal-accent', 'var(--classic-modal-accent)');
-            root.style.setProperty('--modal-border', 'var(--classic-modal-border)');
-            
-            root.style.setProperty('--dev-bg', 'var(--classic-dev-bg)');
-            root.style.setProperty('--dev-border', 'var(--classic-dev-border)');
-            root.style.setProperty('--dev-text', 'var(--classic-dev-text)');
-            root.style.setProperty('--dev-label', 'var(--classic-dev-label)');
-            root.style.setProperty('--dev-btn', 'var(--classic-dev-btn)');
-        }
-        
-        this.currentTheme = themeName;
-    }
 }
 
 // Initialize game when page loads

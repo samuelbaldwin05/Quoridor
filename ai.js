@@ -106,15 +106,15 @@ class QuoridorAI {
             return { type: 'move', position: winningMove };
         }
 
-        // SECOND PRIORITY: Random movement in early game (50% chance in first 3 moves)
-        if (this.moveCount <= 3 && Math.random() < 0.5) {
+        // SECOND PRIORITY: Random movement in early game
+        if (this.moveCount <= AI_CONFIG.BOT1_RANDOM_MOVES && Math.random() < AI_CONFIG.BOT1_RANDOM_CHANCE) {
             const randomMove = this.findRandomMoveAvoidingBacktrack(game, player);
             if (randomMove) {
                 return { type: 'move', position: randomMove };
             }
         }
 
-        // THIRD PRIORITY: Try high-impact fence (increases opponent path by 3+)
+        // THIRD PRIORITY: Try high-impact fence (increases opponent path by threshold)
         const opponent = game.players.find(p => p !== player);
         if (player.fencesRemaining > 0) {
             const highImpactFence = this.findBot1HighImpactFence(game, opponent);
@@ -124,7 +124,7 @@ class QuoridorAI {
         }
 
         // FOURTH PRIORITY: Try strategic fence when opponent is close
-        if (player.fencesRemaining > 0 && opponent.position.row >= 6) {
+        if (player.fencesRemaining > 0 && opponent.position.row >= AI_CONFIG.BOT1_STRATEGIC_ROW_THRESHOLD) {
             const strategicFence = this.findBot1StrategicFence(game, opponent);
             if (strategicFence) {
                 return { type: 'fence', fence: strategicFence };
@@ -158,8 +158,8 @@ class QuoridorAI {
     makeSimpleMove(game, player) {
         const opponent = game.players.find(p => p !== player);
         
-        // Bot 2 specific opening strategy (first 2 moves) - FIRST PRIORITY
-        if (this.moveCount <= 1 && Math.random() < 0.75) {
+        // Bot 2 specific opening strategy - FIRST PRIORITY
+        if (this.moveCount <= AI_CONFIG.BOT2_OPENING_MOVES && Math.random() < AI_CONFIG.BOT2_OPENING_CHANCE) {
             const openingMove = this.findBot2OpeningMove(game, player);
             if (openingMove) {
                 this.lastMoveType = 'Opening Strategy';
@@ -193,7 +193,7 @@ class QuoridorAI {
         const opponentRowDistanceToGoal = Math.abs(opponent.position.row - opponent.goalRow);
         
         if (validMoves.length > 0) {
-            // Third priority: Check if any fence can increase opponent's path by 3+ moves
+            // Third priority: Check if any fence can increase opponent's path by threshold
             if (player.fencesRemaining > 0) {
                 const highImpactFence = this.findHighImpactFence(game, opponent);
                 if (highImpactFence) {
@@ -206,10 +206,10 @@ class QuoridorAI {
                 }
             }
             
-            // Fourth priority: Only place fence if opponent is within 3 tiles AND close to their actual goal row
+            // Fourth priority: Only place fence if opponent is within threshold AND close to their actual goal row
             const shouldPlaceFence = player.fencesRemaining > 0 && 
-                                   opponentDistanceToGoal <= 3 && 
-                                   opponentRowDistanceToGoal <= 4; // Must be close to goal row too
+                                   opponentDistanceToGoal <= AI_CONFIG.OPPONENT_DISTANCE_THRESHOLD && 
+                                   opponentRowDistanceToGoal <= AI_CONFIG.OPPONENT_ROW_THRESHOLD;
             
             if (shouldPlaceFence) {
                 const strategicFence = this.findStrategicFence(game, opponent);
@@ -273,8 +273,8 @@ class QuoridorAI {
             timestamp: Date.now()
         });
 
-        // Keep only last 10 moves
-        if (this.humanMoveHistory.length > 10) {
+        // Keep only last N moves
+        if (this.humanMoveHistory.length > AI_CONFIG.HUMAN_MOVE_HISTORY_LIMIT) {
             this.humanMoveHistory.shift();
         }
     }
@@ -453,21 +453,16 @@ class QuoridorAI {
         }
         
         // Apply penalty based on distance to nearest fence
-        // Distance 0 (adjacent to fence) = 0.10 penalty
-        // Distance 1 (next to adjacent) = 0.05 penalty
-        // Distance 2 = 0.03 penalty
-        // Distance 3 = 0.01 penalty
-        // Distance 4+ = 0 penalty
         if (minDistance === 0) {
-            return 0.10;
+            return AI_CONFIG.FENCE_PROXIMITY_PENALTIES.ADJACENT;
         } else if (minDistance === 1) {
-            return 0.05;
+            return AI_CONFIG.FENCE_PROXIMITY_PENALTIES.NEAR;
         } else if (minDistance === 2) {
-            return 0.03;
+            return AI_CONFIG.FENCE_PROXIMITY_PENALTIES.MEDIUM;
         } else if (minDistance === 3) {
-            return 0.01;
+            return AI_CONFIG.FENCE_PROXIMITY_PENALTIES.FAR;
         } else {
-            return 0;
+            return AI_CONFIG.FENCE_PROXIMITY_PENALTIES.NONE;
         }
     }
 
@@ -484,7 +479,7 @@ class QuoridorAI {
         
         // Adjacent means within 1 square (including diagonals)
         if (rowDiff <= 1 && colDiff <= 1 && !(rowDiff === 0 && colDiff === 0)) {
-            return 0.1; // 0.1 penalty for being adjacent to opposing player
+            return AI_CONFIG.OPPOSING_PLAYER_PENALTY;
         }
         
         return 0;
@@ -722,8 +717,8 @@ class QuoridorAI {
             // Calculate advantage increase
             const advantageIncrease = newAdvantage - currentAdvantage;
             
-            // If this fence increases advantage by 3 or more, consider it
-            if (advantageIncrease >= 3 && advantageIncrease > maxAdvantageIncrease) {
+            // If this fence increases advantage by threshold or more, consider it
+            if (advantageIncrease >= AI_CONFIG.HIGH_IMPACT_THRESHOLD && advantageIncrease > maxAdvantageIncrease) {
                 maxAdvantageIncrease = advantageIncrease;
                 bestFence = fence;
             }
@@ -940,8 +935,8 @@ class QuoridorAI {
             const newDistance = this.dijkstraDistance(game, opponent.position, opponent.goalRow);
             game.fences.pop(); // Remove test fence
             
-            // If this fence increases path by 3 or more, place it
-            if (newDistance - currentDistance >= 3) {
+            // If this fence increases path by threshold or more, place it
+            if (newDistance - currentDistance >= AI_CONFIG.HIGH_IMPACT_THRESHOLD) {
                 return fence;
             }
         }

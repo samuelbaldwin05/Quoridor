@@ -148,6 +148,13 @@
                 
                 <div class="setting-item flex flex-gap-md">
                     <label class="flex flex-gap-sm">
+                        <input type="checkbox" id="ai-delay-toggle" checked>
+                        AI Move Delay (1000ms)
+                    </label>
+                </div>
+                
+                <div class="setting-item flex flex-gap-md">
+                    <label class="flex flex-gap-sm">
                         <input type="checkbox" id="sound-toggle" checked>
                         Enable Sound Effects
                     </label>
@@ -211,13 +218,19 @@
         </div>
     </div>
 
-    <!-- Model classes (must load first) -->
+    <!-- Constants (must load first) -->
+    <script src="constants.js"></script>
+    
+    <!-- Model classes -->
     <script src="models/Position.js"></script>
     <script src="models/Fence.js"></script>
     <script src="models/Player.js"></script>
     
     <!-- Audio Manager -->
     <script src="audio/AudioManager.js"></script>
+    
+    <!-- UI Components -->
+    <script src="ui/ThemeManager.js"></script>
     
     <!-- Game logic -->
     <script src="ai.js"></script>

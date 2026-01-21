@@ -4,7 +4,7 @@ class Player {
         this.id = id;
         this.position = startPos;
         this.goalRow = goalRow;
-        this.fencesRemaining = 10;
+        this.fencesRemaining = GAME_CONFIG.INITIAL_FENCE_COUNT;
         this.name = name;
     }
 

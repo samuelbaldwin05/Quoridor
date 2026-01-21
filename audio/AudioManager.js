@@ -2,16 +2,16 @@
 class AudioManager {
     constructor() {
         this.sounds = {
-            start: new Audio('SoundEffects/start.mp3'),
-            click: new Audio('SoundEffects/click.mp3'),
-            clack: new Audio('SoundEffects/clack.mp3'),
-            win1: new Audio('SoundEffects/win1.mp3'),
-            lose: new Audio('SoundEffects/lose.mp3')
+            start: new Audio(getSoundPath('START')),
+            click: new Audio(getSoundPath('CLICK')),
+            clack: new Audio(getSoundPath('CLACK')),
+            win1: new Audio(getSoundPath('WIN')),
+            lose: new Audio(getSoundPath('LOSE'))
         };
         
         // Set default volume levels
         Object.values(this.sounds).forEach(audio => {
-            audio.volume = 0.7; // Set to 70% volume
+            audio.volume = GAME_CONFIG.DEFAULT_VOLUME;
         });
         
         this.enabled = true; // Allow users to disable sounds if needed
