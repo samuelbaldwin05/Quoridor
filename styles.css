@@ -566,36 +566,68 @@ body {
 .modal-content {
     background-color: var(--modal-bg);
     border-radius: 10px;
-    padding: 30px;
     max-width: 600px;
     width: 90%;
-    max-height: 80vh;
-    overflow-y: auto;
+    max-height: 90vh;
     position: relative;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.modal-header {
+    padding: 20px 30px;
+    border-bottom: 2px solid var(--modal-border);
+    background: var(--modal-bg);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.modal-header h2 {
+    margin: 0;
+    color: var(--text-dark);
+    font-size: 1.5em;
+    text-align: center;
+    border-bottom: none;
+    padding-bottom: 0;
+    flex: 1;
+}
+
+.modal-header .close-btn {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 11;
+}
+
+.modal-body {
+    padding: 30px;
+    overflow-y: auto;
+    flex: 1;
 }
 
 .close-btn {
-    position: absolute;
-    top: 15px;
-    right: 20px;
     font-size: 28px;
     font-weight: bold;
     color: var(--text-muted);
     cursor: pointer;
     transition: color 0.3s;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    line-height: 1;
 }
 
 .close-btn:hover {
     color: var(--text-dark);
-}
-
-.modal h2 {
-    color: var(--text-dark);
-    margin-bottom: 20px;
-    text-align: center;
-    border-bottom: 2px solid var(--modal-accent);
-    padding-bottom: 10px;
 }
 
 .rules-section {
@@ -681,7 +713,7 @@ body {
     color: var(--text-dark);
 }
 
-.rules-controls {
+.settings-controls {
     margin-top: 20px;
     padding-top: 15px;
     border-top: 1px solid var(--modal-border);
