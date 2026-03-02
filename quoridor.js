@@ -39,6 +39,7 @@ class QuoridorGame {
         // Initialize UI renderers (pass this controller, not engine)
         this.boardRenderer = new BoardRenderer(this);
         this.uiManager = new UIManager(this);
+        this.modalManager = new ModalManager();
         
         this.initializeBoard();
         this.setupEventListeners();
@@ -46,6 +47,165 @@ class QuoridorGame {
         
         // Show start button and don't show valid moves until game is started
         this.uiManager.showStartButton();
+        
+        // Load modal contents
+        this.loadModals();
+    }
+    
+    // Load both modals content from external HTML files
+    async loadModals() {
+        await this.modalManager.loadModalContent('rules-modal', 'html/rules-modal.html');
+        await this.modalManager.loadModalContent('settings-modal', 'html/settings-modal.html');
+        
+        // Attach event listeners after content is loaded
+        this.attachModalListeners();
+    }
+    
+    // Attach event listeners for both modals
+    attachModalListeners() {
+        // Rules modal listeners
+        const closeRules = document.getElementById('close-rules');
+        const closeRulesBtn = document.getElementById('close-rules-btn');
+        
+        if (closeRules) {
+            closeRules.removeEventListener('click', this._closeRulesHandler);
+            this._closeRulesHandler = () => this.modalManager.closeModal('rules-modal');
+            closeRules.addEventListener('click', this._closeRulesHandler);
+        }
+        
+        if (closeRulesBtn) {
+            closeRulesBtn.removeEventListener('click', this._closeRulesBtnHandler);
+            this._closeRulesBtnHandler = () => this.modalManager.closeModal('rules-modal');
+            closeRulesBtn.addEventListener('click', this._closeRulesBtnHandler);
+        }
+        
+        // Settings modal listeners
+        const closeSettings = document.getElementById('close-settings');
+        
+        if (closeSettings) {
+            closeSettings.removeEventListener('click', this._closeSettingsHandler);
+            this._closeSettingsHandler = () => this.modalManager.closeModal('settings-modal');
+            closeSettings.addEventListener('click', this._closeSettingsHandler);
+        }
+        
+        // Attach settings event listeners (only if settings modal is loaded)
+        this.attachSettingsListeners();
+    }
+    
+    // Attach settings event listeners (called after settings modal loads)
+    attachSettingsListeners() {
+        // Remove existing listeners to avoid duplicates
+        const aiSelect = document.getElementById('ai-select');
+        const themeSelect = document.getElementById('theme-select');
+        const keyboardToggle = document.getElementById('keyboard-toggle');
+        const clickMoveToggle = document.getElementById('click-move-toggle');
+        const aiDelayToggle = document.getElementById('ai-delay-toggle');
+        const soundToggle = document.getElementById('sound-toggle');
+        const volumeSlider = document.getElementById('volume-slider');
+        const scoreboardToggle = document.getElementById('scoreboard-toggle');
+        const resetScoreboard = document.getElementById('reset-scoreboard');
+        const devToggle = document.getElementById('dev-toggle');
+        const debugOverlayToggle = document.getElementById('debug-overlay-toggle');
+        
+        // AI selector
+        if (aiSelect && !aiSelect.hasAttribute('data-listener-attached')) {
+            aiSelect.addEventListener('change', (e) => {
+                this.ai.setOpponent(e.target.value);
+            });
+            aiSelect.setAttribute('data-listener-attached', 'true');
+        }
+        
+        // Theme selector
+        if (themeSelect && !themeSelect.hasAttribute('data-listener-attached')) {
+            themeSelect.addEventListener('change', (e) => {
+                this.themeManager.applyTheme(e.target.value);
+            });
+            themeSelect.setAttribute('data-listener-attached', 'true');
+        }
+        
+        // Keyboard controls toggle
+        if (keyboardToggle && !keyboardToggle.hasAttribute('data-listener-attached')) {
+            keyboardToggle.addEventListener('change', (e) => {
+                this.toggleKeyboardControls(e.target.checked);
+            });
+            keyboardToggle.setAttribute('data-listener-attached', 'true');
+        }
+        
+        // Click-to-move toggle
+        if (clickMoveToggle && !clickMoveToggle.hasAttribute('data-listener-attached')) {
+            clickMoveToggle.addEventListener('change', (e) => {
+                this.toggleClickMoveControls(e.target.checked);
+            });
+            clickMoveToggle.setAttribute('data-listener-attached', 'true');
+        }
+        
+        // AI move delay toggle
+        if (aiDelayToggle && !aiDelayToggle.hasAttribute('data-listener-attached')) {
+            aiDelayToggle.addEventListener('change', (e) => {
+                this.toggleAiMoveDelay(e.target.checked);
+            });
+            aiDelayToggle.setAttribute('data-listener-attached', 'true');
+        }
+        
+        // Sound controls
+        if (soundToggle && !soundToggle.hasAttribute('data-listener-attached')) {
+            soundToggle.addEventListener('change', (e) => {
+                this.audioManager.setEnabled(e.target.checked);
+                this.uiManager.showMessage(`Sound effects ${e.target.checked ? 'enabled' : 'disabled'}`, 'info');
+            });
+            soundToggle.setAttribute('data-listener-attached', 'true');
+        }
+        
+        if (volumeSlider && !volumeSlider.hasAttribute('data-listener-attached')) {
+            volumeSlider.addEventListener('input', (e) => {
+                const volume = parseInt(e.target.value) / 100;
+                this.audioManager.setVolume(volume);
+                document.getElementById('volume-display').textContent = `${e.target.value}%`;
+            });
+            volumeSlider.setAttribute('data-listener-attached', 'true');
+        }
+        
+        // Scoreboard toggle
+        if (scoreboardToggle && !scoreboardToggle.hasAttribute('data-listener-attached')) {
+            scoreboardToggle.addEventListener('change', (e) => {
+                this.toggleScoreboard(e.target.checked);
+            });
+            scoreboardToggle.setAttribute('data-listener-attached', 'true');
+        }
+        
+        // Reset scoreboard button
+        if (resetScoreboard && !resetScoreboard.hasAttribute('data-listener-attached')) {
+            resetScoreboard.addEventListener('click', () => {
+                this.resetScoreboard();
+            });
+            resetScoreboard.setAttribute('data-listener-attached', 'true');
+        }
+        
+        // Development mode toggle
+        if (devToggle && !devToggle.hasAttribute('data-listener-attached')) {
+            devToggle.addEventListener('click', () => {
+                this.devModeEnabled = !this.devModeEnabled;
+                const devStats = document.getElementById('dev-stats');
+                
+                if (this.devModeEnabled) {
+                    devStats.style.display = 'block';
+                    this.uiManager.updateDevStats();
+                    this.uiManager.showMessage('Development mode enabled', 'info');
+                } else {
+                    devStats.style.display = 'none';
+                    this.uiManager.showMessage('Development mode disabled', 'info');
+                }
+            });
+            devToggle.setAttribute('data-listener-attached', 'true');
+        }
+        
+        // Debug overlay toggle
+        if (debugOverlayToggle && !debugOverlayToggle.hasAttribute('data-listener-attached')) {
+            debugOverlayToggle.addEventListener('click', () => {
+                this.toggleDebugOverlay(!this.debugOverlayEnabled);
+            });
+            debugOverlayToggle.setAttribute('data-listener-attached', 'true');
+        }
     }
     
     // Getters to delegate to engine for backward compatibility
@@ -76,17 +236,21 @@ class QuoridorGame {
             this.audioManager.play('start');
             this.newGame();
         });
-        document.getElementById('show-rules').addEventListener('click', () => {
-            document.getElementById('rules-modal').style.display = 'flex';
+        // Rules modal button
+        document.getElementById('show-rules').addEventListener('click', async () => {
+            // Ensure rules modal is loaded before showing
+            await this.modalManager.loadModalContent('rules-modal', 'html/rules-modal.html');
+            this.attachModalListeners(); // Re-attach listeners in case content was just loaded
+            this.modalManager.openModal('rules-modal');
         });
-        document.getElementById('close-rules').addEventListener('click', () => {
-            document.getElementById('rules-modal').style.display = 'none';
-        });
-        document.getElementById('close-rules-btn').addEventListener('click', () => {
-            document.getElementById('rules-modal').style.display = 'none';
-        });
-        document.getElementById('close-rules-bottom').addEventListener('click', () => {
-            document.getElementById('rules-modal').style.display = 'none';
+        
+        // Settings modal button
+        document.getElementById('show-settings').addEventListener('click', async () => {
+            // Ensure settings modal is loaded before showing
+            await this.modalManager.loadModalContent('settings-modal', 'html/settings-modal.html');
+            this.attachModalListeners(); // Re-attach listeners in case content was just loaded
+            this.attachSettingsListeners(); // Attach settings-specific listeners
+            this.modalManager.openModal('settings-modal');
         });
 
         // Direction buttons
@@ -95,67 +259,8 @@ class QuoridorGame {
         document.getElementById('move-left').addEventListener('click', () => this.makeMove('left'));
         document.getElementById('move-right').addEventListener('click', () => this.makeMove('right'));
 
-        // Settings event listeners
-        document.getElementById('ai-select').addEventListener('change', (e) => {
-            this.ai.setOpponent(e.target.value);
-        });
-
-        // Theme selector
-        document.getElementById('theme-select').addEventListener('change', (e) => {
-            this.themeManager.applyTheme(e.target.value);
-        });
-
-        // Keyboard controls toggle
-        document.getElementById('keyboard-toggle').addEventListener('change', (e) => {
-            this.toggleKeyboardControls(e.target.checked);
-        });
-
-        // Click-to-move toggle
-        document.getElementById('click-move-toggle').addEventListener('change', (e) => {
-            this.toggleClickMoveControls(e.target.checked);
-        });
-
-        // AI move delay toggle
-        document.getElementById('ai-delay-toggle').addEventListener('change', (e) => {
-            this.toggleAiMoveDelay(e.target.checked);
-        });
-
-        // Sound controls
-        document.getElementById('sound-toggle').addEventListener('change', (e) => {
-            this.audioManager.setEnabled(e.target.checked);
-            this.uiManager.showMessage(`Sound effects ${e.target.checked ? 'enabled' : 'disabled'}`, 'info');
-        });
-
-        document.getElementById('volume-slider').addEventListener('input', (e) => {
-            const volume = parseInt(e.target.value) / 100; // Convert to 0-1 range
-            this.audioManager.setVolume(volume);
-            document.getElementById('volume-display').textContent = `${e.target.value}%`;
-        });
-
-        // Scoreboard toggle
-        document.getElementById('scoreboard-toggle').addEventListener('change', (e) => {
-            this.toggleScoreboard(e.target.checked);
-        });
-
-        // Reset scoreboard button
-        document.getElementById('reset-scoreboard').addEventListener('click', () => {
-            this.resetScoreboard();
-        });
-
-        // Development mode toggle
-        document.getElementById('dev-toggle').addEventListener('click', () => {
-            this.devModeEnabled = !this.devModeEnabled;
-            const devStats = document.getElementById('dev-stats');
-            
-            if (this.devModeEnabled) {
-                devStats.style.display = 'block';
-                this.uiManager.updateDevStats();
-                this.uiManager.showMessage('Development mode enabled', 'info');
-            } else {
-                devStats.style.display = 'none';
-                this.uiManager.showMessage('Development mode disabled', 'info');
-            }
-        });
+        // Settings event listeners are now attached in attachSettingsListeners()
+        // after the settings modal content is loaded
 
         // Keyboard controls for movement (single event listener)
         document.addEventListener('keydown', (e) => {
@@ -205,11 +310,6 @@ class QuoridorGame {
                     }, 150);
                 }
             }
-        });
-
-        // Debug overlay toggle
-        document.getElementById('debug-overlay-toggle').addEventListener('click', () => {
-            this.toggleDebugOverlay(!this.debugOverlayEnabled);
         });
     }
 
@@ -556,11 +656,11 @@ class QuoridorGame {
     }
 
     showRules() {
-        document.getElementById('rules-modal').style.display = 'flex';
+        this.modalManager.openModal('rules-modal');
     }
 
     hideRules() {
-        document.getElementById('rules-modal').style.display = 'none';
+        this.modalManager.closeModal('rules-modal');
     }
 
     toggleDevMode() {
