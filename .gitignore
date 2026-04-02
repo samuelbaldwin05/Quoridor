@@ -1,6 +1,11 @@
 # Claude
 .claude/
 
+# Secrets — never commit
+.env
+.env.local
+frontend/.env.local
+
 # Frontend
 frontend/node_modules/
 frontend/dist/
