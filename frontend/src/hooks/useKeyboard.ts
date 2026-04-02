@@ -1,12 +1,17 @@
 import { useEffect } from 'react';
 
-type Direction = 'up' | 'down' | 'left' | 'right';
+export type KeyAction =
+  | 'up'
+  | 'down'
+  | 'left'
+  | 'right'
+  | 'diag-ul'
+  | 'diag-ur'
+  | 'diag-dl'
+  | 'diag-dr';
 
-const KEY_MAP: Record<string, Direction> = {
-  ArrowUp: 'up',
-  ArrowDown: 'down',
-  ArrowLeft: 'left',
-  ArrowRight: 'right',
+// Arrow keys removed — WASD + diagonals only
+const KEY_MAP: Record<string, KeyAction> = {
   w: 'up',
   W: 'up',
   s: 'down',
@@ -15,25 +20,33 @@ const KEY_MAP: Record<string, Direction> = {
   A: 'left',
   d: 'right',
   D: 'right',
+  q: 'diag-ul',
+  Q: 'diag-ul',
+  e: 'diag-ur',
+  E: 'diag-ur',
+  z: 'diag-dl',
+  Z: 'diag-dl',
+  x: 'diag-dr',
+  X: 'diag-dr',
 };
 
 export function useKeyboard(
   enabled: boolean,
   isHumanTurn: boolean,
-  onMove: (dir: Direction) => void,
+  onAction: (action: KeyAction) => void,
 ): void {
   useEffect(() => {
     if (!enabled || !isHumanTurn) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const dir = KEY_MAP[e.key];
-      if (dir) {
+      const action = KEY_MAP[e.key];
+      if (action) {
         e.preventDefault();
-        onMove(dir);
+        onAction(action);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [enabled, isHumanTurn, onMove]);
+  }, [enabled, isHumanTurn, onAction]);
 }

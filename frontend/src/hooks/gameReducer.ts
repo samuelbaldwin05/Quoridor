@@ -1,7 +1,8 @@
 import { makeAiMove } from '@/ai/aiCoordinator';
 import { createAiContext, type AiContext, type AiDecision } from '@/ai/aiTypes';
 import { applyMove, checkWin, createInitialState } from '@/engine/gameEngine';
-import type { GameState, Move } from '@/engine/gameTypes';
+import type { GameState, Move, StoredMove } from '@/engine/gameTypes';
+import { saveGame } from '@/lib/gameStorage';
 import { saveSettings } from '@/lib/settingsStorage';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
 
@@ -11,6 +12,8 @@ export interface FullState {
   message: { text: string; kind: 'info' | 'success' | 'error' } | null;
   aiContext: AiContext;
   settings: Settings;
+  moveHistory: StoredMove[];
+  lastSavedGameId: string | null;
 }
 
 export type GameAction =
@@ -18,6 +21,7 @@ export type GameAction =
   | { type: 'NEW_GAME' }
   | { type: 'APPLY_MOVE'; move: Move }
   | { type: 'APPLY_AI_MOVE'; decision: AiDecision; nextAiContext: AiContext }
+  | { type: 'RESIGN' }
   | { type: 'UPDATE_SETTINGS'; patch: Partial<Settings> }
   | { type: 'RESET_SCORE' }
   | { type: 'SHOW_MESSAGE'; text: string; kind: 'info' | 'success' | 'error' }
@@ -30,6 +34,8 @@ export function createInitialFullState(settings: Settings): FullState {
     message: { text: 'Click "Start Game" to begin!', kind: 'info' },
     aiContext: createAiContext(settings.difficulty),
     settings,
+    moveHistory: [],
+    lastSavedGameId: null,
   };
 }
 
@@ -42,6 +48,8 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
         game: { ...freshGame, status: 'playing' },
         aiContext: createAiContext(state.settings.difficulty),
         message: { text: 'Game started! Your move.', kind: 'info' },
+        moveHistory: [],
+        lastSavedGameId: null,
       };
     }
 
@@ -52,20 +60,31 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
         game: { ...freshGame, status: 'playing' },
         aiContext: createAiContext(state.settings.difficulty),
         message: { text: 'New game started! Your move.', kind: 'info' },
+        moveHistory: [],
+        lastSavedGameId: null,
       };
     }
 
     case 'APPLY_MOVE': {
-      if (state.game.status !== 'playing' || state.game.currentPlayerIndex !== 0) {
-        return state;
-      }
+      if (state.game.status !== 'playing') return state;
+      const isPassAndPlay = state.settings.gameMode === 'pass-and-play';
+      if (!isPassAndPlay && state.game.currentPlayerIndex !== 0) return state;
+
       const result = applyMove(state.game, action.move);
       if (!result.valid) {
         return { ...state, message: { text: 'Invalid move!', kind: 'error' } };
       }
 
+      const storedMove: StoredMove = {
+        move: action.move,
+        playerIndex: state.game.currentPlayerIndex,
+        timestamp: Date.now(),
+      };
+      const newHistory = [...state.moveHistory, storedMove];
+
       let newScore = state.score;
       let message = state.message;
+      let lastSavedGameId = state.lastSavedGameId;
 
       const winner = checkWin(result.nextState);
       if (winner !== null) {
@@ -76,15 +95,19 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
           newScore = { ...newScore, computer: newScore.computer + 1 };
           message = { text: 'Computer wins! Better luck next time.', kind: 'error' };
         }
+        lastSavedGameId = saveGame(newHistory, winner);
       } else {
-        if (action.move.kind === 'pawn') {
-          message = { text: 'You moved. Computer is thinking...', kind: 'info' };
-        } else {
-          message = { text: 'Fence placed. Computer is thinking...', kind: 'info' };
-        }
+        message = null;
       }
 
-      return { ...state, game: result.nextState, score: newScore, message };
+      return {
+        ...state,
+        game: result.nextState,
+        score: newScore,
+        message,
+        moveHistory: newHistory,
+        lastSavedGameId,
+      };
     }
 
     case 'APPLY_AI_MOVE': {
@@ -94,8 +117,16 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
         return { ...state, aiContext: nextAiContext };
       }
 
+      const storedMove: StoredMove = {
+        move: decision.move,
+        playerIndex: 1,
+        timestamp: Date.now(),
+      };
+      const newHistory = [...state.moveHistory, storedMove];
+
       let newScore = state.score;
-      let message: FullState['message'] = { text: decision.message, kind: 'info' };
+      let message: FullState['message'] = null;
+      let lastSavedGameId = state.lastSavedGameId;
 
       const winner = checkWin(result.nextState);
       if (winner !== null) {
@@ -106,6 +137,7 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
           newScore = { ...newScore, computer: newScore.computer + 1 };
           message = { text: 'Computer wins! Better luck next time.', kind: 'error' };
         }
+        lastSavedGameId = saveGame(newHistory, winner);
       }
 
       return {
@@ -114,6 +146,26 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
         score: newScore,
         message,
         aiContext: nextAiContext,
+        moveHistory: newHistory,
+        lastSavedGameId,
+      };
+    }
+
+    case 'RESIGN': {
+      if (state.game.status !== 'playing') return state;
+      const finishedGame: GameState = {
+        ...state.game,
+        status: 'finished',
+        winner: 1,
+      };
+      const newScore = { ...state.score, computer: state.score.computer + 1 };
+      const lastSavedGameId = saveGame(state.moveHistory, 1);
+      return {
+        ...state,
+        game: finishedGame,
+        score: newScore,
+        message: { text: 'You resigned. Better luck next time!', kind: 'error' },
+        lastSavedGameId,
       };
     }
 

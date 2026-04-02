@@ -5,7 +5,7 @@ interface ScoreboardProps {
 
 export function Scoreboard({ playerScore, computerScore }: ScoreboardProps) {
   return (
-    <div className="panel fence-info flex flex-center flex-gap-sm" id="scoreboard">
+    <div className="scoreboard flex flex-center flex-gap-sm">
       <span className="score-label player2-color">Player</span>
       <span className="score-number">{playerScore}</span>
       <span className="score-separator">-</span>

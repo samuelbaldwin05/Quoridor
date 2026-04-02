@@ -26,9 +26,16 @@ export function BoardCell({
     .filter(Boolean)
     .join(' ');
 
+  // Board cell (r, c) lives at grid-row r*2+1, grid-column c*2+1 (1-indexed, odd tracks)
+  const gridStyle: React.CSSProperties = {
+    gridRow: row * 2 + 1,
+    gridColumn: col * 2 + 1,
+  };
+
   return (
     <div
       className={classes}
+      style={gridStyle}
       data-row={row}
       data-col={col}
       onClick={clickMoveEnabled ? onClick : undefined}

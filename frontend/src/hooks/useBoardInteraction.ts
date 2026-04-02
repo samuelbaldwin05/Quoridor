@@ -9,11 +9,15 @@ export function useBoardInteraction(
 ) {
   const [wallPreview, setWallPreview] = useState<Wall | null>(null);
 
+  const isPassAndPlay = state.settings.gameMode === 'pass-and-play';
+  const currentIdx = state.game.currentPlayerIndex;
+
+  // Human controls: player 0 always; player 1 only in pass-and-play
   const isHumanTurn =
-    state.game.status === 'playing' && state.game.currentPlayerIndex === 0;
+    state.game.status === 'playing' && (currentIdx === 0 || isPassAndPlay);
 
   const validPawnMoves: Position[] = isHumanTurn
-    ? getValidPawnMoves(state.game, 0)
+    ? getValidPawnMoves(state.game, currentIdx)
     : [];
 
   const handleCellClick = (pos: Position) => {
@@ -31,7 +35,7 @@ export function useBoardInteraction(
 
   const handleWallClick = (wall: Wall) => {
     if (!isHumanTurn) return;
-    if (state.game.players[0].wallsRemaining <= 0) return;
+    if (state.game.players[currentIdx].wallsRemaining <= 0) return;
     if (!isValidWallPlacement(state.game, wall)) return;
     dispatch({ type: 'APPLY_MOVE', move: { kind: 'wall', wall } });
     setWallPreview(null);

@@ -11,11 +11,13 @@ export function useAi(
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // Clear any pending timer
     if (timerRef.current !== null) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+
+    // No AI in pass-and-play
+    if (settings.gameMode === 'pass-and-play') return;
 
     if (game.status !== 'playing' || game.currentPlayerIndex !== 1) return;
 
@@ -38,5 +40,5 @@ export function useAi(
         timerRef.current = null;
       }
     };
-  }, [game, aiContext, settings.aiDelayEnabled, dispatch]);
+  }, [game, aiContext, settings.gameMode, settings.aiDelayEnabled, dispatch]);
 }

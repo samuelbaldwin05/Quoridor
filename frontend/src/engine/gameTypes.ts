@@ -30,6 +30,12 @@ export type Move =
   | { readonly kind: 'pawn'; readonly to: Position }
   | { readonly kind: 'wall'; readonly wall: Wall };
 
+export interface StoredMove {
+  readonly move: Move;
+  readonly playerIndex: PlayerIndex;
+  readonly timestamp: number;
+}
+
 export interface MoveResult {
   readonly valid: boolean;
   readonly nextState: GameState;

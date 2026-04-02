@@ -5,15 +5,13 @@ interface FenceCounterProps {
 
 export function FenceCounter({ playerFences, computerFences }: FenceCounterProps) {
   return (
-    <div className="panel fence-info">
-      <div className="fence-count-display">
-        <span className="player-label player2-color">Player:</span>{' '}
-        <span>{playerFences}</span> fences
-      </div>
-      <div className="fence-count-display">
-        <span className="player-label player1-color">Computer:</span>{' '}
-        <span>{computerFences}</span> fences
-      </div>
+    <div className="fence-counter flex flex-between">
+      <span className="fence-count player2-color">
+        &#9646; <strong>{playerFences}</strong> fences
+      </span>
+      <span className="fence-count player1-color">
+        &#9646; <strong>{computerFences}</strong> fences
+      </span>
     </div>
   );
 }
