@@ -1,143 +1,174 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DevStats } from '@/components/DevStats';
+import { FencePanel } from '@/components/FencePanel';
+import { NavSidebar } from '@/components/NavSidebar';
 import { GameBoard } from '@/components/GameBoard';
-import { RulesModal } from '@/components/RulesModal';
+import { GameCard } from '@/components/GameCard';
+import { GameRightPanel } from '@/components/GameRightPanel';
 import { SettingsModal } from '@/components/SettingsModal';
-import { Sidebar } from '@/components/Sidebar';
+import { WinLoseModal } from '@/components/WinLoseModal';
+import { createInitialState, applyMove } from '@/engine/gameEngine';
 import { getValidPawnMoves } from '@/engine/moveValidation';
-import type { Position } from '@/engine/gameTypes';
+import type { GameState, Position, StoredMove } from '@/engine/gameTypes';
 import { MESSAGE_TIMEOUT_MS } from '@/engine/constants';
 import { useAi } from '@/hooks/useAi';
 import { useAudio } from '@/hooks/useAudio';
 import { useBoardInteraction } from '@/hooks/useBoardInteraction';
 import { useGame } from '@/hooks/useGame';
-import { useKeyboard } from '@/hooks/useKeyboard';
+import { useKeyboard, type KeyAction } from '@/hooks/useKeyboard';
 import { useTheme } from '@/hooks/useTheme';
+import type { Settings } from '@/lib/schemas/settingsSchemas';
+
+function replayToIndex(moves: StoredMove[], index: number): GameState {
+  let state: GameState = { ...createInitialState(), status: 'playing' };
+  for (let i = 0; i < index; i++) {
+    const result = applyMove(state, moves[i]!.move);
+    if (result.valid) state = result.nextState;
+  }
+  return state;
+}
 
 export function GamePage() {
+  const navigate = useNavigate();
   const { state, dispatch } = useGame();
-  const [showRules, setShowRules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showWinLose, setShowWinLose] = useState(false);
+  /** null = live; number = viewing state after N moves */
+  const [viewIndex, setViewIndex] = useState<number | null>(null);
 
   const audio = useAudio(state.settings.soundEnabled, state.settings.volume);
 
-  const { wallPreview, validPawnMoves, handleCellClick, handleWallHover, handleWallClick } =
+  const { wallPreview, validPawnMoves: liveValidMoves, handleCellClick, handleWallHover, handleWallClick } =
     useBoardInteraction(state, dispatch);
 
   useAi(state, dispatch);
   useTheme(state.settings.theme);
 
+  const isPassAndPlay = state.settings.gameMode === 'pass-and-play';
+  const isViewingHistory = viewIndex !== null;
+
+  // Displayed board state — replayed when viewing history, live otherwise
+  const displayGameState = useMemo(() => {
+    if (viewIndex === null) return state.game;
+    return replayToIndex(state.moveHistory, viewIndex);
+  }, [viewIndex, state.moveHistory, state.game]);
+
   const isHumanTurn =
-    state.game.status === 'playing' && state.game.currentPlayerIndex === 0;
+    !isViewingHistory &&
+    state.game.status === 'playing' &&
+    (state.game.currentPlayerIndex === 0 || isPassAndPlay);
 
-  // Sound effects triggered by game state changes
-  const prevStatusRef = useCallback(() => state.game.status, [state.game.status]);
+  const validPawnMoves = isViewingHistory ? [] : liveValidMoves;
+
   useEffect(() => {
-    void prevStatusRef;
-  }, [prevStatusRef]);
+    if (state.game.status === 'finished') setShowWinLose(true);
+  }, [state.game.status]);
 
-  // Auto-clear messages
   useEffect(() => {
     if (!state.message) return;
-    const timer = setTimeout(() => {
-      dispatch({ type: 'CLEAR_MESSAGE' });
-    }, MESSAGE_TIMEOUT_MS);
+    const timer = setTimeout(() => dispatch({ type: 'CLEAR_MESSAGE' }), MESSAGE_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [state.message, dispatch]);
 
-  // Play sounds on relevant actions
-  const prevWallCount = useEffect(() => {
-    void prevWallCount;
-  }, []);
-
-  // Simple sound triggers based on game transitions
   useEffect(() => {
-    if (state.game.status === 'playing' && state.game.currentPlayerIndex === 1) {
-      // Human just moved
+    if (state.game.status === 'playing' && state.game.currentPlayerIndex === 1 && !isPassAndPlay) {
       audio.playMove();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.game.currentPlayerIndex, state.game.status]);
 
   useEffect(() => {
     if (state.game.status === 'finished') {
-      if (state.game.winner === 0) {
-        audio.playWin();
-      } else {
-        audio.playLose();
-      }
+      state.game.winner === 0 ? audio.playWin() : audio.playLose();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.game.status, state.game.winner]);
 
-  // Keyboard movement
-  const handleKeyboardMove = useCallback(
-    (dir: 'up' | 'down' | 'left' | 'right') => {
+  const handleKeyboardAction = useCallback(
+    (action: KeyAction) => {
       if (!isHumanTurn) return;
-      const player = state.game.players[0];
-      const dirMap = {
-        up: { row: -1, col: 0 },
-        down: { row: 1, col: 0 },
-        left: { row: 0, col: -1 },
-        right: { row: 0, col: 1 },
-      };
-      const delta = dirMap[dir];
-      const target: Position = {
-        row: player.position.row + delta.row,
-        col: player.position.col + delta.col,
-      };
-      const validMoves = getValidPawnMoves(state.game, 0);
-      const isValid = validMoves.some((m) => m.row === target.row && m.col === target.col);
-      if (isValid) {
-        dispatch({ type: 'APPLY_MOVE', move: { kind: 'pawn', to: target } });
+      const currentIdx = state.game.currentPlayerIndex;
+      const { position } = state.game.players[currentIdx];
+      const validMoves = getValidPawnMoves(state.game, currentIdx);
+
+      let target: Position | undefined;
+      switch (action) {
+        case 'up':      target = validMoves.find((m) => m.col === position.col && m.row < position.row); break;
+        case 'down':    target = validMoves.find((m) => m.col === position.col && m.row > position.row); break;
+        case 'left':    target = validMoves.find((m) => m.row === position.row && m.col < position.col); break;
+        case 'right':   target = validMoves.find((m) => m.row === position.row && m.col > position.col); break;
+        case 'diag-ul': target = validMoves.find((m) => m.row < position.row && m.col < position.col); break;
+        case 'diag-ur': target = validMoves.find((m) => m.row < position.row && m.col > position.col); break;
+        case 'diag-dl': target = validMoves.find((m) => m.row > position.row && m.col < position.col); break;
+        case 'diag-dr': target = validMoves.find((m) => m.row > position.row && m.col > position.col); break;
       }
+
+      if (target) dispatch({ type: 'APPLY_MOVE', move: { kind: 'pawn', to: target } });
     },
     [isHumanTurn, state.game, dispatch],
   );
 
-  useKeyboard(state.settings.keyboardEnabled, isHumanTurn, handleKeyboardMove);
+  useKeyboard(state.settings.keyboardEnabled, isHumanTurn, handleKeyboardAction);
 
-  const handleStartGame = () => {
+  function handlePlay(difficulty: Settings['difficulty'], gameMode: Settings['gameMode']) {
+    setViewIndex(null); // reset to live
+    dispatch({ type: 'UPDATE_SETTINGS', patch: { difficulty, gameMode } });
     dispatch({ type: 'START_GAME' });
     audio.playStart();
-  };
+  }
 
   const handleNewGame = () => {
+    setShowWinLose(false);
+    setViewIndex(null);
     dispatch({ type: 'NEW_GAME' });
     audio.playStart();
   };
 
+  const handleAnalyze = (gameId: string) => navigate(`/history/${gameId}`);
+
   return (
-    <div className="simple-container">
-      <div className="game-area flex flex-gap-lg" style={{ padding: '20px' }}>
-        <div className="board-container flex-center">
-          <GameBoard
-            gameState={state.game}
-            validPawnMoves={validPawnMoves}
-            wallPreview={wallPreview}
-            isHumanTurn={isHumanTurn}
-            clickMoveEnabled={state.settings.clickMoveEnabled}
-            onCellClick={handleCellClick}
-            onWallHover={handleWallHover}
-            onWallClick={handleWallClick}
+    <div className="game-layout">
+      <NavSidebar activePage="play" />
+
+      <div className="main-content">
+        <div className="board-section">
+          <GameCard
+            difficulty={state.settings.difficulty}
+            gameMode={state.settings.gameMode}
+            gameStatus={state.game.status}
+            onShowSettings={() => setShowSettings(true)}
+            onResign={() => dispatch({ type: 'RESIGN' })}
+          >
+            <div className="board-wrapper">
+              <GameBoard
+                gameState={displayGameState}
+                validPawnMoves={validPawnMoves}
+                wallPreview={isViewingHistory ? null : wallPreview}
+                isHumanTurn={isHumanTurn}
+                clickMoveEnabled={state.settings.clickMoveEnabled}
+                onCellClick={handleCellClick}
+                onWallHover={isViewingHistory ? () => {} : handleWallHover}
+                onWallClick={isViewingHistory ? () => {} : handleWallClick}
+              />
+              <FencePanel
+                playerFences={displayGameState.players[0].wallsRemaining}
+                computerFences={displayGameState.players[1].wallsRemaining}
+              />
+            </div>
+          </GameCard>
+
+          <GameRightPanel
+            gameStatus={state.game.status}
+            gameMode={state.settings.gameMode}
+            currentDifficulty={state.settings.difficulty}
+            moveHistory={state.moveHistory}
+            viewIndex={viewIndex}
+            onPlay={handlePlay}
+            onViewIndex={setViewIndex}
           />
         </div>
-
-        <Sidebar
-          gameState={state.game}
-          playerScore={state.score.player}
-          computerScore={state.score.computer}
-          message={state.message}
-          isHumanTurn={isHumanTurn}
-          onMove={handleKeyboardMove}
-          onStartGame={handleStartGame}
-          onNewGame={handleNewGame}
-          onShowRules={() => setShowRules(true)}
-          onShowSettings={() => setShowSettings(true)}
-        />
       </div>
-
-      <RulesModal isOpen={showRules} onClose={() => setShowRules(false)} />
 
       <SettingsModal
         isOpen={showSettings}
@@ -145,6 +176,14 @@ export function GamePage() {
         settings={state.settings}
         onUpdateSettings={(patch) => dispatch({ type: 'UPDATE_SETTINGS', patch })}
         onResetScore={() => dispatch({ type: 'RESET_SCORE' })}
+      />
+
+      <WinLoseModal
+        isOpen={showWinLose}
+        winner={state.game.winner}
+        savedGameId={state.lastSavedGameId}
+        onPlayAgain={handleNewGame}
+        onAnalyze={handleAnalyze}
       />
 
       <DevStats
