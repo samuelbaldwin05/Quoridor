@@ -1,20 +1,36 @@
-.PHONY: help dev build up down logs reset \
-        backend-shell frontend-shell db-shell \
+# Shell configuration for Git Bash compatibility on Windows
+ifeq ($(OS),Windows_NT)
+	SHELL := C:/Program Files/Git/bin/bash.exe
+	ifeq ($(wildcard $(SHELL)),)
+		SHELL := C:/Program Files/Git/usr/bin/bash.exe
+	endif
+	export PATH := C:/Program Files/Git/usr/bin:$(PATH)
+else
+	SHELL := /bin/bash
+endif
+.SHELLFLAGS := -euo pipefail -c
+
+.PHONY: help init dev up down restart rebuild logs clean \
+        backend-shell frontend-shell db-shell db-reset \
         lint-backend format-backend test-backend \
         lint-frontend migrate seed
 
-# ── Help ────────────────────────────────────────────────────────────────────
-help:
+# ── Help ─────────────────────────────────────────────────────────────────────
+help: ## Show this help message
 	@echo ""
 	@echo "  Quoridor — development commands"
 	@echo ""
-	@echo "  Docker (all services)"
-	@echo "    make dev           Build images + start with logs (foreground)"
-	@echo "    make build         Rebuild images without starting"
-	@echo "    make up            Start in background (no rebuild)"
-	@echo "    make down          Stop all services"
-	@echo "    make reset         Stop + wipe database volume (fresh start)"
-	@echo "    make logs          Tail all logs"
+	@echo "  Setup"
+	@echo "    make init           Copy .env.example -> .env for each service (skips existing)"
+	@echo ""
+	@echo "  Dev"
+	@echo "    make dev            Start Supabase + build and start app containers"
+	@echo "    make up             Start app containers only (Supabase already running)"
+	@echo "    make down           Stop app containers + Supabase"
+	@echo "    make restart        Restart app containers only (Supabase keeps running)"
+	@echo "    make rebuild        Rebuild app images --no-cache and restart"
+	@echo "    make logs           Tail app container logs"
+	@echo "    make clean          Stop everything + wipe all volumes"
 	@echo ""
 	@echo "  Shells"
 	@echo "    make backend-shell  Open shell in backend container"
@@ -30,56 +46,87 @@ help:
 	@echo "    make lint-frontend  ESLint + tsc check"
 	@echo ""
 	@echo "  Database"
-	@echo "    make migrate        Push Supabase migrations (hosted project)"
-	@echo "    make seed           Load seed data into running local DB"
+	@echo "    make db-reset       Wipe DB, rerun migrations + seed (supabase db reset)"
+	@echo "    make seed           Load seed data without wiping"
+	@echo "    make migrate        Push migrations to hosted Supabase project"
 	@echo ""
 
-# ── Docker ───────────────────────────────────────────────────────────────────
-dev:
-	docker compose up --build
+# ── Init ─────────────────────────────────────────────────────────────────────
+init: ## Copy .env.example files
+	@for f in frontend backend supabase; do \
+		if [ ! -f $$f/.env ] && [ -f $$f/.env.example ]; then \
+			cp $$f/.env.example $$f/.env; \
+			echo "created $$f/.env"; \
+		else \
+			echo "skipped $$f/.env (already exists)"; \
+		fi \
+	done
 
-up:
+# ── Dev ───────────────────────────────────────────────────────────────────────
+dev: ## Start Supabase then app containers
+	bun x supabase start
+	docker compose up --build -d
+
+up: ## Start app containers only
 	docker compose up -d
 
-build:
-	docker compose build
-
-down:
+down: ## Stop app containers + Supabase
 	docker compose down
+	bun x supabase stop
 
-reset:
+restart: ## Restart app containers only (Supabase keeps running)
+	docker compose down
+	docker compose up -d
+
+rebuild: ## Rebuild app images from scratch and restart
+	docker compose down
+	docker compose build --no-cache
+	docker compose up -d
+
+nuke: ## Stop everything, wipe all volumes, rebuild from scratch
 	docker compose down -v
+	bun x supabase stop --no-backup
+	docker compose build --no-cache
+	bun x supabase start
+	docker compose up -d
 
-logs:
+logs: ## Tail app container logs
 	docker compose logs -f
 
+clean: ## Stop everything and wipe all volumes
+	docker compose down -v
+	bun x supabase stop --no-backup
+
 # ── Shells ────────────────────────────────────────────────────────────────────
-backend-shell:
+backend-shell: ## Open shell in backend container
 	docker compose exec backend bash
 
-frontend-shell:
+frontend-shell: ## Open shell in frontend container
 	docker compose exec frontend sh
 
-db-shell:
-	docker compose exec db psql -U postgres
+db-shell: ## psql into Postgres
+	docker exec -it supabase_db_QuoridorEngine psql -U postgres
 
 # ── Backend ──────────────────────────────────────────────────────────────────
-lint-backend:
+lint-backend: ## Lint + format check
 	cd backend && uv run ruff check . && uv run ruff format --check .
 
-format-backend:
+format-backend: ## Auto-fix lint + format
 	cd backend && uv run ruff check --fix . && uv run ruff format .
 
-test-backend:
+test-backend: ## Run pytest
 	cd backend && uv run pytest
 
 # ── Frontend ─────────────────────────────────────────────────────────────────
-lint-frontend:
+lint-frontend: ## ESLint + tsc check
 	cd frontend && bun run tsc --noEmit && bun run lint
 
 # ── Database ─────────────────────────────────────────────────────────────────
-migrate:
-	supabase db push
+db-reset: ## Wipe DB and rerun all migrations + seed.sql
+	bun x supabase db reset
 
-seed:
-	docker compose exec db psql -U postgres -d postgres -f /docker-entrypoint-initdb.d/seed.sql
+seed: ## Load seed data without wiping
+	docker exec -i supabase_db_QuoridorEngine psql -U postgres -d postgres < supabase/seed.sql
+
+migrate: ## Push migrations to hosted Supabase project
+	bun x supabase db push

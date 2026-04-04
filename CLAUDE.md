@@ -1,15 +1,15 @@
-# Quash — Quoridor Platform
+# Quoridor Platform
 
 ## Project Overview
 
-Quash is a full-featured Quoridor game platform (chess.com-style) with pass-and-play, online multiplayer, Elo ratings, leaderboards, friends, AI opponents, and puzzles.
+A full-featured Quoridor game platform (chess.com-style) with pass-and-play, online multiplayer, Elo ratings, leaderboards, friends, AI opponents, and puzzles.
 
 Monorepo: React/TypeScript frontend, Python/FastAPI backend, Supabase (Postgres + Auth + Realtime).
 
 ## Repo Structure
 
 ```
-quash/
+quoridor/
   frontend/          # React + Vite + TypeScript
     src/
       components/    # React components
