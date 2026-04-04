@@ -1,13 +1,17 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
 
-type PageId = 'play' | 'rules' | 'puzzles' | 'friends' | 'history';
+type PageId = 'play' | 'rules' | 'puzzles' | 'friends' | 'history' | 'leaderboard';
 
 const NAV_ITEMS: { id: PageId; label: string; path: string; emoji: string }[] = [
-  { id: 'play',    label: 'Play',         path: '/',        emoji: '♟️' },
-  { id: 'rules',   label: 'Rules',        path: '/rules',   emoji: '📖' },
-  { id: 'puzzles', label: 'Puzzles',      path: '/puzzles', emoji: '🧩' },
-  { id: 'friends', label: 'Friends',      path: '/friends', emoji: '👥' },
-  { id: 'history', label: 'Game History', path: '/history', emoji: '📋' },
+  { id: 'play',        label: 'Play',         path: '/',            emoji: '♟️' },
+  { id: 'puzzles',     label: 'Puzzles',      path: '/puzzles',     emoji: '🧩' },
+  { id: 'friends',     label: 'Friends',      path: '/friends',     emoji: '👥' },
+  { id: 'history',     label: 'Game History', path: '/history',     emoji: '📋' },
+  { id: 'leaderboard', label: 'Leaderboard',  path: '/leaderboard', emoji: '🏆' },
+  { id: 'rules',       label: 'Rules',        path: '/rules',       emoji: '📖' },
 ];
 
 interface NavSidebarProps {
@@ -31,6 +35,28 @@ function PawnIcon() {
 
 export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
   const navigate = useNavigate();
+  const { user, profile, isGuest, signOut } = useAuth();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) { setPendingCount(0); return; }
+    supabase
+      .from('friendships')
+      .select('id', { count: 'exact', head: true })
+      .eq('receiver_id', user.id)
+      .eq('status', 'pending')
+      .then(({ count }) => setPendingCount(count ?? 0))
+      .catch(() => {});
+  }, [user?.id]);
+
+  const displayName = profile?.display_name ?? user?.email?.split('@')[0] ?? 'Guest';
+  const avatarLetter = displayName[0]?.toUpperCase() ?? 'G';
+  const eloLabel = profile ? `ELO ${profile.elo}` : isGuest ? 'Guest' : '…';
+
+  async function handleLogout() {
+    await signOut();
+    navigate('/');
+  }
 
   return (
     <nav className="nav-sidebar">
@@ -50,20 +76,41 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
           >
             <span className="nav-item-emoji">{item.emoji}</span>
             {item.label}
+            {item.id === 'friends' && pendingCount > 0 && (
+              <span className="nav-pending-dot" aria-label={`${pendingCount} pending request`} />
+            )}
           </button>
         ))}
       </div>
 
-      {/* Profile + logout pinned to bottom */}
+      {/* Profile + auth pinned to bottom */}
       <div className="nav-bottom">
-        <button className="nav-item nav-profile">
-          <div className="nav-avatar">G</div>
-          <div className="nav-profile-info">
-            <span className="nav-profile-name">Profile</span>
-            <span className="nav-profile-id">guest_user</span>
-          </div>
-        </button>
-        <button className="nav-item nav-item-logout">Log out</button>
+        {isGuest ? (
+          <>
+            <div className="nav-item nav-profile">
+              <div className="nav-avatar nav-avatar-guest">G</div>
+              <div className="nav-profile-info">
+                <span className="nav-profile-name">Playing as Guest</span>
+              </div>
+            </div>
+            <button className="nav-item nav-item-login" onClick={() => navigate('/login')}>
+              Log in
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="nav-item nav-profile">
+              <div className="nav-avatar">{avatarLetter}</div>
+              <div className="nav-profile-info">
+                <span className="nav-profile-name">{displayName}</span>
+                <span className="nav-profile-id">{eloLabel}</span>
+              </div>
+            </button>
+            <button className="nav-item nav-item-logout" onClick={handleLogout}>
+              Log out
+            </button>
+          </>
+        )}
       </div>
     </nav>
   );
