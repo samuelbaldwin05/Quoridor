@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavSidebar } from '@/components/NavSidebar';
 import { ProfileModal } from '@/components/ProfileModal';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,6 +45,7 @@ function Avatar({ name }: { name: string }) {
 export function FriendsPage() {
   const [tab, setTab] = useState<FriendsTab>('friends');
   const [searchQuery, setSearchQuery] = useState('');
+  const [friendSearch, setFriendSearch] = useState('');
   const [searchResults, setSearchResults] = useState<UserResult[]>([]);
   const [friends, setFriends] = useState<FriendEntry[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(true);
@@ -132,6 +133,12 @@ export function FriendsPage() {
   const acceptedFriends = friends.filter((f) => f.status === 'accepted');
   const pendingReceived = friends.filter((f) => f.status === 'pending_received');
   const pendingSent = friends.filter((f) => f.status === 'pending_sent');
+
+  const filteredAccepted = friendSearch.trim()
+    ? acceptedFriends.filter((f) =>
+        f.display_name.toLowerCase().includes(friendSearch.toLowerCase()),
+      )
+    : acceptedFriends;
 
   return (
     <div className="game-layout">
@@ -230,6 +237,23 @@ export function FriendsPage() {
                   <p className="friends-empty" style={{ padding: '24px 20px' }}>Loading…</p>
                 ) : (
                   <>
+                    {/* Search bar for friends list */}
+                    {acceptedFriends.length > 0 && (
+                      <div className="friends-search-bar-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <span className="friends-search-icon">🔍</span>
+                        <input
+                          className="friends-search-input"
+                          type="text"
+                          placeholder="Search friends…"
+                          value={friendSearch}
+                          onChange={(e) => setFriendSearch(e.target.value)}
+                        />
+                        {friendSearch && (
+                          <button className="friends-search-clear" onClick={() => setFriendSearch('')}>×</button>
+                        )}
+                      </div>
+                    )}
+
                     {/* Pending requests from others */}
                     {pendingReceived.length > 0 && (
                       <div className="friends-section">
@@ -296,10 +320,10 @@ export function FriendsPage() {
                     )}
 
                     {/* Accepted friends */}
-                    {acceptedFriends.length > 0 && (
+                    {filteredAccepted.length > 0 && (
                       <div className="friends-section">
-                        <p className="friends-section-label">FRIENDS ({acceptedFriends.length})</p>
-                        {acceptedFriends.map((f) => (
+                        <p className="friends-section-label">FRIENDS ({filteredAccepted.length})</p>
+                        {filteredAccepted.map((f) => (
                           <div key={f.friendship_id} className="friend-item">
                             <Avatar name={f.display_name} />
                             <div className="friend-item-info">
@@ -342,8 +366,6 @@ export function FriendsPage() {
             )}
           </div>
 
-          {/* ── Leaderboard side panel ───────────────────────────────────── */}
-          <LeaderboardPanel onClickUser={setProfileUserId} />
         </div>
       </div>
 
@@ -352,56 +374,3 @@ export function FriendsPage() {
   );
 }
 
-// ── Leaderboard side panel ────────────────────────────────────────────────────
-
-interface LeaderboardPanelProps {
-  onClickUser: (id: string) => void;
-}
-
-function LeaderboardPanel({ onClickUser }: LeaderboardPanelProps) {
-  const [leaders, setLeaders] = useState<UserResult[]>([]);
-
-  useEffect(() => {
-    supabase
-      .from('users')
-      .select('id, display_name, elo')
-      .order('elo', { ascending: false })
-      .limit(10)
-      .then(({ data }) => setLeaders((data as UserResult[]) ?? []));
-  }, []);
-
-  function eloColor(elo: number): string {
-    if (elo >= 1800) return '#f39c12';
-    if (elo >= 1500) return '#3498db';
-    if (elo >= 1300) return '#2ecc71';
-    return 'rgba(255,255,255,0.5)';
-  }
-
-  return (
-    <div className="right-panel friends-leaderboard-panel">
-      <div className="play-panel-body">
-        <p className="play-panel-heading">Leaderboard</p>
-        <div className="leaderboard-list">
-          {leaders.length === 0 && (
-            <p className="friends-empty" style={{ padding: '8px 0' }}>
-              No data yet.
-            </p>
-          )}
-          {leaders.map((user, i) => (
-            <button
-              key={user.id}
-              className="leaderboard-item"
-              onClick={() => onClickUser(user.id)}
-            >
-              <span className="leaderboard-rank">{i + 1}</span>
-              <span className="leaderboard-name">{user.display_name}</span>
-              <span className="leaderboard-elo" style={{ color: eloColor(user.elo) }}>
-                {user.elo}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}

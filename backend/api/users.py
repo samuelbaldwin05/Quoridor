@@ -5,11 +5,21 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from supabase import Client
 
+from core.auth import get_current_user
 from core.dependencies import get_supabase
 from repositories import user_repository
-from schemas.user import UserProfile, UserSearchResult
+from schemas.user import UserProfile, UserRead, UserSearchResult
 
 router = APIRouter(prefix="/api/users", tags=["users"])
+
+
+@router.post("/sync", response_model=UserRead)
+async def sync_user(user: UserRead = Depends(get_current_user)) -> UserRead:
+    """
+    Create or update the public.users record from the current auth token.
+    Called by the frontend immediately after sign-in.
+    """
+    return user
 
 
 @router.get("/search", response_model=list[UserSearchResult])

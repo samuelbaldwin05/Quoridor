@@ -1,0 +1,98 @@
+import { useEffect, useState } from 'react';
+import { NavSidebar } from '@/components/NavSidebar';
+import { ProfileModal } from '@/components/ProfileModal';
+import { supabase } from '@/lib/supabase';
+
+type SortMode = 'elo' | 'games_played';
+
+interface LeaderEntry {
+  id: string;
+  display_name: string;
+  elo: number;
+  games_played: number;
+}
+
+function eloColor(elo: number): string {
+  if (elo >= 1800) return '#f39c12';
+  if (elo >= 1500) return '#3498db';
+  if (elo >= 1300) return '#2ecc71';
+  return 'rgba(255,255,255,0.5)';
+}
+
+const SORT_OPTIONS: { id: SortMode; label: string }[] = [
+  { id: 'elo',          label: 'By ELO' },
+  { id: 'games_played', label: 'By Games Played' },
+];
+
+export function LeaderboardPage() {
+  const [sort, setSort] = useState<SortMode>('elo');
+  const [entries, setEntries] = useState<LeaderEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    supabase
+      .from('users')
+      .select('id, display_name, elo, games_played')
+      .order(sort, { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        setEntries((data as LeaderEntry[]) ?? []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [sort]);
+
+  return (
+    <div className="game-layout">
+      <NavSidebar activePage="leaderboard" />
+
+      <div className="main-content">
+        <div className="leaderboard-page-card">
+          <div className="leaderboard-page-header">
+            <span className="leaderboard-page-title">Leaderboard</span>
+            <div className="leaderboard-sort-tabs">
+              {SORT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  className={`leaderboard-sort-tab${sort === opt.id ? ' leaderboard-sort-tab-active' : ''}`}
+                  onClick={() => setSort(opt.id)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="leaderboard-page-list">
+            {loading && <p className="leaderboard-page-empty">Loading…</p>}
+
+            {!loading && entries.length === 0 && (
+              <p className="leaderboard-page-empty">No data yet.</p>
+            )}
+
+            {entries.map((entry, i) => (
+              <button
+                key={entry.id}
+                className="leaderboard-page-row"
+                onClick={() => setProfileUserId(entry.id)}
+              >
+                <span className="leaderboard-page-rank">
+                  {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
+                </span>
+                <span className="leaderboard-page-name">{entry.display_name}</span>
+                <span className="leaderboard-page-games">{entry.games_played} games</span>
+                <span className="leaderboard-page-elo" style={{ color: eloColor(entry.elo) }}>
+                  {entry.elo} ELO
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <ProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
+    </div>
+  );
+}
