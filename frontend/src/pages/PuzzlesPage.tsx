@@ -251,8 +251,7 @@ export function PuzzlesPage() {
       <div className="main-content">
         <div className="board-section">
           <GameCard
-            difficulty="bot2"
-            gameMode="vs-bot"
+            opponentLabel="Puzzle"
             gameStatus={puzzleState.status}
             onShowSettings={() => {}}
             onResign={() => {}}
