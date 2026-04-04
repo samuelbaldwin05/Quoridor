@@ -7,9 +7,10 @@ const DIFFICULTY_LABELS: Record<Settings['difficulty'], string> = {
 };
 
 interface GameCardProps {
-  difficulty: Settings['difficulty'];
-  gameMode: Settings['gameMode'];
+  difficulty?: Settings['difficulty'];
+  gameMode?: Settings['gameMode'];
   gameStatus: 'idle' | 'playing' | 'finished';
+  opponentLabel?: string;
   onShowSettings: () => void;
   onResign: () => void;
   children: React.ReactNode;
@@ -19,6 +20,7 @@ export function GameCard({
   difficulty,
   gameMode,
   gameStatus,
+  opponentLabel,
   onShowSettings,
   onResign,
   children,
@@ -26,7 +28,14 @@ export function GameCard({
   const isPlaying = gameStatus === 'playing';
   const isPassAndPlay = gameMode === 'pass-and-play';
 
-  const topLabel = isPassAndPlay ? 'Player 2' : DIFFICULTY_LABELS[difficulty];
+  let topLabel: string;
+  if (opponentLabel !== undefined) {
+    topLabel = opponentLabel;
+  } else if (isPassAndPlay) {
+    topLabel = 'Player 2';
+  } else {
+    topLabel = difficulty ? DIFFICULTY_LABELS[difficulty] : 'Opponent';
+  }
   const bottomLabel = isPassAndPlay ? 'Player 1' : 'You';
 
   return (

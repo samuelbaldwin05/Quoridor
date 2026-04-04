@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MatchmakingModal } from './MatchmakingModal';
+import { useAuth } from '@/hooks/useAuth';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
 
 type PlayMode = Settings['gameMode'] | 'online';
@@ -22,19 +24,22 @@ interface PlayPanelProps {
 }
 
 export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
+  const { isGuest, profile } = useAuth();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<PlayMode>('vs-bot');
   const [difficulty, setDifficulty] = useState<Settings['difficulty']>(currentDifficulty);
   const [timeControl, setTimeControl] = useState(300);
   const [showMatchmaking, setShowMatchmaking] = useState(false);
 
-  const modeOptions: { id: PlayMode; label: string; available: boolean }[] = [
-    { id: 'vs-bot',        label: 'Play vs Bot',   available: true },
-    { id: 'pass-and-play', label: 'Pass and Play', available: true },
-    { id: 'online',        label: 'Play Online',   available: true },
-  ];
+  const userElo = profile?.elo ?? 500;
+  const displayName = profile?.display_name ?? 'You';
 
   function handlePlay() {
     if (mode === 'online') {
+      if (isGuest) {
+        navigate('/login');
+        return;
+      }
       setShowMatchmaking(true);
       return;
     }
@@ -47,7 +52,6 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
   function handleMatchFound(_gameId: string, _opponentName: string, _opponentElo: number) {
     // TODO: navigate to online game page once multiplayer is implemented
     setShowMatchmaking(false);
-    // For now, fall back to local game
     onPlay(difficulty, 'vs-bot');
   }
 
@@ -58,16 +62,37 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
           <p className="play-panel-heading">Game Mode</p>
 
           <div className="play-mode-list">
-            {modeOptions.map((opt) => (
-              <button
-                key={opt.id}
-                className={`play-mode-option${mode === opt.id ? ' play-mode-active' : ''}${!opt.available ? ' play-mode-disabled' : ''}`}
-                onClick={() => opt.available && setMode(opt.id)}
-                disabled={!opt.available}
-              >
-                {opt.label}
-              </button>
-            ))}
+            <button
+              className={`play-mode-option${mode === 'vs-bot' ? ' play-mode-active' : ''}`}
+              onClick={() => setMode('vs-bot')}
+            >
+              Play vs Bot
+            </button>
+
+            <button
+              className={`play-mode-option${mode === 'pass-and-play' ? ' play-mode-active' : ''}`}
+              onClick={() => setMode('pass-and-play')}
+            >
+              Pass and Play
+            </button>
+
+            {/* Online — locked for guests */}
+            <button
+              className={`play-mode-option play-mode-online${mode === 'online' ? ' play-mode-active' : ''}${isGuest ? ' play-mode-locked' : ''}`}
+              onClick={() => isGuest ? navigate('/login') : setMode('online')}
+            >
+              {isGuest ? (
+                <span className="play-mode-lock-label">
+                  <span className="play-mode-lock-icon">🔒</span>
+                  Sign in to Play Online
+                </span>
+              ) : (
+                <span className="play-mode-online-label">
+                  Play Online
+                  <span className="play-mode-elo">{userElo}</span>
+                </span>
+              )}
+            </button>
           </div>
 
           {mode === 'vs-bot' && (
@@ -88,7 +113,7 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
             </div>
           )}
 
-          {mode === 'online' && (
+          {mode === 'online' && !isGuest && (
             <div className="bot-difficulty">
               <p className="play-panel-heading">Time Control</p>
               <div className="bot-option-list">
@@ -108,8 +133,12 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
         </div>
 
         <div className="play-panel-footer">
-          <button className="btn btn-primary play-panel-play-btn" onClick={handlePlay}>
-            {mode === 'online' ? 'Find Match' : 'Play'}
+          <button
+            className="btn btn-primary play-panel-play-btn"
+            onClick={handlePlay}
+            disabled={mode === 'online' && isGuest}
+          >
+            {mode === 'online' ? (isGuest ? 'Sign in' : 'Find Match') : 'Play'}
           </button>
         </div>
       </div>
@@ -117,8 +146,8 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
       {showMatchmaking && (
         <MatchmakingModal
           timeControl={timeControl}
-          displayName="You"
-          elo={1200}
+          displayName={displayName}
+          elo={userElo}
           onMatchFound={handleMatchFound}
           onCancel={() => setShowMatchmaking(false)}
         />
