@@ -111,6 +111,28 @@ export function GamePage() {
 
   useKeyboard(state.settings.keyboardEnabled, isHumanTurn, handleKeyboardAction);
 
+  // Arrow-key history navigation (always active, not just when human turn)
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (state.game.status === 'idle') return;
+      const totalMoves = state.moveHistory.length;
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const cur = viewIndex ?? totalMoves;
+        if (cur > 0) setViewIndex(cur - 1);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const cur = viewIndex ?? totalMoves;
+        if (cur < totalMoves) {
+          const next = cur + 1;
+          setViewIndex(next >= totalMoves ? null : next);
+        }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [viewIndex, state.moveHistory.length, state.game.status]);
+
   function handlePlay(difficulty: Settings['difficulty'], gameMode: Settings['gameMode']) {
     setViewIndex(null); // reset to live
     dispatch({ type: 'UPDATE_SETTINGS', patch: { difficulty, gameMode } });
@@ -184,6 +206,7 @@ export function GamePage() {
         savedGameId={state.lastSavedGameId}
         onPlayAgain={handleNewGame}
         onAnalyze={handleAnalyze}
+        onClose={() => setShowWinLose(false)}
       />
 
       <DevStats
