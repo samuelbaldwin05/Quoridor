@@ -6,6 +6,17 @@ import { saveGame } from '@/lib/gameStorage';
 import { saveSettings } from '@/lib/settingsStorage';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
 
+const DIFFICULTY_LABELS: Record<Settings['difficulty'], string> = {
+  bot0: 'Easy Bot',
+  bot1: 'Medium Bot',
+  bot2: 'Hard Bot',
+};
+
+function getOpponentLabel(settings: Settings): string {
+  if (settings.gameMode === 'pass-and-play') return 'Pass & Play';
+  return DIFFICULTY_LABELS[settings.difficulty];
+}
+
 export interface FullState {
   game: GameState;
   score: { player: number; computer: number };
@@ -95,7 +106,7 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
           newScore = { ...newScore, computer: newScore.computer + 1 };
           message = { text: 'Computer wins! Better luck next time.', kind: 'error' };
         }
-        lastSavedGameId = saveGame(newHistory, winner);
+        lastSavedGameId = saveGame(newHistory, winner, getOpponentLabel(state.settings));
       } else {
         message = null;
       }
@@ -137,7 +148,7 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
           newScore = { ...newScore, computer: newScore.computer + 1 };
           message = { text: 'Computer wins! Better luck next time.', kind: 'error' };
         }
-        lastSavedGameId = saveGame(newHistory, winner);
+        lastSavedGameId = saveGame(newHistory, winner, getOpponentLabel(state.settings));
       }
 
       return {
@@ -159,7 +170,7 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
         winner: 1,
       };
       const newScore = { ...state.score, computer: state.score.computer + 1 };
-      const lastSavedGameId = saveGame(state.moveHistory, 1);
+      const lastSavedGameId = saveGame(state.moveHistory, 1, getOpponentLabel(state.settings));
       return {
         ...state,
         game: finishedGame,
