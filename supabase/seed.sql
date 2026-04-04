@@ -8,6 +8,31 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ─────────────────────────────────────────────
+-- Dev user (matches DEV_USER_ID in core/auth.py)
+-- ─────────────────────────────────────────────
+INSERT INTO auth.users (
+    id, instance_id, aud, role, email, encrypted_password,
+    email_confirmed_at, created_at, updated_at,
+    raw_app_meta_data, raw_user_meta_data, is_super_admin,
+    confirmation_token, recovery_token, email_change_token_new,
+    email_change, email_change_token_current, reauthentication_token
+) VALUES (
+    '00000000-0000-0000-0000-000000000099',
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated', 'authenticated',
+    'dev@quoridor.local',
+    crypt('devpassword123', gen_salt('bf')),
+    NOW(), NOW(), NOW(),
+    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"display_name":"Dev Player","full_name":"Dev Player"}'::jsonb,
+    false, '', '', '', '', '', ''
+) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.users (id, email, display_name, elo, games_played) VALUES
+    ('00000000-0000-0000-0000-000000000099', 'dev@quoridor.local', 'Dev Player', 500, 0)
+ON CONFLICT (id) DO NOTHING;
+
+-- ─────────────────────────────────────────────
 -- Auth users (Supabase auth.users)
 -- ─────────────────────────────────────────────
 INSERT INTO auth.users (
