@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './hooks/useAuth';
 import { GamePage } from './pages/GamePage';
@@ -8,6 +8,7 @@ import { PuzzlesPage } from './pages/PuzzlesPage';
 import { FriendsPage } from './pages/FriendsPage';
 import { LeaderboardPage } from './pages/LeaderboardPage';
 import { LoginPage } from './pages/LoginPage';
+import { OnlineGamePage } from './pages/OnlineGamePage';
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,8 @@ function App() {
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/history" element={<GameHistoryPage />} />
             <Route path="/history/:id" element={<GameHistoryPage />} />
+            <Route path="/game/online/:gameId" element={<OnlineGamePage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AuthProvider>
       </BrowserRouter>

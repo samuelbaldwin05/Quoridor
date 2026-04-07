@@ -49,10 +49,11 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
     onPlay(difficulty, gameMode);
   }
 
-  function handleMatchFound(_gameId: string, _opponentName: string, _opponentElo: number) {
-    // TODO: navigate to online game page once multiplayer is implemented
+  function handleMatchFound(gameId: string, opponentName: string, opponentElo: number, playerRole: 0 | 1) {
     setShowMatchmaking(false);
-    onPlay(difficulty, 'vs-bot');
+    navigate(
+      `/game/online/${gameId}?role=${playerRole}&opponent=${encodeURIComponent(opponentName)}&opponentElo=${opponentElo}&tc=${timeControl}`,
+    );
   }
 
   return (

@@ -1,7 +1,7 @@
 import { makeAiMove } from '@/ai/aiCoordinator';
 import { createAiContext, type AiContext, type AiDecision } from '@/ai/aiTypes';
 import { applyMove, checkWin, createInitialState } from '@/engine/gameEngine';
-import type { GameState, Move, StoredMove } from '@/engine/gameTypes';
+import type { GameState, Move, PlayerIndex, StoredMove } from '@/engine/gameTypes';
 import { saveGame } from '@/lib/gameStorage';
 import { saveSettings } from '@/lib/settingsStorage';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
@@ -32,9 +32,12 @@ export type GameAction =
   | { type: 'NEW_GAME' }
   | { type: 'APPLY_MOVE'; move: Move }
   | { type: 'APPLY_AI_MOVE'; decision: AiDecision; nextAiContext: AiContext }
+  | { type: 'APPLY_ONLINE_MOVE'; move: Move; playerIndex: PlayerIndex }
   | { type: 'RESIGN' }
+  | { type: 'RESIGN_ONLINE'; winner: PlayerIndex }
   | { type: 'UPDATE_SETTINGS'; patch: Partial<Settings> }
   | { type: 'RESET_SCORE' }
+  | { type: 'RESET_TO_IDLE' }
   | { type: 'SHOW_MESSAGE'; text: string; kind: 'info' | 'success' | 'error' }
   | { type: 'CLEAR_MESSAGE' };
 
@@ -162,6 +165,36 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
       };
     }
 
+    case 'APPLY_ONLINE_MOVE': {
+      // No turn gating — applies any player's move for online multiplayer.
+      // Does not save locally or update score (handled server-side).
+      if (state.game.status !== 'playing') return state;
+      const result = applyMove(state.game, action.move);
+      if (!result.valid) return state;
+
+      const storedMove: StoredMove = {
+        move: action.move,
+        playerIndex: action.playerIndex,
+        timestamp: Date.now(),
+      };
+
+      const winner = checkWin(result.nextState);
+      const nextGame: GameState =
+        winner !== null
+          ? { ...result.nextState, status: 'finished', winner }
+          : result.nextState;
+
+      return { ...state, game: nextGame, moveHistory: [...state.moveHistory, storedMove] };
+    }
+
+    case 'RESIGN_ONLINE': {
+      if (state.game.status !== 'playing') return state;
+      return {
+        ...state,
+        game: { ...state.game, status: 'finished', winner: action.winner },
+      };
+    }
+
     case 'RESIGN': {
       if (state.game.status !== 'playing') return state;
       const finishedGame: GameState = {
@@ -193,6 +226,10 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
 
     case 'RESET_SCORE': {
       return { ...state, score: { player: 0, computer: 0 } };
+    }
+
+    case 'RESET_TO_IDLE': {
+      return { ...state, game: createInitialState() };
     }
 
     case 'SHOW_MESSAGE': {

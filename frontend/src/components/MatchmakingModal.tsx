@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-
-// In Docker dev, Vite proxies /api → http://backend:8000; outside Docker use env var
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? '';
+import { apiFetch } from '@/lib/api';
 
 interface MatchmakingModalProps {
   timeControl: number;   // 180 | 300 | 600
   displayName: string;
   elo: number;
-  onMatchFound: (gameId: string, opponentName: string, opponentElo: number) => void;
+  onMatchFound: (gameId: string, opponentName: string, opponentElo: number, playerRole: 0 | 1) => void;
   onCancel: () => void;
 }
 
@@ -16,6 +14,7 @@ interface QueueStatus {
   matched_game_id?: string;
   opponent_name?: string;
   opponent_elo?: number;
+  player_role?: 0 | 1;
 }
 
 const TC_LABELS: Record<number, string> = { 180: '3 min', 300: '5 min', 600: '10 min' };
@@ -30,46 +29,60 @@ export function MatchmakingModal({
   const [phase, setPhase] = useState<'joining' | 'searching' | 'found' | 'error'>('joining');
   const [errorMsg, setErrorMsg] = useState('');
   const [dots, setDots] = useState('');
-  const [matchInfo, setMatchInfo] = useState<{ opponentName: string; opponentElo: number; gameId: string } | null>(null);
-  const userIdRef = useRef<string>(`guest-${Math.random().toString(36).slice(2, 9)}`);
+  const [countdown, setCountdown] = useState(3);
+  const [matchInfo, setMatchInfo] = useState<{
+    opponentName: string;
+    opponentElo: number;
+    gameId: string;
+    playerRole: 0 | 1;
+  } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Animate dots
   useEffect(() => {
     if (phase !== 'searching') return;
     const t = setInterval(() => setDots((d) => (d.length >= 3 ? '' : d + '.')), 500);
     return () => clearInterval(t);
   }, [phase]);
 
-  // Join queue on mount
+  // Auto-redirect countdown when match is found
+  useEffect(() => {
+    if (phase !== 'found' || !matchInfo) return;
+    setCountdown(3);
+    const t = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) {
+          clearInterval(t);
+          onMatchFound(matchInfo.gameId, matchInfo.opponentName, matchInfo.opponentElo, matchInfo.playerRole);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   useEffect(() => {
     async function joinQueue() {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/matchmaking/join`, {
+        const data = await apiFetch<QueueStatus>('/matchmaking/join', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_id: userIdRef.current,
-            display_name: displayName,
-            time_control: timeControl,
-            elo,
-          }),
+          body: JSON.stringify({ time_control: timeControl }),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data: QueueStatus = await res.json();
         if (data.status === 'matched' && data.matched_game_id) {
           setMatchInfo({
             opponentName: data.opponent_name ?? 'Opponent',
-            opponentElo: data.opponent_elo ?? 1200,
+            opponentElo: data.opponent_elo ?? 500,
             gameId: data.matched_game_id,
+            playerRole: data.player_role ?? 0,
           });
           setPhase('found');
         } else {
           setPhase('searching');
           startPolling();
         }
-      } catch {
-        setErrorMsg('Could not connect to matchmaking server.');
+      } catch (e) {
+        setErrorMsg(e instanceof Error ? e.message : 'Could not connect to matchmaking server.');
         setPhase('error');
       }
     }
@@ -84,17 +97,14 @@ export function MatchmakingModal({
   function startPolling() {
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(
-          `${BACKEND_URL}/api/matchmaking/status/${userIdRef.current}`,
-        );
-        if (!res.ok) return;
-        const data: QueueStatus = await res.json();
+        const data = await apiFetch<QueueStatus>('/matchmaking/status');
         if (data.status === 'matched' && data.matched_game_id) {
           if (pollRef.current) clearInterval(pollRef.current);
           setMatchInfo({
             opponentName: data.opponent_name ?? 'Opponent',
-            opponentElo: data.opponent_elo ?? 1200,
+            opponentElo: data.opponent_elo ?? 500,
             gameId: data.matched_game_id,
+            playerRole: data.player_role ?? 0,
           });
           setPhase('found');
         }
@@ -107,19 +117,11 @@ export function MatchmakingModal({
   async function handleCancel() {
     if (pollRef.current) clearInterval(pollRef.current);
     try {
-      await fetch(`${BACKEND_URL}/api/matchmaking/leave/${userIdRef.current}`, {
-        method: 'DELETE',
-      });
+      await apiFetch('/matchmaking/leave', { method: 'DELETE' });
     } catch {
       // ignore
     }
     onCancel();
-  }
-
-  function handleAccept() {
-    if (matchInfo) {
-      onMatchFound(matchInfo.gameId, matchInfo.opponentName, matchInfo.opponentElo);
-    }
   }
 
   return (
@@ -160,14 +162,9 @@ export function MatchmakingModal({
                 <span className="matchmaking-player-elo">{matchInfo.opponentElo}</span>
               </div>
             </div>
-            <div className="matchmaking-actions">
-              <button className="btn btn-primary matchmaking-accept-btn" onClick={handleAccept}>
-                Play
-              </button>
-              <button className="btn matchmaking-cancel-btn" onClick={handleCancel}>
-                Decline
-              </button>
-            </div>
+            <p className="matchmaking-sub">
+              Starting in <strong>{countdown}</strong>…
+            </p>
           </>
         )}
 
