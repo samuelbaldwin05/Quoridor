@@ -32,7 +32,7 @@ export function LeaderboardPage() {
 
   useEffect(() => {
     setLoading(true);
-    supabase
+    void supabase
       .from('users')
       .select('id, display_name, elo, games_played')
       .order(sort, { ascending: false })
@@ -40,8 +40,7 @@ export function LeaderboardPage() {
       .then(({ data }) => {
         setEntries((data as LeaderEntry[]) ?? []);
         setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      });
   }, [sort]);
 
   return (

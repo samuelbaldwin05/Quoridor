@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { NavSidebar } from '@/components/NavSidebar';
 import { ProfileModal } from '@/components/ProfileModal';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -43,6 +45,7 @@ function Avatar({ name }: { name: string }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export function FriendsPage() {
+  const { isGuest, isLoading } = useAuth();
   const [tab, setTab] = useState<FriendsTab>('friends');
   const [searchQuery, setSearchQuery] = useState('');
   const [friendSearch, setFriendSearch] = useState('');
@@ -59,7 +62,10 @@ export function FriendsPage() {
     async function loadFriends() {
       setLoadingFriends(true);
       try {
-        // Query the users table for mock friend data (demo: first 6 users)
+        const acceptedIds: string[] = JSON.parse(localStorage.getItem('friend_accepted') ?? '[]');
+        const declinedIds: string[] = JSON.parse(localStorage.getItem('friend_declined') ?? '[]');
+        const declinedSet = new Set(declinedIds);
+
         const { data } = await supabase
           .from('users')
           .select('id, display_name, elo')
@@ -68,13 +74,15 @@ export function FriendsPage() {
 
         if (data) {
           setFriends(
-            data.map((u, i) => ({
-              friendship_id: `mock-${u.id}`,
-              friend_id: u.id,
-              display_name: u.display_name,
-              elo: u.elo,
-              status: i < 4 ? 'accepted' : 'pending_received',
-            })),
+            data
+              .filter((u) => !declinedSet.has(u.id as string))
+              .map((u, i) => ({
+                friendship_id: `mock-${u.id}`,
+                friend_id: u.id,
+                display_name: u.display_name,
+                elo: u.elo,
+                status: acceptedIds.includes(u.id) ? 'accepted' : i < 4 ? 'accepted' : 'pending_received',
+              })),
           );
         }
       } catch {
@@ -117,16 +125,30 @@ export function FriendsPage() {
   }
 
   function handleAccept(friendshipId: string) {
+    const f = friends.find((x) => x.friendship_id === friendshipId);
+    if (f) {
+      const prev: string[] = JSON.parse(localStorage.getItem('friend_accepted') ?? '[]');
+      if (!prev.includes(f.friend_id)) {
+        localStorage.setItem('friend_accepted', JSON.stringify([...prev, f.friend_id]));
+      }
+    }
     setFriends((prev) =>
-      prev.map((f) =>
-        f.friendship_id === friendshipId ? { ...f, status: 'accepted' } : f,
+      prev.map((x) =>
+        x.friendship_id === friendshipId ? { ...x, status: 'accepted' } : x,
       ),
     );
     // TODO: PUT /api/friends/{id}/accept with auth
   }
 
   function handleDecline(friendshipId: string) {
-    setFriends((prev) => prev.filter((f) => f.friendship_id !== friendshipId));
+    const f = friends.find((x) => x.friendship_id === friendshipId);
+    if (f) {
+      const prev: string[] = JSON.parse(localStorage.getItem('friend_declined') ?? '[]');
+      if (!prev.includes(f.friend_id)) {
+        localStorage.setItem('friend_declined', JSON.stringify([...prev, f.friend_id]));
+      }
+    }
+    setFriends((prev) => prev.filter((x) => x.friendship_id !== friendshipId));
     // TODO: DELETE /api/friends/{id} with auth
   }
 
@@ -139,6 +161,8 @@ export function FriendsPage() {
         f.display_name.toLowerCase().includes(friendSearch.toLowerCase()),
       )
     : acceptedFriends;
+
+  if (!isLoading && isGuest) return <Navigate to="/login" replace />;
 
   return (
     <div className="game-layout">

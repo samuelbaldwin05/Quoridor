@@ -84,8 +84,8 @@
   --dev-label: var(--modern-dev-label);
   --dev-btn: var(--modern-dev-btn);
 
-  /* Sizes — +10% from original */
-  --cell-size: clamp(31px, 5.5vmin, 68px);
+  /* Sizes — scales with viewport, never overflows board section */
+  --cell-size: min(clamp(28px, 5.5vmin, 75px), calc((100vw - 560px) / 12));
   --gap-size: 11px;
   --border-radius: 8px;
   --border-radius-small: 4px;
@@ -162,10 +162,10 @@ body {
   flex-direction: row;
   align-items: stretch;
   gap: 12px;
-  /* Cap height so panels never grow taller than the viewport.
-     This gives the flex children a definite height, enabling overflow-y: auto
-     on inner lists (ghp-list, history-panel-list) to actually scroll. */
+  /* Fixed height so children never push the viewport — enables inner scroll */
+  height: calc(100vh - 32px);
   max-height: calc(100vh - 32px);
+  overflow: hidden;
 }
 
 /* Right sidebar: fixed width, no background box (kept for any leftover usage) */
@@ -326,13 +326,15 @@ body {
   opacity: 1;
 }
 
+.nav-logout-icon {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+
 .nav-item-login {
   color: var(--player1-color);
   font-weight: 600;
-  border: 1px solid rgba(52, 152, 219, 0.35);
-  border-radius: 6px;
-  margin: 0 8px 4px;
-  justify-content: center;
 }
 
 .nav-item-login:hover {
@@ -398,7 +400,7 @@ body {
 
 .fence-piece {
   height: var(--gap-size);
-  width: 100%;
+  width: 75%;
   border-radius: 2px;
   opacity: 0.9;
   background: var(--ui-brown);
@@ -408,6 +410,8 @@ body {
 .fence-piece-player   { }
 
 /* Board grid — visual styling is on .board-wrapper */
+.board-flipped { transform: rotate(180deg); }
+
 .board {
   display: grid;
   grid-template-columns: repeat(8, var(--cell-size) var(--gap-size)) var(--cell-size);
@@ -889,16 +893,25 @@ body {
 
 .game-card-header,
 .game-card-footer {
-  padding-left: 20px; /* aligns text with board-wrapper content (board-wrapper has padding: 20px) */
+  padding-left: 20px;
+  padding-right: 12px;
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 600;
   opacity: 0.75;
   letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.game-card-header { padding-bottom: 10px; }
-.game-card-footer { padding-top: 10px; }
+.game-card-header { padding-bottom: 8px; }
+.game-card-footer { padding-top: 8px; }
+
+/* Right-side slot in header/footer (timer card) */
+.game-card-header-right {
+  opacity: 1; /* override the parent 0.75 opacity */
+}
 
 .game-card-body {
   display: flex;
@@ -1037,7 +1050,7 @@ body {
 
 /* ── Shared Right Panel ─────────────────────────────────────────────────────── */
 .right-panel {
-  width: 230px;
+  width: 253px;
   flex-shrink: 0;
   background: var(--secondary-bg);
   border-radius: var(--border-radius-large);
@@ -1436,6 +1449,94 @@ body {
 }
 .ghp-search-clear:hover { color: rgba(255, 255, 255, 0.7); }
 
+/* ── GHP filter bar ─────────────────────────────────────────────────────────── */
+.ghp-filter-bar {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.ghp-filter-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 0 8px;
+  cursor: pointer;
+  transition: color 0.15s;
+  flex-shrink: 0;
+  height: 100%;
+}
+.ghp-filter-btn:hover { color: rgba(255,255,255,0.75); }
+.ghp-filter-btn-active { color: var(--player1-color); }
+
+.ghp-filter-count {
+  background: var(--player1-color);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 1px 5px;
+  line-height: 1.4;
+}
+
+.ghp-filter-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: var(--primary-bg);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--border-radius);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.ghp-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ghp-filter-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.ghp-filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ghp-filter-option {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--border-radius-small);
+  color: rgba(255,255,255,0.55);
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.ghp-filter-option:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8); }
+.ghp-filter-option.active {
+  background: rgba(52,152,219,0.2);
+  border-color: rgba(52,152,219,0.5);
+  color: var(--player1-color);
+}
+
 /* ── Leaderboard Page ───────────────────────────────────────────────────────── */
 .leaderboard-page-card {
   background: var(--secondary-bg);
@@ -1792,6 +1893,34 @@ body {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.5);
   font-weight: 600;
+}
+
+/* Settings / resign buttons in the controls row */
+.ghp-action-btn {
+  flex: 0 0 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ghp-resign-btn {
+  flex: 0 0 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.ghp-resign-btn:hover:not(:disabled) {
+  color: var(--hover-danger);
+  border-color: rgba(231, 76, 60, 0.35);
+  background: rgba(231, 76, 60, 0.08);
 }
 
 /* ── Puzzle nav & difficulty badge ──────────────────────────────────────────── */
@@ -2459,4 +2588,130 @@ body {
   color: var(--text-primary);
   opacity: 0.35;
   text-align: center;
+}
+
+/* ── Board axis labels ────────────────────────────────────────────────────────
+   board-with-axes wraps the board grid + left-axis + bottom-axis.
+   It is rendered by GameBoard and replaces the bare .board div.
+   ──────────────────────────────────────────────────────────────────────────── */
+.board-with-axes {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* Left axis — column of 9 row labels, aligned with board rows */
+.board-axis-y {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-size);
+  justify-content: flex-start;
+  align-self: flex-start;
+}
+
+/* The board + bottom axis stacked vertically */
+.board-axis-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Bottom axis — row of 9 column labels */
+.board-axis-x {
+  display: flex;
+  flex-direction: row;
+  gap: var(--gap-size);
+}
+
+.board-axis-label {
+  /* Narrow so it sits flush against the board */
+  width: var(--cell-size);
+  height: var(--cell-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(8px, 1.1vmin, 11px);
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: 'Courier New', monospace;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* Row labels only need a narrow column — override width */
+.board-axis-y .board-axis-label {
+  width: 14px;
+  justify-content: flex-end;
+  padding-right: 3px;
+}
+
+/* Bottom axis labels don't need full cell height */
+.board-axis-x .board-axis-label {
+  height: auto;
+}
+
+/* ── Online game layout (timer + board col + fence) ─────────────────────────── */
+
+/* Outer flex-row: [board-col | fence-panel] */
+.online-board-area {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0; /* fence panel keeps its own margin-left */
+}
+
+/* Column: [timer-card | board-wrapper (board+fence) | timer-row] */
+.online-board-col {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex-shrink: 0;
+  align-items: flex-end; /* right-aligns timer cards to board+fence right edge */
+}
+
+/* Timer card — sits above/below grey box, right-aligned to match board right edge */
+.online-timer-card {
+  align-self: flex-end;
+  background: var(--secondary-bg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  padding: 4px 12px;
+  font-family: 'Courier New', monospace;
+  font-size: clamp(12px, 1.5vmin, 16px);
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.04em;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.online-timer-card-active {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+/* Row wrapping the my-timer card + optional away countdown */
+.online-timer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-end; /* keep right-aligned in board col */
+}
+
+/* Red countdown shown when the player hides the tab */
+.online-away-countdown {
+  font-family: 'Courier New', monospace;
+  font-size: clamp(11px, 1.3vmin, 14px);
+  font-weight: 800;
+  color: var(--hover-danger);
+  min-width: 18px;
+  text-align: right;
+}
+
+/* ELO change after online game result */
+.online-elo-change {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--modal-accent);
+  margin: 0;
 }

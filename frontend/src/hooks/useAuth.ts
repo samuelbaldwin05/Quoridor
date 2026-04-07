@@ -27,6 +27,7 @@ interface AuthContextValue {
   signInWithGoogle: () => Promise<void>;
   signInAsDev: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -127,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithGoogle,
       signInAsDev,
       signOut,
+      refreshProfile: fetchProfile,
     },
     children,
   });

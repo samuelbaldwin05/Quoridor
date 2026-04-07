@@ -40,13 +40,12 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
 
   useEffect(() => {
     if (!user) { setPendingCount(0); return; }
-    supabase
+    void supabase
       .from('friendships')
       .select('id', { count: 'exact', head: true })
       .eq('receiver_id', user.id)
       .eq('status', 'pending')
-      .then(({ count }) => setPendingCount(count ?? 0))
-      .catch(() => {});
+      .then(({ count }) => setPendingCount(count ?? 0));
   }, [user?.id]);
 
   const displayName = profile?.display_name ?? user?.email?.split('@')[0] ?? 'Guest';
@@ -107,6 +106,13 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
               </div>
             </button>
             <button className="nav-item nav-item-logout" onClick={handleLogout}>
+              <svg className="nav-logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                {/* Door frame (open door) */}
+                <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h8" />
+                {/* Arrow pointing right (out the door) */}
+                <polyline points="17 8 21 12 17 16" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
               Log out
             </button>
           </>
