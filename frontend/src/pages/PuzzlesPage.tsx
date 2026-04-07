@@ -253,8 +253,6 @@ export function PuzzlesPage() {
           <GameCard
             opponentLabel="Puzzle"
             gameStatus={puzzleState.status}
-            onShowSettings={() => {}}
-            onResign={() => {}}
           >
             <div className="board-wrapper">
               <GameBoard

@@ -4,12 +4,16 @@ import type { GameState, Position, Wall } from '@/engine/gameTypes';
 import { BoardCell } from './BoardCell';
 import { WallSlot } from './WallSlot';
 
+const COL_LABELS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'];
+const ROW_LABELS = ['9', '8', '7', '6', '5', '4', '3', '2', '1'];
+
 interface GameBoardProps {
   gameState: GameState;
   validPawnMoves: Position[];
   wallPreview: Wall | null;
   isHumanTurn: boolean;
   clickMoveEnabled: boolean;
+  flipped?: boolean;
   onCellClick: (pos: Position) => void;
   onWallHover: (wall: Wall | null) => void;
   onWallClick: (wall: Wall) => void;
@@ -21,6 +25,7 @@ export function GameBoard({
   wallPreview,
   isHumanTurn,
   clickMoveEnabled,
+  flipped = false,
   onCellClick,
   onWallHover,
   onWallClick,
@@ -85,5 +90,28 @@ export function GameBoard({
     }
   }
 
-  return <div className="board">{elements}</div>;
+  const colLabels = flipped ? [...COL_LABELS].reverse() : COL_LABELS;
+  const rowLabels = flipped ? [...ROW_LABELS].reverse() : ROW_LABELS;
+
+  return (
+    <div className="board-with-axes">
+      {/* Left axis — row numbers */}
+      <div className="board-axis-y">
+        {rowLabels.map((r) => (
+          <span key={r} className="board-axis-label">{r}</span>
+        ))}
+      </div>
+
+      <div className="board-axis-main">
+        <div className={`board${flipped ? ' board-flipped' : ''}`}>{elements}</div>
+
+        {/* Bottom axis — column letters */}
+        <div className="board-axis-x">
+          {colLabels.map((c) => (
+            <span key={c} className="board-axis-label">{c}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -159,8 +159,6 @@ export function GamePage() {
             difficulty={state.settings.difficulty}
             gameMode={state.settings.gameMode}
             gameStatus={state.game.status}
-            onShowSettings={() => setShowSettings(true)}
-            onResign={() => dispatch({ type: 'RESIGN' })}
           >
             <div className="board-wrapper">
               <GameBoard
@@ -188,6 +186,8 @@ export function GamePage() {
             viewIndex={viewIndex}
             onPlay={handlePlay}
             onViewIndex={setViewIndex}
+            onShowSettings={() => setShowSettings(true)}
+            onResign={() => dispatch({ type: 'RESIGN' })}
           />
         </div>
       </div>

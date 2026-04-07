@@ -27,6 +27,8 @@ interface GameRightPanelProps {
   viewIndex: number | null;
   onPlay: (difficulty: Settings['difficulty'], gameMode: Settings['gameMode']) => void;
   onViewIndex: (index: number | null) => void;
+  onResign?: () => void;
+  onShowSettings?: () => void;
 }
 
 export function GameRightPanel({
@@ -37,12 +39,15 @@ export function GameRightPanel({
   viewIndex,
   onPlay,
   onViewIndex,
+  onResign,
+  onShowSettings,
 }: GameRightPanelProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const isPassAndPlay = gameMode === 'pass-and-play';
 
   const effectiveIndex = viewIndex ?? moveHistory.length;
   const isLive = viewIndex === null;
+  const isPlaying = gameStatus === 'playing';
 
   // Auto-scroll list to bottom when new moves arrive and we're live
   useEffect(() => {
@@ -88,7 +93,6 @@ export function GameRightPanel({
       </div>
 
       <div className="ghp-list" ref={listRef}>
-        {/* Initial position entry */}
         <button
           className={`ghp-entry ghp-initial${effectiveIndex === 0 ? ' ghp-entry-active' : ''}`}
           onClick={() => onViewIndex(0)}
@@ -111,10 +115,6 @@ export function GameRightPanel({
             </button>
           );
         })}
-
-        {moveHistory.length === 0 && (
-          <p className="ghp-empty">No moves yet</p>
-        )}
       </div>
 
       <div className="ghp-controls">
@@ -137,6 +137,25 @@ export function GameRightPanel({
         >
           →
         </button>
+
+        {onShowSettings && (
+          <button
+            className="btn ghp-nav-btn ghp-action-btn"
+            onClick={onShowSettings}
+            title="Settings"
+          >
+            ⚙
+          </button>
+        )}
+        {onResign && isPlaying && (
+          <button
+            className="btn ghp-nav-btn ghp-resign-btn"
+            onClick={onResign}
+            title="Resign"
+          >
+            ⚑
+          </button>
+        )}
       </div>
     </div>
   );

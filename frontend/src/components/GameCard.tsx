@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
 
 const DIFFICULTY_LABELS: Record<Settings['difficulty'], string> = {
@@ -11,21 +12,24 @@ interface GameCardProps {
   gameMode?: Settings['gameMode'];
   gameStatus: 'idle' | 'playing' | 'finished';
   opponentLabel?: string;
-  onShowSettings: () => void;
-  onResign: () => void;
-  children: React.ReactNode;
+  playerLabel?: string;
+  /** Optional content rendered inline on the right side of the top label row */
+  topRight?: ReactNode;
+  /** Optional content rendered inline on the right side of the bottom label row */
+  bottomRight?: ReactNode;
+  children: ReactNode;
 }
 
 export function GameCard({
   difficulty,
   gameMode,
-  gameStatus,
+  gameStatus: _gameStatus,
   opponentLabel,
-  onShowSettings,
-  onResign,
+  playerLabel,
+  topRight,
+  bottomRight,
   children,
 }: GameCardProps) {
-  const isPlaying = gameStatus === 'playing';
   const isPassAndPlay = gameMode === 'pass-and-play';
 
   let topLabel: string;
@@ -36,38 +40,23 @@ export function GameCard({
   } else {
     topLabel = difficulty ? DIFFICULTY_LABELS[difficulty] : 'Opponent';
   }
-  const bottomLabel = isPassAndPlay ? 'Player 1' : 'You';
+  const bottomLabel = playerLabel ?? (isPassAndPlay ? 'Player 1' : 'You');
 
   return (
     <div className="game-card">
-      <div className="game-card-header">{topLabel}</div>
+      <div className="game-card-header">
+        <span>{topLabel}</span>
+        {topRight && <span className="game-card-header-right">{topRight}</span>}
+      </div>
 
       <div className="game-card-body">
         {children}
-
-        <div className="game-card-actions">
-          <button
-            className="game-card-action-btn"
-            onClick={onShowSettings}
-            title="Settings"
-            aria-label="Settings"
-          >
-            ⚙
-          </button>
-          {isPlaying && (
-            <button
-              className="game-card-action-btn game-card-resign-btn"
-              onClick={onResign}
-              title="Resign"
-              aria-label="Resign"
-            >
-              ⚑
-            </button>
-          )}
-        </div>
       </div>
 
-      <div className="game-card-footer">{bottomLabel}</div>
+      <div className="game-card-footer">
+        <span>{bottomLabel}</span>
+        {bottomRight && <span className="game-card-header-right">{bottomRight}</span>}
+      </div>
     </div>
   );
 }
