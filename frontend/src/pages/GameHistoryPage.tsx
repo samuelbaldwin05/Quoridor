@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { NavSidebar } from '@/components/NavSidebar';
 import { GameBoard } from '@/components/GameBoard';
@@ -35,6 +35,11 @@ export function GameHistoryPage() {
   const [selectedId, setSelectedId] = useState<string | null>(id ?? null);
   const [moveIndex, setMoveIndex] = useState(0);
   const [gameSearch, setGameSearch] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [filterResult, setFilterResult] = useState<'all' | 'win' | 'lose'>('all');
+  const [filterOpponent, setFilterOpponent] = useState<'all' | 'bot' | 'human'>('all');
+  const filterPanelRef = useRef<HTMLDivElement>(null);
 
   const games = useMemo(() => listGames(), []);
   const currentGame = useMemo(
@@ -52,12 +57,20 @@ export function GameHistoryPage() {
   const moveListRef = useRef<HTMLDivElement>(null);
 
   const filteredGames = useMemo(() => {
+    let list = [...games];
+    // Sort
+    if (sortOrder === 'oldest') list.sort((a, b) => a.date - b.date);
+    // Filter by result
+    if (filterResult === 'win') list = list.filter((g) => g.winner === 0);
+    else if (filterResult === 'lose') list = list.filter((g) => g.winner !== 0);
+    // Filter by opponent type
+    if (filterOpponent === 'bot') list = list.filter((g) => (g.opponentLabel ?? '').includes('Bot'));
+    else if (filterOpponent === 'human') list = list.filter((g) => !(g.opponentLabel ?? '').includes('Bot'));
+    // Search
     const q = gameSearch.trim().toLowerCase();
-    if (!q) return games;
-    return games.filter((g) =>
-      (g.opponentLabel ?? 'Bot').toLowerCase().includes(q),
-    );
-  }, [games, gameSearch]);
+    if (q) list = list.filter((g) => (g.opponentLabel ?? 'Bot').toLowerCase().includes(q));
+    return list;
+  }, [games, gameSearch, sortOrder, filterResult, filterOpponent]);
 
   function selectGame(gameId: string) {
     setSelectedId(gameId);
@@ -70,9 +83,9 @@ export function GameHistoryPage() {
     navigate('/history', { replace: true });
   }
 
-  // Jump to end when a new game is loaded
+  // Jump to first move when a new game is loaded
   useEffect(() => {
-    if (currentGame) setMoveIndex(currentGame.moves.length);
+    if (currentGame) setMoveIndex(0);
   }, [currentGame?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Arrow key navigation
@@ -98,6 +111,19 @@ export function GameHistoryPage() {
     active?.scrollIntoView({ block: 'nearest' });
   }, [moveIndex]);
 
+  // Close filter panel on outside mousedown
+  const handleOutsideClick = useCallback((e: MouseEvent) => {
+    if (filterPanelRef.current && !filterPanelRef.current.contains(e.target as Node)) {
+      setShowFilters(false);
+    }
+  }, []);
+  useEffect(() => {
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [handleOutsideClick]);
+
+  const activeFilterCount = (sortOrder !== 'newest' ? 1 : 0) + (filterResult !== 'all' ? 1 : 0) + (filterOpponent !== 'all' ? 1 : 0);
+
   const displayState = boardState ?? { ...createInitialState(), status: 'idle' as const };
   const selectedGame = games.find((g) => g.id === selectedId);
 
@@ -112,8 +138,6 @@ export function GameHistoryPage() {
           <GameCard
             gameStatus={displayState.status}
             opponentLabel={selectedGame?.opponentLabel ?? 'Opponent'}
-            onShowSettings={() => {}}
-            onResign={() => {}}
           >
             <div className="board-wrapper">
               <GameBoard
@@ -143,17 +167,77 @@ export function GameHistoryPage() {
                   <span className="play-panel-heading" style={{ margin: 0 }}>Game History</span>
                 </div>
 
-                <div className="ghp-search-wrap">
-                  <span className="ghp-search-icon">🔍</span>
-                  <input
-                    className="ghp-search-input"
-                    type="text"
-                    placeholder="Search by name…"
-                    value={gameSearch}
-                    onChange={(e) => setGameSearch(e.target.value)}
-                  />
-                  {gameSearch && (
-                    <button className="ghp-search-clear" onClick={() => setGameSearch('')}>×</button>
+                {/* Search + filter row */}
+                <div className="ghp-filter-bar" ref={filterPanelRef}>
+                  <div className="ghp-search-wrap">
+                    <span className="ghp-search-icon">🔍</span>
+                    <input
+                      className="ghp-search-input"
+                      type="text"
+                      placeholder="Search by name…"
+                      value={gameSearch}
+                      onChange={(e) => setGameSearch(e.target.value)}
+                    />
+                    {gameSearch && (
+                      <button className="ghp-search-clear" onClick={() => setGameSearch('')}>×</button>
+                    )}
+                    <button
+                      className={`ghp-filter-btn${activeFilterCount > 0 ? ' ghp-filter-btn-active' : ''}`}
+                      onMouseDown={(e) => { e.stopPropagation(); setShowFilters((v) => !v); }}
+                      title="Filters"
+                    >
+                      <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12" aria-hidden="true">
+                        <path d="M1 3h14v1.5L9.5 9v5l-3-1.5V9L1 4.5V3z"/>
+                      </svg>
+                      {activeFilterCount > 0 && <span className="ghp-filter-count">{activeFilterCount}</span>}
+                    </button>
+                  </div>
+
+                  {showFilters && (
+                    <div className="ghp-filter-dropdown" onMouseDown={(e) => e.stopPropagation()}>
+                      <div className="ghp-filter-group">
+                        <span className="ghp-filter-label">Sort</span>
+                        <div className="ghp-filter-options">
+                          {(['newest', 'oldest'] as const).map((opt) => (
+                            <button
+                              key={opt}
+                              className={`ghp-filter-option${sortOrder === opt ? ' active' : ''}`}
+                              onClick={() => setSortOrder(opt)}
+                            >
+                              {opt === 'newest' ? 'Most Recent' : 'Oldest First'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="ghp-filter-group">
+                        <span className="ghp-filter-label">Result</span>
+                        <div className="ghp-filter-options">
+                          {(['all', 'win', 'lose'] as const).map((opt) => (
+                            <button
+                              key={opt}
+                              className={`ghp-filter-option${filterResult === opt ? ' active' : ''}`}
+                              onClick={() => setFilterResult(opt)}
+                            >
+                              {opt === 'all' ? 'All' : opt === 'win' ? 'Won' : 'Lost'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="ghp-filter-group">
+                        <span className="ghp-filter-label">Opponent</span>
+                        <div className="ghp-filter-options">
+                          {(['all', 'bot', 'human'] as const).map((opt) => (
+                            <button
+                              key={opt}
+                              className={`ghp-filter-option${filterOpponent === opt ? ' active' : ''}`}
+                              onClick={() => setFilterOpponent(opt)}
+                            >
+                              {opt === 'all' ? 'All' : opt === 'bot' ? 'Bot' : 'Human'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -161,7 +245,7 @@ export function GameHistoryPage() {
                   {games.length === 0 ? (
                     <p className="ghp-empty">No games yet. Play first!</p>
                   ) : filteredGames.length === 0 ? (
-                    <p className="ghp-empty">No matches for "{gameSearch}"</p>
+                    <p className="ghp-empty">No matches.</p>
                   ) : (
                     filteredGames.map((g) => (
                       <button
