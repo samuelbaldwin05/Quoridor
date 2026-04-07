@@ -61,6 +61,10 @@ export function OnlineGamePage() {
   const { state, dispatch } = useGame();
   const [wallPreview, setWallPreview] = useState<Wall | null>(null);
 
+  // Always-current ref to game state — lets onMoveReceived validate without stale closures
+  const gameStateRef = useRef<GameState>(state.game);
+  useEffect(() => { gameStateRef.current = state.game; }, [state.game]);
+
   // Cosmetic history viewing (does NOT affect actual game state)
   const [viewIndex, setViewIndex] = useState<number | null>(null);
   const moveListRef = useRef<HTMLDivElement>(null);
@@ -83,12 +87,17 @@ export function OnlineGamePage() {
       myUserId,
       onMoveReceived: useCallback(
         (move: Move, playerIndex: PlayerIndex) => {
+          // Validate against current state — illegal move means the sender cheated
+          const validation = applyMove(gameStateRef.current, move);
+          if (!validation.valid) {
+            dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
+            return;
+          }
           dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex });
           audio.playMove();
-          // Jump back to live if watching history
           setViewIndex(null);
         },
-        [dispatch, audio],
+        [dispatch, audio, myRole],
       ),
       onOpponentResigned: useCallback(() => {
         dispatch({ type: 'RESIGN_ONLINE', winner: myRole });

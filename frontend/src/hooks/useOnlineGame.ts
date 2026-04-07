@@ -29,8 +29,8 @@ interface UseOnlineGameOptions {
   gameId: string;
   myRole: 0 | 1;
   myUserId: string;
-  /** Called when the opponent broadcasts a move */
-  onMoveReceived: (move: Move, playerIndex: PlayerIndex) => void;
+  /** Called when the opponent broadcasts a move (playerIndex is derived, never from payload) */
+  onMoveReceived: (move: Move, opponentIndex: PlayerIndex) => void;
   /** Called when the opponent resigns */
   onOpponentResigned: () => void;
 }
@@ -65,9 +65,12 @@ export function useOnlineGame({
     });
     channelRef.current = channel;
 
+    const opponentIndex: PlayerIndex = myRole === 0 ? 1 : 0;
+
     channel
       .on('broadcast', { event: 'move' }, ({ payload }) => {
-        onMoveReceivedRef.current(payload.move as Move, payload.playerIndex as PlayerIndex);
+        // Never trust playerIndex from the payload — always derive it
+        onMoveReceivedRef.current(payload.move as Move, opponentIndex);
       })
       .on('broadcast', { event: 'resign' }, () => {
         onOpponentResignedRef.current();
