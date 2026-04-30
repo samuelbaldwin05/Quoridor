@@ -6,8 +6,8 @@ from uuid import UUID
 from fastapi import HTTPException
 from supabase import Client
 
-from schemas.game import GameResultRequest, GameResultResponse
-from services.elo_service import update_elos
+from app.schemas.game import GameResultRequest, GameResultResponse
+from app.services.elo_service import update_elos
 
 
 def record_game_result(

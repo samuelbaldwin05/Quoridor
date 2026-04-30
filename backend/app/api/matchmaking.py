@@ -8,9 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from supabase import Client
 
-from core.auth import get_current_user
-from core.dependencies import get_supabase
-from schemas.user import UserRead
+from app.core.auth import get_current_user
+from app.core.dependencies import get_supabase
+from app.repositories import challenge_repository
+from app.schemas.user import UserRead
 
 router = APIRouter(prefix="/matchmaking", tags=["matchmaking"])
 
@@ -130,6 +131,9 @@ def join_queue(
         client.table("matchmaking_queue").insert(entry).execute()
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Failed to join queue") from exc
+
+    # Cancel any outgoing challenges — player is now in queue
+    challenge_repository.cancel_challenges_for_user(client, user.id)
 
     # Look for a compatible waiting opponent
     elo_band = _compute_elo_band(entry["joined_at"])

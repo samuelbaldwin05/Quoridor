@@ -30,6 +30,8 @@ class FriendshipRead(BaseModel):
 class FriendWithProfile(BaseModel):
     friendship_id: UUID
     friend_id: UUID
+    requester_id: UUID    # lets client determine sent vs received
     display_name: str
+    username: str | None = None
     elo: int
     status: FriendshipStatus
