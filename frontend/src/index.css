@@ -310,7 +310,25 @@ body {
   text-overflow: ellipsis;
 }
 
-/* Red dot for pending friend requests */
+/* Numeric badge (friend requests, challenges) */
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  border-radius: 9px;
+  background: #e74c3c;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* Red dot for pending friend requests (legacy, kept for compat) */
 .nav-pending-dot {
   width: 8px;
   height: 8px;
@@ -345,6 +363,322 @@ body {
 .nav-avatar-guest {
   opacity: 0.4;
 }
+
+/* ── Nav profile menu ───────────────────────────────────────────────────────── */
+.nav-profile-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+.nav-profile-btn {
+  width: 100%;
+}
+
+.nav-chevron {
+  margin-left: auto;
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
+.nav-profile-menu {
+  background: var(--primary-bg);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--border-radius);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.nav-profile-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  border-radius: var(--border-radius-small);
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 7px 10px;
+  cursor: pointer;
+  text-align: left;
+  opacity: 0.75;
+  transition: background 0.12s, opacity 0.12s;
+  width: 100%;
+}
+.nav-profile-menu-item:hover { background: rgba(255,255,255,0.07); opacity: 1; }
+
+.nav-username-edit {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nav-username-input {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: var(--border-radius-small);
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 6px 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.nav-username-input:focus { outline: none; border-color: var(--player1-color); }
+.nav-username-input-error { border-color: var(--hover-danger) !important; }
+
+.nav-username-error {
+  font-size: 11px;
+  color: var(--hover-danger);
+  margin: 0;
+}
+
+.nav-username-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.nav-username-save {
+  flex: 1;
+  font-size: 12px;
+  padding: 4px 0;
+  background: var(--player1-color);
+  border: none;
+  border-radius: var(--border-radius-small);
+  color: #fff;
+  cursor: pointer;
+}
+.nav-username-save:disabled { opacity: 0.5; cursor: default; }
+.nav-username-cancel {
+  font-size: 12px;
+  padding: 4px 8px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--border-radius-small);
+  color: var(--text-primary);
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+/* ── Username setup page ────────────────────────────────────────────────────── */
+.setup-page {
+  min-height: 100vh;
+  background: var(--primary-bg);
+}
+
+.setup-card {
+  background: var(--secondary-bg);
+  border-radius: var(--border-radius-large);
+  padding: 40px 36px;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.setup-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--player1-color);
+  color: #fff;
+  font-size: 28px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.setup-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 4px 0 0;
+}
+
+.setup-sub {
+  font-size: 13px;
+  color: rgba(255,255,255,0.6);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.setup-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.setup-input {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: var(--border-radius);
+  color: var(--text-primary);
+  font-size: 15px;
+  padding: 10px 14px;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+}
+.setup-input:focus { outline: none; border-color: var(--player1-color); }
+.setup-input-error { border-color: var(--hover-danger) !important; }
+
+.setup-error {
+  font-size: 12px;
+  color: var(--hover-danger);
+  margin: 0;
+}
+
+.setup-hint {
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  margin: 0;
+}
+
+.setup-submit {
+  margin-top: 4px;
+  padding: 10px;
+  font-size: 14px;
+}
+
+/* ── Profile page ───────────────────────────────────────────────────────────── */
+.profile-page-card {
+  background: var(--secondary-bg);
+  border-radius: var(--border-radius-large);
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.profile-loading {
+  color: rgba(255,255,255,0.4);
+  text-align: center;
+  padding: 40px 0;
+  margin: 0;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.profile-avatar-lg {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--player1-color);
+  color: #fff;
+  font-size: 28px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profile-header-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-username {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.profile-google-name {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  margin: 0;
+}
+
+.profile-elo {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.profile-add-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.profile-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.profile-stat-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: var(--border-radius);
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.profile-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.profile-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(255,255,255,0.35);
+}
+
+.profile-section { display: flex; flex-direction: column; gap: 8px; }
+
+.profile-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.3);
+  margin: 0;
+}
+
+.profile-tc-list { display: flex; flex-direction: column; gap: 4px; }
+
+.profile-tc-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.03);
+  border-radius: var(--border-radius-small);
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+}
+
+.profile-tc-label { font-weight: 700; width: 32px; flex-shrink: 0; }
+.profile-tc-stat { flex: 1; }
+.profile-tc-elo { font-weight: 700; }
 
 /* Grey box wrapping the board grid + fence panel */
 .board-wrapper {

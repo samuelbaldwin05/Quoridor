@@ -5,36 +5,48 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from supabase import Client
 
-from core.auth import get_current_user
-from core.dependencies import get_supabase
-from repositories import user_repository
-from schemas.user import UserProfile, UserRead, UserSearchResult
+from app.core.auth import get_current_user
+from app.core.dependencies import get_supabase
+from app.repositories import user_repository
+from app.schemas.user import UserProfile, UserRead, UserSearchResult, UserUpdate
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 
 @router.post("/sync", response_model=UserRead)
 async def sync_user(user: UserRead = Depends(get_current_user)) -> UserRead:
-    """
-    Create or update the public.users record from the current auth token.
-    Called by the frontend immediately after sign-in.
-    """
+    """Create or update the public.users record from the current auth token."""
     return user
+
+
+@router.patch("/me", response_model=UserRead)
+async def update_me(
+    body: UserUpdate,
+    user: UserRead = Depends(get_current_user),
+    client: Client = Depends(get_supabase),
+) -> UserRead:
+    """Set or update the authenticated user's username."""
+    username = body.username.strip()
+    if len(username) < 3:
+        raise HTTPException(status_code=422, detail="Username must be at least 3 characters")
+    if len(username) > 24:
+        raise HTTPException(status_code=422, detail="Username must be 24 characters or fewer")
+    return user_repository.update_username(client, user.id, username)
 
 
 @router.get("/search", response_model=list[UserSearchResult])
 def search_users(
-    q: str = Query(..., min_length=1, description="Display name search query"),
+    q: str = Query(..., min_length=1, description="Username search query"),
     limit: int = Query(20, ge=1, le=100),
     client: Client = Depends(get_supabase),
 ) -> list[UserSearchResult]:
-    """Search users by display name (case-insensitive substring match)."""
+    """Search users by username (case-insensitive substring match)."""
     return user_repository.search_users(client, q, limit)
 
 
 @router.get("/leaderboard", response_model=list[UserSearchResult])
 def get_leaderboard(
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(5, ge=1, le=200),
     client: Client = Depends(get_supabase),
 ) -> list[UserSearchResult]:
     """Return the top players ordered by ELO descending."""
@@ -57,6 +69,7 @@ def get_user(
         id=user.id,
         email=user.email,
         display_name=user.display_name,
+        username=user.username,
         elo=user.elo,
         games_played=user.games_played,
         created_at=user.created_at,

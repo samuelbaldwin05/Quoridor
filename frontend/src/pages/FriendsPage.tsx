@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { NavSidebar } from '@/components/NavSidebar';
-import { ProfileModal } from '@/components/ProfileModal';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface UserResult {
   id: string;
   display_name: string;
+  username: string | null;
   elo: number;
 }
 
@@ -17,13 +17,35 @@ interface FriendEntry {
   friendship_id: string;
   friend_id: string;
   display_name: string;
+  username: string | null;
   elo: number;
   status: 'accepted' | 'pending_sent' | 'pending_received';
 }
 
+interface ChallengeEntry {
+  id: string;
+  challenger_id: string;
+  challenged_id: string;
+  challenger_name: string | null;
+  challenged_name: string | null;
+  time_control: number;
+  status: string;
+  game_id: string | null;
+}
+
+interface ApiFriend {
+  friendship_id: string;
+  friend_id: string;
+  display_name: string;
+  username: string | null;
+  elo: number;
+  status: string;
+  requester_id?: string;
+}
+
 type FriendsTab = 'friends' | 'search';
 
-// ── ELO color helper ──────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function eloColor(elo: number): string {
   if (elo >= 1800) return '#f39c12';
@@ -32,85 +54,76 @@ function eloColor(elo: number): string {
   return 'rgba(255,255,255,0.5)';
 }
 
-// ── Avatar ────────────────────────────────────────────────────────────────────
+function displayFor(u: { display_name: string; username: string | null }): string {
+  return u.username ?? u.display_name;
+}
+
+function tcLabel(tc: number): string {
+  return tc < 60 ? `${tc}s` : `${tc / 60}m`;
+}
 
 function Avatar({ name }: { name: string }) {
-  return (
-    <div className="friend-avatar">
-      {name.charAt(0).toUpperCase()}
-    </div>
-  );
+  return <div className="friend-avatar">{name.charAt(0).toUpperCase()}</div>;
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export function FriendsPage() {
-  const { isGuest, isLoading } = useAuth();
+  const { isGuest, isLoading, profile } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<FriendsTab>('friends');
   const [searchQuery, setSearchQuery] = useState('');
   const [friendSearch, setFriendSearch] = useState('');
   const [searchResults, setSearchResults] = useState<UserResult[]>([]);
   const [friends, setFriends] = useState<FriendEntry[]>([]);
+  const [challenges, setChallenges] = useState<ChallengeEntry[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(true);
   const [loadingSearch, setLoadingSearch] = useState(false);
-  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
-  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [pendingActions, setPendingActions] = useState<Set<string>>(new Set());
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load friend list (uses seed data from DB)
-  useEffect(() => {
-    async function loadFriends() {
-      setLoadingFriends(true);
-      try {
-        const acceptedIds: string[] = JSON.parse(localStorage.getItem('friend_accepted') ?? '[]');
-        const declinedIds: string[] = JSON.parse(localStorage.getItem('friend_declined') ?? '[]');
-        const declinedSet = new Set(declinedIds);
+  const myId = profile?.id ?? '';
 
-        const { data } = await supabase
-          .from('users')
-          .select('id, display_name, elo')
-          .order('elo', { ascending: false })
-          .limit(6);
+  // ── Data loading ─────────────────────────────────────────────────────────
 
-        if (data) {
-          setFriends(
-            data
-              .filter((u) => !declinedSet.has(u.id as string))
-              .map((u, i) => ({
-                friendship_id: `mock-${u.id}`,
-                friend_id: u.id,
-                display_name: u.display_name,
-                elo: u.elo,
-                status: acceptedIds.includes(u.id) ? 'accepted' : i < 4 ? 'accepted' : 'pending_received',
-              })),
-          );
-        }
-      } catch {
-        // silently handle — no backend required
-      } finally {
-        setLoadingFriends(false);
-      }
+  const loadFriends = useCallback(async () => {
+    if (!myId) return;
+    setLoadingFriends(true);
+    try {
+      const [friendData, challengeData] = await Promise.all([
+        apiFetch<ApiFriend[]>('/api/friends/'),
+        apiFetch<ChallengeEntry[]>('/api/challenges/'),
+      ]);
+      setFriends(
+        friendData.map((f) => {
+          let status: FriendEntry['status'];
+          if (f.status === 'accepted') status = 'accepted';
+          else if (f.requester_id === myId) status = 'pending_sent';
+          else status = 'pending_received';
+          return { ...f, status };
+        }),
+      );
+      setChallenges(challengeData);
+    } catch {
+      // silently handle
+    } finally {
+      setLoadingFriends(false);
     }
-    loadFriends();
-  }, []);
+  }, [myId]);
 
-  // Debounced search
+  useEffect(() => { void loadFriends(); }, [loadFriends]);
+
+  // ── Debounced search ─────────────────────────────────────────────────────
+
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     const q = searchQuery.trim();
-    if (q.length < 2) {
-      setSearchResults([]);
-      return;
-    }
+    if (q.length < 2) { setSearchResults([]); return; }
     searchTimer.current = setTimeout(async () => {
       setLoadingSearch(true);
       try {
-        const { data } = await supabase
-          .from('users')
-          .select('id, display_name, elo')
-          .ilike('display_name', `%${q}%`)
-          .limit(20);
-        setSearchResults((data as UserResult[]) ?? []);
+        const data = await apiFetch<UserResult[]>(`/api/users/search?q=${encodeURIComponent(q)}`);
+        setSearchResults(data);
       } catch {
         setSearchResults([]);
       } finally {
@@ -119,47 +132,103 @@ export function FriendsPage() {
     }, 350);
   }, [searchQuery]);
 
-  function handleAddFriend(userId: string) {
-    setAddedIds((prev) => new Set(prev).add(userId));
-    // TODO: POST /api/friends/request with auth
+  // ── Actions ───────────────────────────────────────────────────────────────
+
+  function setPending(id: string, on: boolean) {
+    setPendingActions((prev) => {
+      const next = new Set(prev);
+      on ? next.add(id) : next.delete(id);
+      return next;
+    });
   }
 
-  function handleAccept(friendshipId: string) {
-    const f = friends.find((x) => x.friendship_id === friendshipId);
-    if (f) {
-      const prev: string[] = JSON.parse(localStorage.getItem('friend_accepted') ?? '[]');
-      if (!prev.includes(f.friend_id)) {
-        localStorage.setItem('friend_accepted', JSON.stringify([...prev, f.friend_id]));
-      }
+  async function handleAddFriend(userId: string) {
+    setPending(userId, true);
+    try {
+      await apiFetch('/api/friends/request', {
+        method: 'POST',
+        body: JSON.stringify({ receiver_id: userId }),
+      });
+      await loadFriends();
+    } catch {
+      // ignore duplicate
+    } finally {
+      setPending(userId, false);
     }
-    setFriends((prev) =>
-      prev.map((x) =>
-        x.friendship_id === friendshipId ? { ...x, status: 'accepted' } : x,
-      ),
-    );
-    // TODO: PUT /api/friends/{id}/accept with auth
   }
 
-  function handleDecline(friendshipId: string) {
-    const f = friends.find((x) => x.friendship_id === friendshipId);
-    if (f) {
-      const prev: string[] = JSON.parse(localStorage.getItem('friend_declined') ?? '[]');
-      if (!prev.includes(f.friend_id)) {
-        localStorage.setItem('friend_declined', JSON.stringify([...prev, f.friend_id]));
-      }
+  async function handleAccept(friendshipId: string) {
+    setPending(friendshipId, true);
+    try {
+      await apiFetch(`/api/friends/${friendshipId}/accept`, { method: 'PUT' });
+      setFriends((prev) =>
+        prev.map((f) => f.friendship_id === friendshipId ? { ...f, status: 'accepted' } : f),
+      );
+    } finally {
+      setPending(friendshipId, false);
     }
-    setFriends((prev) => prev.filter((x) => x.friendship_id !== friendshipId));
-    // TODO: DELETE /api/friends/{id} with auth
   }
+
+  async function handleDecline(friendshipId: string) {
+    setPending(friendshipId, true);
+    try {
+      await apiFetch(`/api/friends/${friendshipId}`, { method: 'DELETE' });
+      setFriends((prev) => prev.filter((f) => f.friendship_id !== friendshipId));
+    } finally {
+      setPending(friendshipId, false);
+    }
+  }
+
+  async function handleChallenge(friendId: string, timeControl = 300) {
+    setPending(`challenge-${friendId}`, true);
+    try {
+      await apiFetch('/api/challenges/', {
+        method: 'POST',
+        body: JSON.stringify({ challenged_id: friendId, time_control: timeControl }),
+      });
+      await loadFriends();
+    } catch {
+      // already challenged
+    } finally {
+      setPending(`challenge-${friendId}`, false);
+    }
+  }
+
+  async function handleAcceptChallenge(challengeId: string, timeControl: number, challengerName: string | null) {
+    setPending(`chal-${challengeId}`, true);
+    try {
+      const result = await apiFetch<ChallengeEntry>(`/api/challenges/${challengeId}/accept`, { method: 'POST' });
+      if (result.game_id) {
+        navigate(
+          `/game/online/${result.game_id}?role=1&opponent=${encodeURIComponent(challengerName ?? 'Opponent')}&opponentElo=500&tc=${timeControl}`,
+        );
+      }
+    } finally {
+      setPending(`chal-${challengeId}`, false);
+    }
+  }
+
+  async function handleDeleteChallenge(challengeId: string) {
+    setPending(`chal-${challengeId}`, true);
+    try {
+      await apiFetch(`/api/challenges/${challengeId}`, { method: 'DELETE' });
+      setChallenges((prev) => prev.filter((c) => c.id !== challengeId));
+    } finally {
+      setPending(`chal-${challengeId}`, false);
+    }
+  }
+
+  // ── Derived state ─────────────────────────────────────────────────────────
 
   const acceptedFriends = friends.filter((f) => f.status === 'accepted');
   const pendingReceived = friends.filter((f) => f.status === 'pending_received');
   const pendingSent = friends.filter((f) => f.status === 'pending_sent');
+  const incomingChallenges = challenges.filter((c) => c.challenged_id === myId);
+  const outgoingChallenges = challenges.filter((c) => c.challenger_id === myId);
+  const alreadyFriendIds = new Set(friends.map((f) => f.friend_id));
 
   const filteredAccepted = friendSearch.trim()
-    ? acceptedFriends.filter((f) =>
-        f.display_name.toLowerCase().includes(friendSearch.toLowerCase()),
-      )
+    ? acceptedFriends.filter((f) => displayFor(f).toLowerCase().includes(friendSearch.toLowerCase()))
     : acceptedFriends;
 
   if (!isLoading && isGuest) return <Navigate to="/login" replace />;
@@ -170,7 +239,6 @@ export function FriendsPage() {
 
       <div className="main-content">
         <div className="board-section">
-          {/* ── Friends Card ─────────────────────────────────────────────── */}
           <div className="friends-card">
             {/* Tab bar */}
             <div className="friends-tabs">
@@ -179,6 +247,9 @@ export function FriendsPage() {
                 onClick={() => setTab('friends')}
               >
                 Friends{acceptedFriends.length > 0 && ` (${acceptedFriends.length})`}
+                {pendingReceived.length > 0 && (
+                  <span className="nav-badge" style={{ marginLeft: 6 }}>{pendingReceived.length}</span>
+                )}
               </button>
               <button
                 className={`friends-tab${tab === 'search' ? ' friends-tab-active' : ''}`}
@@ -188,7 +259,7 @@ export function FriendsPage() {
               </button>
             </div>
 
-            {/* ── SEARCH TAB ────────────────────────────────────────────── */}
+            {/* ── SEARCH TAB ─────────────────────────────────────────────── */}
             {tab === 'search' && (
               <div className="friends-search-body">
                 <div className="friends-search-bar-wrap">
@@ -202,13 +273,7 @@ export function FriendsPage() {
                     autoFocus
                   />
                   {searchQuery && (
-                    <button
-                      className="friends-search-clear"
-                      onClick={() => setSearchQuery('')}
-                      aria-label="Clear"
-                    >
-                      ×
-                    </button>
+                    <button className="friends-search-clear" onClick={() => setSearchQuery('')}>×</button>
                   )}
                 </div>
 
@@ -216,101 +281,127 @@ export function FriendsPage() {
                   {searchQuery.trim().length < 2 && (
                     <p className="friends-empty">Type at least 2 characters to search.</p>
                   )}
-                  {loadingSearch && (
-                    <p className="friends-empty">Searching…</p>
-                  )}
+                  {loadingSearch && <p className="friends-empty">Searching…</p>}
                   {!loadingSearch && searchQuery.trim().length >= 2 && searchResults.length === 0 && (
-                    <p className="friends-empty">No players found for "{searchQuery}".</p>
+                    <p className="friends-empty">No players found.</p>
                   )}
-                  {searchResults.map((user) => (
-                    <div key={user.id} className="friend-item">
-                      <Avatar name={user.display_name} />
-                      <div className="friend-item-info">
-                        <button
-                          className="friend-item-name"
-                          onClick={() => setProfileUserId(user.id)}
-                        >
-                          {user.display_name}
-                        </button>
-                        <span className="friend-item-elo" style={{ color: eloColor(user.elo) }}>
-                          {user.elo} ELO
-                        </span>
-                      </div>
-                      <div className="friend-item-actions">
-                        {addedIds.has(user.id) ? (
-                          <span className="friend-added-badge">Sent ✓</span>
-                        ) : (
-                          <button
-                            className="btn friend-add-btn"
-                            onClick={() => handleAddFriend(user.id)}
-                          >
-                            + Add
+                  {searchResults.map((user) => {
+                    const name = displayFor(user);
+                    const isFriend = alreadyFriendIds.has(user.id);
+                    const isMe = user.id === myId;
+                    return (
+                      <div key={user.id} className="friend-item">
+                        <Avatar name={name} />
+                        <div className="friend-item-info">
+                          <button className="friend-item-name" onClick={() => navigate(`/profile/${user.id}`)}>
+                            {name}
                           </button>
-                        )}
+                          <span className="friend-item-elo" style={{ color: eloColor(user.elo) }}>{user.elo} ELO</span>
+                        </div>
+                        <div className="friend-item-actions">
+                          {isMe ? (
+                            <span className="friend-added-badge">You</span>
+                          ) : isFriend ? (
+                            <span className="friend-added-badge">Friends ✓</span>
+                          ) : (
+                            <button
+                              className="btn friend-add-btn"
+                              onClick={() => handleAddFriend(user.id)}
+                              disabled={pendingActions.has(user.id)}
+                            >
+                              {pendingActions.has(user.id) ? '…' : '+ Add'}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            {/* ── FRIENDS TAB ───────────────────────────────────────────── */}
+            {/* ── FRIENDS TAB ─────────────────────────────────────────────── */}
             {tab === 'friends' && (
               <div className="friends-list-body">
                 {loadingFriends ? (
                   <p className="friends-empty" style={{ padding: '24px 20px' }}>Loading…</p>
                 ) : (
                   <>
-                    {/* Search bar for friends list */}
-                    {acceptedFriends.length > 0 && (
-                      <div className="friends-search-bar-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                        <span className="friends-search-icon">🔍</span>
-                        <input
-                          className="friends-search-input"
-                          type="text"
-                          placeholder="Search friends…"
-                          value={friendSearch}
-                          onChange={(e) => setFriendSearch(e.target.value)}
-                        />
-                        {friendSearch && (
-                          <button className="friends-search-clear" onClick={() => setFriendSearch('')}>×</button>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Pending requests from others */}
-                    {pendingReceived.length > 0 && (
+                    {/* Incoming challenges */}
+                    {incomingChallenges.length > 0 && (
                       <div className="friends-section">
-                        <p className="friends-section-label">PENDING REQUESTS ({pendingReceived.length})</p>
-                        {pendingReceived.map((f) => (
-                          <div key={f.friendship_id} className="friend-item">
-                            <Avatar name={f.display_name} />
+                        <p className="friends-section-label">CHALLENGES ({incomingChallenges.length})</p>
+                        {incomingChallenges.map((c) => (
+                          <div key={c.id} className="friend-item">
+                            <Avatar name={c.challenger_name ?? '?'} />
                             <div className="friend-item-info">
-                              <button
-                                className="friend-item-name"
-                                onClick={() => setProfileUserId(f.friend_id)}
-                              >
-                                {f.display_name}
-                              </button>
-                              <span className="friend-item-elo" style={{ color: eloColor(f.elo) }}>
-                                {f.elo} ELO
+                              <span className="friend-item-name" style={{ cursor: 'default' }}>
+                                {c.challenger_name ?? 'Unknown'}
                               </span>
+                              <span className="friend-item-elo">{tcLabel(c.time_control)} game</span>
                             </div>
                             <div className="friend-item-actions">
                               <button
                                 className="btn friend-accept-btn"
-                                onClick={() => handleAccept(f.friendship_id)}
-                                title="Accept"
-                              >
-                                ✓
-                              </button>
+                                onClick={() => handleAcceptChallenge(c.id, c.time_control, c.challenger_name)}
+                                disabled={pendingActions.has(`chal-${c.id}`)}
+                                title="Accept challenge"
+                              >✓</button>
                               <button
                                 className="btn friend-decline-btn"
-                                onClick={() => handleDecline(f.friendship_id)}
+                                onClick={() => handleDeleteChallenge(c.id)}
+                                disabled={pendingActions.has(`chal-${c.id}`)}
                                 title="Decline"
-                              >
-                                ✕
+                              >✕</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Outgoing challenges */}
+                    {outgoingChallenges.length > 0 && (
+                      <div className="friends-section">
+                        <p className="friends-section-label">SENT CHALLENGES ({outgoingChallenges.length})</p>
+                        {outgoingChallenges.map((c) => (
+                          <div key={c.id} className="friend-item">
+                            <Avatar name={c.challenged_name ?? '?'} />
+                            <div className="friend-item-info">
+                              <span className="friend-item-name" style={{ cursor: 'default' }}>
+                                {c.challenged_name ?? 'Unknown'}
+                              </span>
+                              <span className="friend-item-elo">{tcLabel(c.time_control)} game</span>
+                            </div>
+                            <div className="friend-item-actions">
+                              <span className="friend-pending-badge">Pending</span>
+                              <button
+                                className="btn friend-decline-btn"
+                                onClick={() => handleDeleteChallenge(c.id)}
+                                disabled={pendingActions.has(`chal-${c.id}`)}
+                                title="Cancel"
+                              >✕</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Pending friend requests received */}
+                    {pendingReceived.length > 0 && (
+                      <div className="friends-section">
+                        <p className="friends-section-label">FRIEND REQUESTS ({pendingReceived.length})</p>
+                        {pendingReceived.map((f) => (
+                          <div key={f.friendship_id} className="friend-item">
+                            <Avatar name={displayFor(f)} />
+                            <div className="friend-item-info">
+                              <button className="friend-item-name" onClick={() => navigate(`/profile/${f.friend_id}`)}>
+                                {displayFor(f)}
                               </button>
+                              <span className="friend-item-elo" style={{ color: eloColor(f.elo) }}>{f.elo} ELO</span>
+                            </div>
+                            <div className="friend-item-actions">
+                              <button className="btn friend-accept-btn" onClick={() => handleAccept(f.friendship_id)} disabled={pendingActions.has(f.friendship_id)} title="Accept">✓</button>
+                              <button className="btn friend-decline-btn" onClick={() => handleDecline(f.friendship_id)} disabled={pendingActions.has(f.friendship_id)} title="Decline">✕</button>
                             </div>
                           </div>
                         ))}
@@ -323,65 +414,66 @@ export function FriendsPage() {
                         <p className="friends-section-label">SENT REQUESTS ({pendingSent.length})</p>
                         {pendingSent.map((f) => (
                           <div key={f.friendship_id} className="friend-item">
-                            <Avatar name={f.display_name} />
+                            <Avatar name={displayFor(f)} />
                             <div className="friend-item-info">
-                              <button
-                                className="friend-item-name"
-                                onClick={() => setProfileUserId(f.friend_id)}
-                              >
-                                {f.display_name}
+                              <button className="friend-item-name" onClick={() => navigate(`/profile/${f.friend_id}`)}>
+                                {displayFor(f)}
                               </button>
-                              <span className="friend-item-elo" style={{ color: eloColor(f.elo) }}>
-                                {f.elo} ELO
-                              </span>
+                              <span className="friend-item-elo" style={{ color: eloColor(f.elo) }}>{f.elo} ELO</span>
                             </div>
                             <div className="friend-item-actions">
                               <span className="friend-pending-badge">Pending</span>
+                              <button className="btn friend-decline-btn" onClick={() => handleDecline(f.friendship_id)} disabled={pendingActions.has(f.friendship_id)} title="Cancel">✕</button>
                             </div>
                           </div>
                         ))}
                       </div>
                     )}
 
-                    {/* Accepted friends */}
-                    {filteredAccepted.length > 0 && (
-                      <div className="friends-section">
-                        <p className="friends-section-label">FRIENDS ({filteredAccepted.length})</p>
-                        {filteredAccepted.map((f) => (
-                          <div key={f.friendship_id} className="friend-item">
-                            <Avatar name={f.display_name} />
-                            <div className="friend-item-info">
-                              <button
-                                className="friend-item-name"
-                                onClick={() => setProfileUserId(f.friend_id)}
-                              >
-                                {f.display_name}
-                              </button>
-                              <span className="friend-item-elo" style={{ color: eloColor(f.elo) }}>
-                                {f.elo} ELO
-                              </span>
+                    {/* Friend search + list */}
+                    {acceptedFriends.length > 0 && (
+                      <>
+                        <div className="friends-search-bar-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                          <span className="friends-search-icon">🔍</span>
+                          <input
+                            className="friends-search-input"
+                            type="text"
+                            placeholder="Search friends…"
+                            value={friendSearch}
+                            onChange={(e) => setFriendSearch(e.target.value)}
+                          />
+                          {friendSearch && <button className="friends-search-clear" onClick={() => setFriendSearch('')}>×</button>}
+                        </div>
+                        <div className="friends-section">
+                          <p className="friends-section-label">FRIENDS ({filteredAccepted.length})</p>
+                          {filteredAccepted.map((f) => (
+                            <div key={f.friendship_id} className="friend-item">
+                              <Avatar name={displayFor(f)} />
+                              <div className="friend-item-info">
+                                <button className="friend-item-name" onClick={() => navigate(`/profile/${f.friend_id}`)}>
+                                  {displayFor(f)}
+                                </button>
+                                <span className="friend-item-elo" style={{ color: eloColor(f.elo) }}>{f.elo} ELO</span>
+                              </div>
+                              <div className="friend-item-actions">
+                                <button
+                                  className="btn friend-challenge-btn"
+                                  title="Challenge"
+                                  disabled={pendingActions.has(`challenge-${f.friend_id}`)}
+                                  onClick={() => handleChallenge(f.friend_id)}
+                                >⚔</button>
+                              </div>
                             </div>
-                            <div className="friend-item-actions">
-                              <button
-                                className="btn friend-challenge-btn"
-                                title="Challenge"
-                                onClick={() => {}}
-                              >
-                                ⚔
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      </>
                     )}
 
-                    {acceptedFriends.length === 0 && pendingReceived.length === 0 && (
+                    {acceptedFriends.length === 0 && pendingReceived.length === 0 && incomingChallenges.length === 0 && (
                       <div className="friends-empty-state">
                         <span className="friends-empty-emoji">👥</span>
                         <p className="friends-empty-title">No friends yet</p>
-                        <p className="friends-empty-sub">
-                          Use "Find Players" to search by username.
-                        </p>
+                        <p className="friends-empty-sub">Use "Find Players" to search by username.</p>
                       </div>
                     )}
                   </>
@@ -389,12 +481,8 @@ export function FriendsPage() {
               </div>
             )}
           </div>
-
         </div>
       </div>
-
-      <ProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
     </div>
   );
 }
-

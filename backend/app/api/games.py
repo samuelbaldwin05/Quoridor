@@ -5,11 +5,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from supabase import Client
 
-from core.auth import get_current_user
-from core.dependencies import get_supabase
-from schemas.game import GameResultRequest, GameResultResponse
-from schemas.user import UserRead
-from services.game_service import record_game_result
+from app.core.auth import get_current_user
+from app.core.dependencies import get_supabase
+from app.schemas.game import GameResultRequest, GameResultResponse
+from app.schemas.user import UserRead
+from app.services.game_service import record_game_result
 
 router = APIRouter(prefix="/games", tags=["games"])
 

@@ -9,7 +9,8 @@ import { apiFetch } from '@/lib/api';
 export interface UserProfile {
   id: string;
   email: string;
-  display_name: string;
+  display_name: string;  // google name, never overwritten
+  username: string | null;
   elo: number;
   games_played: number;
 }
@@ -23,11 +24,13 @@ interface AuthContextValue {
   isLoading: boolean;
   isGuest: boolean;
   isDev: boolean;
+  needsUsername: boolean;
   authMode: AuthMode;
   signInWithGoogle: () => Promise<void>;
   signInAsDev: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateUsername: (username: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -49,14 +52,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Dev-token takes priority — no Supabase session needed
     if (getDevToken()) {
       setAuthMode('dev');
       fetchProfile().finally(() => setIsLoading(false));
       return;
     }
 
-    // Otherwise restore Supabase session (handles OAuth redirect-back automatically)
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -68,9 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session) {
@@ -116,6 +115,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }
 
+  async function updateUsername(username: string): Promise<void> {
+    const updated = await apiFetch<UserProfile>('/api/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify({ username }),
+    });
+    setProfile(updated);
+  }
+
+  // True if logged in but has never set a username
+  const needsUsername = authMode !== 'none' && profile !== null && !profile.username;
+
   return createElement(AuthContext.Provider, {
     value: {
       user,
@@ -124,11 +134,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       isGuest: authMode === 'none',
       isDev: config.development.bypassAuth,
+      needsUsername,
       authMode,
       signInWithGoogle,
       signInAsDev,
       signOut,
       refreshProfile: fetchProfile,
+      updateUsername,
     },
     children,
   });

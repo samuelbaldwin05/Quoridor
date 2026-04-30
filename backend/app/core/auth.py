@@ -7,9 +7,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from supabase import Client
 
-from core.config import settings
-from core.dependencies import get_supabase
-from schemas.user import UserRead
+from app.core.config import settings
+from app.core.dependencies import get_supabase
+from app.schemas.user import UserRead
 
 DEV_USER_ID = UUID("00000000-0000-0000-0000-000000000099")
 
@@ -66,9 +66,11 @@ def _get_or_create_user(
     display_name: str,
 ) -> UserRead:
     try:
+        # Only upsert google-owned fields — never overwrite username (user-set)
         supabase.table("users").upsert(
             {"id": str(user_id), "email": email, "display_name": display_name},
             on_conflict="id",
+            ignore_duplicates=False,
         ).execute()
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Failed to sync user") from exc
