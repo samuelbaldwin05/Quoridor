@@ -18,14 +18,15 @@ quoridor/
       engine/        # Game logic (ported from JS, pure functions)
       pages/         # Route-level components
   backend/
-    api/             # FastAPI route modules
-    services/        # Business logic layer
-    repositories/    # Database access layer
-    engine/          # Server-side game logic (Python port, for multiplayer validation)
-    ai/              # Model inference code
-    models/          # Model weight loading (weights fetched from remote storage, not committed)
-    schemas/         # Pydantic models
-    core/            # Config, dependencies, exceptions
+    app/
+      api/             # FastAPI route modules
+      services/        # Business logic layer
+      repositories/    # Database access layer
+      engine/          # Server-side game logic (Python port, for multiplayer validation)
+      ai/              # Model inference code
+      models/          # Model weight loading (weights fetched from remote storage, not committed)
+      schemas/         # Pydantic models
+      core/            # Config, dependencies, exceptions
   supabase/
     migrations/      # SQL migrations
     seed.sql         # Seed data
@@ -157,7 +158,7 @@ cd backend
 uv venv
 source .venv/bin/activate  # or `activate` with Samuel's PowerShell alias
 uv sync
-uvicorn api.main:app --reload
+uvicorn app.api.main:app --reload
 ```
 
 ### Linting
