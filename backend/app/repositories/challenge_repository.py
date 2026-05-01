@@ -90,54 +90,39 @@ def create_challenge(
 
 
 def accept_challenge(client: Client, challenge_id: UUID, user_id: UUID) -> ChallengeRead:
-    """Accept challenge, create a game, and return the updated challenge with game_id."""
-    cid = str(challenge_id)
-    uid = str(user_id)
+    """Accept challenge, create a game, and return the updated challenge with game_id.
 
+    Backed by the public.accept_challenge() Postgres function so the
+    state-check / game-insert / challenge-update happen in one transaction —
+    eliminates the orphan-game race window we used to have.
+    """
     try:
-        fetch = client.table("challenges").select("*").eq("id", cid).maybe_single().execute()
+        client.rpc("accept_challenge", {
+            "p_challenge_id": str(challenge_id),
+            "p_user_id": str(user_id),
+        }).execute()
     except Exception as exc:
-        raise DatabaseError("challenge fetch failed") from exc
-
-    if not fetch.data:
-        raise NotFoundError("challenge not found")
-
-    row = fetch.data
-    if row["challenged_id"] != uid:
-        raise AuthorizationError("only the challenged player can accept")
-    if row["status"] != "pending":
-        raise ConflictError("challenge is no longer pending")
-
-    try:
-        game_resp = (
-            client.table("games")
-            .insert({
-                "player1_id": row["challenger_id"],
-                "player2_id": row["challenged_id"],
-                "mode": "casual",
-                "status": "playing",
-                "time_control": row["time_control"],
-            })
-            .execute()
-        )
-    except Exception as exc:
-        raise DatabaseError("game create failed") from exc
-
-    game_id = game_resp.data[0]["id"]
-
-    try:
-        update = (
-            client.table("challenges")
-            .update({"status": "accepted", "game_id": game_id})
-            .eq("id", cid)
-            .execute()
-        )
-    except Exception as exc:
+        msg = str(exc).lower()
+        if "not found" in msg or "p0002" in msg:
+            raise NotFoundError("challenge not found") from exc
+        if "only the challenged" in msg or "42501" in msg:
+            raise AuthorizationError("only the challenged player can accept") from exc
+        if "no longer pending" in msg or "40001" in msg:
+            raise ConflictError("challenge is no longer pending") from exc
         raise DatabaseError("challenge accept failed") from exc
 
-    updated_row = update.data[0]
-    profiles = _fetch_profiles(client, [updated_row["challenger_id"], updated_row["challenged_id"]])
-    return _enrich([updated_row], profiles)[0]
+    # Re-fetch the updated row + profiles for the response.
+    try:
+        fetched = client.table("challenges").select("*").eq("id", str(challenge_id)).maybe_single().execute()
+    except Exception as exc:
+        raise DatabaseError("challenge re-fetch failed") from exc
+
+    if not fetched.data:
+        raise NotFoundError("challenge vanished after accept")
+
+    row = fetched.data
+    profiles = _fetch_profiles(client, [row["challenger_id"], row["challenged_id"]])
+    return _enrich([row], profiles)[0]
 
 
 def cancel_or_decline_challenge(client: Client, challenge_id: UUID, user_id: UUID) -> None:

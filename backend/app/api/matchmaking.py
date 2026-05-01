@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import random
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from supabase import Client
 
 from app.core.auth import get_current_user
 from app.core.dependencies import get_supabase
+from app.core.exceptions import DatabaseError
 from app.repositories import challenge_repository
 from app.schemas.user import UserRead
 
@@ -31,11 +31,6 @@ def _compute_elo_band(joined_at_iso: str) -> int:
     return min(ELO_BAND_MAX, ELO_BAND_BASE + int(ELO_BAND_SCALE * elapsed ** 2))
 
 
-# ---------------------------------------------------------------------------
-# Schemas
-# ---------------------------------------------------------------------------
-
-
 class JoinQueueRequest(BaseModel):
     time_control: int   # 180 | 300 | 600 seconds
 
@@ -48,47 +43,37 @@ class QueueStatus(BaseModel):
     player_role: int | None = None  # 0 = player1, 1 = player2
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def _try_match(
+    client: Client, user: UserRead, time_control: int, elo_band: int,
+) -> QueueStatus | None:
+    """Atomically claim a waiting opponent and create a game.
 
-
-def _create_game(
-    client: Client, time_control: int,
-    p1_id: str, p2_id: str, p1_name: str, p2_name: str,
-) -> str:
-    game_id = str(uuid.uuid4())
+    Returns a "matched" QueueStatus if an opponent was claimed, None otherwise.
+    Backed by public.match_in_queue() — concurrent callers cannot pair with the
+    same opponent (FOR UPDATE SKIP LOCKED inside the function).
+    """
     try:
-        client.table("games").insert({
-            "id": game_id,
-            "mode": "ranked",
-            "status": "playing",
-            "time_control": time_control,
-            "player1_id": p1_id,
-            "player2_id": p2_id,
-            "player1_name": p1_name,
-            "player2_name": p2_name,
-            "created_at": datetime.now(UTC).isoformat(),
+        resp = client.rpc("match_in_queue", {
+            "p_user_id": str(user.id),
+            "p_time_control": time_control,
+            "p_user_elo": user.elo,
+            "p_elo_band": elo_band,
+            "p_display_name": user.display_name,
         }).execute()
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Failed to create game") from exc
-    return game_id
+        raise DatabaseError("matchmaking rpc failed") from exc
 
+    if not resp.data:
+        return None
 
-def _mark_matched(
-    client: Client, player_key: str, game_id: str, opponent_name: str, opponent_elo: int,
-) -> None:
-    client.table("matchmaking_queue").update({
-        "status": "matched",
-        "matched_game_id": game_id,
-        "opponent_name": opponent_name,
-        "opponent_elo": opponent_elo,
-    }).eq("player_key", player_key).execute()
-
-
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
+    row = resp.data[0]
+    return QueueStatus(
+        status="matched",
+        matched_game_id=row["game_id"],
+        opponent_name=row["opponent_name"],
+        opponent_elo=row["opponent_elo"],
+        player_role=row["player_role"],
+    )
 
 
 @router.post("/join", response_model=QueueStatus)
@@ -100,7 +85,6 @@ def join_queue(
     """Join the matchmaking queue. Uses the authenticated user's ID as the stable key."""
     player_key = str(user.id)
 
-    # Already in queue — clear stale matched entry, return status for still-waiting entry
     existing = (
         client.table("matchmaking_queue")
         .select("*")
@@ -111,12 +95,10 @@ def join_queue(
     if existing.data:
         row = existing.data[0]
         if row.get("matched_game_id"):
-            # Stale matched entry from a previous game — delete it and proceed to fresh join
             client.table("matchmaking_queue").delete().eq("player_key", player_key).execute()
         else:
             return QueueStatus(status="waiting")
 
-    # Insert new queue entry
     entry = {
         "id": str(uuid.uuid4()),
         "player_key": player_key,
@@ -130,59 +112,13 @@ def join_queue(
     try:
         client.table("matchmaking_queue").insert(entry).execute()
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Failed to join queue") from exc
+        raise DatabaseError("queue insert failed") from exc
 
-    # Cancel any outgoing challenges — player is now in queue
     challenge_repository.cancel_challenges_for_user(client, user.id)
 
-    # Look for a compatible waiting opponent
     elo_band = _compute_elo_band(entry["joined_at"])
-    try:
-        result = (
-            client.table("matchmaking_queue")
-            .select("*")
-            .eq("time_control", body.time_control)
-            .eq("status", "waiting")
-            .neq("player_key", player_key)
-            .gte("elo", user.elo - elo_band)
-            .lte("elo", user.elo + elo_band)
-            .order("joined_at")
-            .limit(1)
-            .execute()
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail="Failed to search queue") from exc
-
-    if not result.data:
-        return QueueStatus(status="waiting")
-
-    opponent = result.data[0]
-    me = {
-        "user_id": str(user.id), "display_name": user.display_name,
-        "player_key": player_key, "elo": user.elo,
-    }
-    p1, p2 = random.sample([opponent, me], 2)
-    my_role = 0 if p1["player_key"] == player_key else 1
-
-    game_id = _create_game(
-        client, body.time_control,
-        p1_id=p1["user_id"], p2_id=p2["user_id"],
-        p1_name=p1["display_name"], p2_name=p2["display_name"],
-    )
-
-    try:
-        _mark_matched(client, opponent["player_key"], game_id, user.display_name, user.elo)
-        _mark_matched(client, player_key, game_id, opponent["display_name"], opponent["elo"])
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail="Failed to finalize match") from exc
-
-    return QueueStatus(
-        status="matched",
-        matched_game_id=game_id,
-        opponent_name=opponent["display_name"],
-        opponent_elo=opponent["elo"],
-        player_role=my_role,
-    )
+    matched = _try_match(client, user, body.time_control, elo_band)
+    return matched or QueueStatus(status="waiting")
 
 
 @router.get("/status", response_model=QueueStatus)
@@ -202,7 +138,7 @@ def queue_status(
             .execute()
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Failed to fetch status") from exc
+        raise DatabaseError("queue status fetch failed") from exc
 
     if not resp.data:
         return QueueStatus(status="not_in_queue")
@@ -218,54 +154,9 @@ def queue_status(
             player_role=role,
         )
 
-    # Still waiting — try to find an opponent with the expanded band
     elo_band = _compute_elo_band(row["joined_at"])
-    try:
-        result = (
-            client.table("matchmaking_queue")
-            .select("*")
-            .eq("time_control", row["time_control"])
-            .eq("status", "waiting")
-            .neq("player_key", player_key)
-            .gte("elo", row["elo"] - elo_band)
-            .lte("elo", row["elo"] + elo_band)
-            .order("joined_at")
-            .limit(1)
-            .execute()
-        )
-    except Exception:
-        return QueueStatus(status="waiting")
-
-    if not result.data:
-        return QueueStatus(status="waiting")
-
-    opponent = result.data[0]
-    me = {
-        "user_id": row["user_id"], "display_name": row["display_name"],
-        "player_key": player_key, "elo": row["elo"],
-    }
-    p1, p2 = random.sample([opponent, me], 2)
-    my_role = 0 if p1["player_key"] == player_key else 1
-
-    game_id = _create_game(
-        client, row["time_control"],
-        p1_id=p1["user_id"], p2_id=p2["user_id"],
-        p1_name=p1["display_name"], p2_name=p2["display_name"],
-    )
-
-    try:
-        _mark_matched(client, player_key, game_id, opponent["display_name"], opponent["elo"])
-        _mark_matched(client, opponent["player_key"], game_id, row["display_name"], row["elo"])
-    except Exception:
-        return QueueStatus(status="waiting")
-
-    return QueueStatus(
-        status="matched",
-        matched_game_id=game_id,
-        opponent_name=opponent["display_name"],
-        opponent_elo=opponent["elo"],
-        player_role=my_role,
-    )
+    matched = _try_match(client, user, row["time_control"], elo_band)
+    return matched or QueueStatus(status="waiting")
 
 
 @router.delete("/leave")
@@ -277,7 +168,7 @@ def leave_queue(
     try:
         client.table("matchmaking_queue").delete().eq("player_key", str(user.id)).execute()
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Failed to leave queue") from exc
+        raise DatabaseError("queue leave failed") from exc
     return {"ok": True}
 
 

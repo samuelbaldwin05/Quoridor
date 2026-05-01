@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from uuid import UUID
 
 from supabase import Client
@@ -21,6 +20,13 @@ def record_game_result(
     body: GameResultRequest,
     caller_id: UUID,
 ) -> GameResultResponse:
+    """Finalize a game and update both players' ELO atomically.
+
+    Pre-computes new ELOs in Python, then defers the lock+finish+ELO update to
+    the public.submit_game_result() Postgres function so all three writes
+    happen in one transaction. Idempotent: a second caller for an already
+    finished game gets the stored result back.
+    """
     result = (
         supabase.table("games")
         .select("*")
@@ -37,7 +43,6 @@ def record_game_result(
     if not p1_id or not p2_id:
         raise InvalidMoveError("game missing player ids")
 
-    # Only participants of the game may record its result.
     caller_str = str(caller_id)
     if caller_str != p1_id and caller_str != p2_id:
         raise AuthorizationError("only game participants can submit a result")
@@ -45,7 +50,6 @@ def record_game_result(
     if body.winner_index not in (0, 1):
         raise InvalidMoveError("winner_index must be 0 or 1")
 
-    # Idempotent — already finished, return stored result
     if game["status"] == "finished":
         return GameResultResponse(
             game_id=UUID(game["id"]),
@@ -79,49 +83,24 @@ def record_game_result(
     elo_change_p2 = (new_loser_elo - loser_elo) if is_p1_winner else (new_winner_elo - winner_elo)
     new_elo_p1 = new_winner_elo if is_p1_winner else new_loser_elo
     new_elo_p2 = new_loser_elo if is_p1_winner else new_winner_elo
-    now = datetime.now(UTC).isoformat()
-
-    # Atomic finish — only updates if not already finished (prevents double-submit race)
-    try:
-        update_result = (
-            supabase.table("games")
-            .update({
-                "status": "finished",
-                "winner_id": winner_id,
-                "elo_change_p1": elo_change_p1,
-                "elo_change_p2": elo_change_p2,
-                "move_history": body.move_history,
-                "completed_at": now,
-            })
-            .eq("id", str(game_id))
-            .neq("status", "finished")
-            .execute()
-        )
-    except Exception as exc:
-        raise DatabaseError("game finish failed") from exc
-
-    if not update_result.data:
-        return GameResultResponse(
-            game_id=game_id,
-            winner_id=UUID(winner_id),
-            elo_change_p1=elo_change_p1,
-            elo_change_p2=elo_change_p2,
-            new_elo_p1=new_elo_p1,
-            new_elo_p2=new_elo_p2,
-        )
 
     try:
-        supabase.table("users").update({
-            "elo": new_winner_elo,
-            "games_played": winner_games + 1,
-        }).eq("id", winner_id).execute()
-
-        supabase.table("users").update({
-            "elo": new_loser_elo,
-            "games_played": loser_games + 1,
-        }).eq("id", loser_id).execute()
+        supabase.rpc("submit_game_result", {
+            "p_game_id": str(game_id),
+            "p_winner_user_id": winner_id,
+            "p_loser_user_id": loser_id,
+            "p_winner_index": body.winner_index,
+            "p_new_winner_elo": new_winner_elo,
+            "p_new_loser_elo": new_loser_elo,
+            "p_elo_change_p1": elo_change_p1,
+            "p_elo_change_p2": elo_change_p2,
+            "p_move_history": body.move_history,
+        }).execute()
     except Exception as exc:
-        raise DatabaseError("elo update failed") from exc
+        msg = str(exc).lower()
+        if "not found" in msg or "p0002" in msg:
+            raise NotFoundError("game vanished mid-finalize") from exc
+        raise DatabaseError("game finalize failed") from exc
 
     return GameResultResponse(
         game_id=game_id,
