@@ -42,6 +42,13 @@ def _fetch_profiles(client: Client, user_ids: list[str]) -> dict[str, dict]:
 
 def get_my_challenges(client: Client, user_id: UUID) -> list[ChallengeRead]:
     uid = str(user_id)
+    # Best-effort sweep of expired pending challenges. The function is cheap
+    # (partial index on expires_at) and silently no-ops if none are due.
+    try:
+        client.rpc("expire_old_challenges", {}).execute()
+    except Exception:
+        pass
+
     try:
         resp = (
             client.table("challenges")
