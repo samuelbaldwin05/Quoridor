@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from supabase import Client
 
 from app.core.auth import get_current_user
 from app.core.dependencies import get_supabase
+from app.core.rate_limit import limiter
 from app.schemas.friendship import FriendshipCreate, FriendshipRead, FriendWithProfile
 from app.schemas.user import UserRead
 from app.services import friendship_service
@@ -24,7 +25,9 @@ def list_friends(
 
 
 @router.post("/request", response_model=FriendshipRead, status_code=201)
+@limiter.limit("20/minute")
 def send_friend_request(
+    request: Request,
     body: FriendshipCreate,
     user: UserRead = Depends(get_current_user),
     client: Client = Depends(get_supabase),

@@ -3,13 +3,14 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from supabase import Client
 
 from app.core.auth import get_current_user
 from app.core.dependencies import get_supabase
 from app.core.exceptions import DatabaseError
+from app.core.rate_limit import limiter
 from app.repositories import challenge_repository
 from app.schemas.user import UserRead
 
@@ -77,7 +78,9 @@ def _try_match(
 
 
 @router.post("/join", response_model=QueueStatus)
+@limiter.limit("30/minute")
 def join_queue(
+    request: Request,
     body: JoinQueueRequest,
     user: UserRead = Depends(get_current_user),
     client: Client = Depends(get_supabase),

@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from supabase import Client
 
 from app.core.auth import get_current_user
 from app.core.dependencies import get_supabase
+from app.core.rate_limit import limiter
 from app.schemas.challenge import ChallengeCreate, ChallengeRead
 from app.schemas.user import UserRead
 from app.services import challenge_service
@@ -24,7 +25,9 @@ def list_challenges(
 
 
 @router.post("/", response_model=ChallengeRead, status_code=201)
+@limiter.limit("30/minute")
 def send_challenge(
+    request: Request,
     body: ChallengeCreate,
     user: UserRead = Depends(get_current_user),
     client: Client = Depends(get_supabase),
