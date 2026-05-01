@@ -13,9 +13,14 @@ from app.core.exceptions import (
     NotFoundError,
     QuoridorError,
 )
+from app.core.logging import configure_logging
+from app.core.middleware import RequestIdMiddleware
+
+configure_logging()
 
 app = FastAPI(title="Quoridor API", version="0.1.0")
 
+app.add_middleware(RequestIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
