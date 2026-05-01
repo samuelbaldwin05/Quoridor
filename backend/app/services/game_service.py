@@ -10,6 +10,7 @@ from app.core.exceptions import (
     InvalidMoveError,
     NotFoundError,
 )
+from app.engine import validate_history_winner
 from app.schemas.game import GameResultRequest, GameResultResponse
 from app.services.elo_service import update_elos
 
@@ -49,6 +50,11 @@ def record_game_result(
 
     if body.winner_index not in (0, 1):
         raise InvalidMoveError("winner_index must be 0 or 1")
+
+    # Replay the move history server-side and confirm the claimed winner. An
+    # empty history is allowed (resignation / forfeit / legacy clients that
+    # don't send history yet) — it skips the engine check.
+    validate_history_winner(body.move_history, body.winner_index)  # type: ignore[arg-type]
 
     if game["status"] == "finished":
         return GameResultResponse(
