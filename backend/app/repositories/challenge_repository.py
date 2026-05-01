@@ -2,9 +2,15 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import HTTPException
 from supabase import Client
 
+from app.core.exceptions import (
+    AuthorizationError,
+    ConflictError,
+    DatabaseError,
+    NotFoundError,
+)
+from app.repositories._pg_errors import is_unique_violation
 from app.schemas.challenge import ChallengeRead
 
 
@@ -46,7 +52,7 @@ def get_my_challenges(client: Client, user_id: UUID) -> list[ChallengeRead]:
             .execute()
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Database error fetching challenges") from exc
+        raise DatabaseError("challenges fetch failed") from exc
 
     if not resp.data:
         return []
@@ -71,17 +77,15 @@ def create_challenge(
             .execute()
         )
     except Exception as exc:
-        msg = str(exc)
-        if "unique" in msg.lower() or "duplicate" in msg.lower():
-            raise HTTPException(status_code=409, detail="Challenge already sent to this player")
-        raise HTTPException(status_code=500, detail="Database error creating challenge") from exc
+        if is_unique_violation(exc):
+            raise ConflictError("challenge already sent to this player") from exc
+        raise DatabaseError("challenge create failed") from exc
 
     if not resp.data:
-        raise HTTPException(status_code=500, detail="Challenge insert returned no data")
+        raise DatabaseError("challenge insert returned no data")
 
     row = resp.data[0]
-    ids = [str(challenger_id), str(challenged_id)]
-    profiles = _fetch_profiles(client, ids)
+    profiles = _fetch_profiles(client, [str(challenger_id), str(challenged_id)])
     return _enrich([row], profiles)[0]
 
 
@@ -90,22 +94,20 @@ def accept_challenge(client: Client, challenge_id: UUID, user_id: UUID) -> Chall
     cid = str(challenge_id)
     uid = str(user_id)
 
-    # Fetch the challenge
     try:
         fetch = client.table("challenges").select("*").eq("id", cid).maybe_single().execute()
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Database error fetching challenge") from exc
+        raise DatabaseError("challenge fetch failed") from exc
 
     if not fetch.data:
-        raise HTTPException(status_code=404, detail="Challenge not found")
+        raise NotFoundError("challenge not found")
 
     row = fetch.data
     if row["challenged_id"] != uid:
-        raise HTTPException(status_code=403, detail="Only the challenged player can accept")
+        raise AuthorizationError("only the challenged player can accept")
     if row["status"] != "pending":
-        raise HTTPException(status_code=409, detail="Challenge is no longer pending")
+        raise ConflictError("challenge is no longer pending")
 
-    # Create a game for the two players
     try:
         game_resp = (
             client.table("games")
@@ -119,11 +121,10 @@ def accept_challenge(client: Client, challenge_id: UUID, user_id: UUID) -> Chall
             .execute()
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Database error creating game") from exc
+        raise DatabaseError("game create failed") from exc
 
     game_id = game_resp.data[0]["id"]
 
-    # Update challenge to accepted with game_id
     try:
         update = (
             client.table("challenges")
@@ -132,11 +133,10 @@ def accept_challenge(client: Client, challenge_id: UUID, user_id: UUID) -> Chall
             .execute()
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Database error accepting challenge") from exc
+        raise DatabaseError("challenge accept failed") from exc
 
     updated_row = update.data[0]
-    ids = [updated_row["challenger_id"], updated_row["challenged_id"]]
-    profiles = _fetch_profiles(client, ids)
+    profiles = _fetch_profiles(client, [updated_row["challenger_id"], updated_row["challenged_id"]])
     return _enrich([updated_row], profiles)[0]
 
 
@@ -153,10 +153,10 @@ def cancel_or_decline_challenge(client: Client, challenge_id: UUID, user_id: UUI
             .execute()
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Database error deleting challenge") from exc
+        raise DatabaseError("challenge delete failed") from exc
 
     if not resp.data:
-        raise HTTPException(status_code=404, detail="Challenge not found or permission denied")
+        raise NotFoundError("challenge not found or permission denied")
 
 
 def cancel_challenges_for_user(client: Client, user_id: UUID) -> None:
