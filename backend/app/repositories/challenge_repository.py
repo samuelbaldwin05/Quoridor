@@ -19,17 +19,19 @@ def _enrich(rows: list[dict], user_profiles: dict[str, dict]) -> list[ChallengeR
     for row in rows:
         challenger = user_profiles.get(row["challenger_id"], {})
         challenged = user_profiles.get(row["challenged_id"], {})
-        results.append(ChallengeRead(
-            id=row["id"],
-            challenger_id=row["challenger_id"],
-            challenged_id=row["challenged_id"],
-            challenger_name=challenger.get("username") or challenger.get("display_name"),
-            challenged_name=challenged.get("username") or challenged.get("display_name"),
-            time_control=row["time_control"],
-            status=row["status"],
-            game_id=row.get("game_id"),
-            created_at=row["created_at"],
-        ))
+        results.append(
+            ChallengeRead(
+                id=row["id"],
+                challenger_id=row["challenger_id"],
+                challenged_id=row["challenged_id"],
+                challenger_name=challenger.get("username") or challenger.get("display_name"),
+                challenged_name=challenged.get("username") or challenged.get("display_name"),
+                time_control=row["time_control"],
+                status=row["status"],
+                game_id=row.get("game_id"),
+                created_at=row["created_at"],
+            )
+        )
     return results
 
 
@@ -64,7 +66,9 @@ def get_my_challenges(client: Client, user_id: UUID) -> list[ChallengeRead]:
     if not resp.data:
         return []
 
-    ids = list({row["challenger_id"] for row in resp.data} | {row["challenged_id"] for row in resp.data})
+    ids = list(
+        {row["challenger_id"] for row in resp.data} | {row["challenged_id"] for row in resp.data}
+    )
     profiles = _fetch_profiles(client, ids)
     return _enrich(resp.data, profiles)
 
@@ -75,12 +79,14 @@ def create_challenge(
     try:
         resp = (
             client.table("challenges")
-            .insert({
-                "challenger_id": str(challenger_id),
-                "challenged_id": str(challenged_id),
-                "time_control": time_control,
-                "status": "pending",
-            })
+            .insert(
+                {
+                    "challenger_id": str(challenger_id),
+                    "challenged_id": str(challenged_id),
+                    "time_control": time_control,
+                    "status": "pending",
+                }
+            )
             .execute()
         )
     except Exception as exc:
@@ -104,10 +110,13 @@ def accept_challenge(client: Client, challenge_id: UUID, user_id: UUID) -> Chall
     eliminates the orphan-game race window we used to have.
     """
     try:
-        client.rpc("accept_challenge", {
-            "p_challenge_id": str(challenge_id),
-            "p_user_id": str(user_id),
-        }).execute()
+        client.rpc(
+            "accept_challenge",
+            {
+                "p_challenge_id": str(challenge_id),
+                "p_user_id": str(user_id),
+            },
+        ).execute()
     except Exception as exc:
         msg = str(exc).lower()
         if "not found" in msg or "p0002" in msg:
@@ -120,7 +129,13 @@ def accept_challenge(client: Client, challenge_id: UUID, user_id: UUID) -> Chall
 
     # Re-fetch the updated row + profiles for the response.
     try:
-        fetched = client.table("challenges").select("*").eq("id", str(challenge_id)).maybe_single().execute()
+        fetched = (
+            client.table("challenges")
+            .select("*")
+            .eq("id", str(challenge_id))
+            .maybe_single()
+            .execute()
+        )
     except Exception as exc:
         raise DatabaseError("challenge re-fetch failed") from exc
 
@@ -155,6 +170,8 @@ def cancel_challenges_for_user(client: Client, user_id: UUID) -> None:
     """Cancel all outgoing pending challenges when a user joins a game."""
     uid = str(user_id)
     try:
-        client.table("challenges").delete().eq("challenger_id", uid).eq("status", "pending").execute()
+        client.table("challenges").delete().eq("challenger_id", uid).eq(
+            "status", "pending"
+        ).execute()
     except Exception:
         pass  # best-effort cleanup

@@ -1,4 +1,5 @@
 """Notation parser/serializer tests."""
+
 from __future__ import annotations
 
 import pytest

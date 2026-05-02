@@ -1,4 +1,5 @@
 """Helpers for inspecting supabase-py / postgrest exceptions."""
+
 from __future__ import annotations
 
 # Postgres SQLSTATE codes we care about. See: https://www.postgresql.org/docs/current/errcodes-appendix.html

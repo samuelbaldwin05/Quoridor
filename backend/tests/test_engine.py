@@ -4,6 +4,7 @@ Loads the same JSON fixture as the frontend Vitest suite (tests/fixtures/
 engine_cases.json at the repo root) so any divergence between the TS and
 Python ports surfaces as a failing case in one of the two suites.
 """
+
 from __future__ import annotations
 
 import json

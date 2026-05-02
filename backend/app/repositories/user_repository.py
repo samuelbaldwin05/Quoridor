@@ -29,13 +29,7 @@ def search_users(client: Client, query: str, limit: int = 20) -> list[UserSearch
 def get_user(client: Client, user_id: UUID) -> UserRead | None:
     """Fetch a single user by primary key. Returns None if not found."""
     try:
-        response = (
-            client.table("users")
-            .select("*")
-            .eq("id", str(user_id))
-            .maybe_single()
-            .execute()
-        )
+        response = client.table("users").select("*").eq("id", str(user_id)).maybe_single().execute()
     except Exception as exc:
         raise DatabaseError("user fetch failed") from exc
 
@@ -47,12 +41,7 @@ def get_user(client: Client, user_id: UUID) -> UserRead | None:
 def update_username(client: Client, user_id: UUID, username: str) -> UserRead:
     """Set or update a user's chosen username."""
     try:
-        resp = (
-            client.table("users")
-            .update({"username": username})
-            .eq("id", str(user_id))
-            .execute()
-        )
+        resp = client.table("users").update({"username": username}).eq("id", str(user_id)).execute()
     except Exception as exc:
         if is_unique_violation(exc):
             raise ConflictError("username already taken") from exc
@@ -66,12 +55,7 @@ def update_username(client: Client, user_id: UUID, username: str) -> UserRead:
 def get_user_time_stats(client: Client, user_id: UUID) -> list[UserTimeStats]:
     """Fetch per-time-control stats for a user."""
     try:
-        response = (
-            client.table("user_time_stats")
-            .select("*")
-            .eq("user_id", str(user_id))
-            .execute()
-        )
+        response = client.table("user_time_stats").select("*").eq("user_id", str(user_id)).execute()
     except Exception as exc:
         raise DatabaseError("time stats fetch failed") from exc
 
