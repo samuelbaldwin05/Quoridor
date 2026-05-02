@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from supabase import Client
 
 from app.core.auth import get_current_user
 from app.core.dependencies import get_supabase
+from app.core.rate_limit import limiter
 from app.repositories import user_repository
 from app.schemas.user import UserProfile, UserRead, UserSearchResult, UserUpdate
 
@@ -35,7 +36,9 @@ async def update_me(
 
 
 @router.get("/search", response_model=list[UserSearchResult])
+@limiter.limit("60/minute")
 def search_users(
+    request: Request,
     q: str = Query(..., min_length=1, description="Username search query"),
     limit: int = Query(20, ge=1, le=100),
     client: Client = Depends(get_supabase),

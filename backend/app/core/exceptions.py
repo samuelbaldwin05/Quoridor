@@ -6,8 +6,16 @@ class NotFoundError(QuoridorError):
     """Requested resource does not exist."""
 
 
+class ConflictError(QuoridorError):
+    """Action conflicts with current state (e.g. duplicate, already finished)."""
+
+
 class InvalidMoveError(QuoridorError):
     """Move is not legal given the current game state."""
+
+
+class DatabaseError(QuoridorError):
+    """Unexpected database failure — surfaced as 500."""
 
 
 class AuthorizationError(QuoridorError):

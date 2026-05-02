@@ -2,15 +2,14 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import HTTPException
 from supabase import Client
 
+from app.core.exceptions import ConflictError, DatabaseError, NotFoundError
+from app.repositories._pg_errors import is_unique_violation
 from app.schemas.user import UserRead, UserSearchResult, UserTimeStats
 
 
-def search_users(
-    client: Client, query: str, limit: int = 20
-) -> list[UserSearchResult]:
+def search_users(client: Client, query: str, limit: int = 20) -> list[UserSearchResult]:
     """Search users by username (case-insensitive substring match)."""
     try:
         response = (
@@ -22,7 +21,7 @@ def search_users(
             .execute()
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Database error during user search") from exc
+        raise DatabaseError("user search failed") from exc
 
     return [UserSearchResult(**row) for row in response.data]
 
@@ -38,7 +37,7 @@ def get_user(client: Client, user_id: UUID) -> UserRead | None:
             .execute()
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Database error fetching user") from exc
+        raise DatabaseError("user fetch failed") from exc
 
     if response.data is None:
         return None
@@ -55,14 +54,12 @@ def update_username(client: Client, user_id: UUID, username: str) -> UserRead:
             .execute()
         )
     except Exception as exc:
-        # Unique constraint violation → username taken
-        msg = str(exc)
-        if "unique" in msg.lower() or "duplicate" in msg.lower():
-            raise HTTPException(status_code=409, detail="Username already taken") from exc
-        raise HTTPException(status_code=500, detail="Database error updating username") from exc
+        if is_unique_violation(exc):
+            raise ConflictError("username already taken") from exc
+        raise DatabaseError("username update failed") from exc
 
     if not resp.data:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise NotFoundError("user not found")
     return UserRead(**resp.data[0])
 
 
@@ -76,7 +73,7 @@ def get_user_time_stats(client: Client, user_id: UUID) -> list[UserTimeStats]:
             .execute()
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Database error fetching time stats") from exc
+        raise DatabaseError("time stats fetch failed") from exc
 
     return [UserTimeStats(**row) for row in response.data]
 
@@ -92,6 +89,6 @@ def get_leaderboard(client: Client, limit: int = 50) -> list[UserSearchResult]:
             .execute()
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Database error fetching leaderboard") from exc
+        raise DatabaseError("leaderboard fetch failed") from exc
 
     return [UserSearchResult(**row) for row in response.data]

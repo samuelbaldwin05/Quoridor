@@ -23,4 +23,4 @@ def submit_game_result(
 ) -> GameResultResponse:
     """Record the result of a completed online game and update ELO ratings.
     Idempotent — safe to call from both clients simultaneously."""
-    return record_game_result(supabase, game_id, body)
+    return record_game_result(supabase, game_id, body, user.id)
