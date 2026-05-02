@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "description": "Cases run by both Vitest (frontend/src/engine) and pytest (backend/app/engine). Adding a case here exercises both ports.",
+  "cases": [
+    {
+      "name": "p0 forward from start is legal",
+      "kind": "pawn_legal",
+      "history": [],
+      "candidate": "e2",
+      "expected": true
+    },
+    {
+      "name": "p0 sideways from start is legal",
+      "kind": "pawn_legal",
+      "history": [],
+      "candidate": "d1",
+      "expected": true
+    },
+    {
+      "name": "p0 cannot move two squares",
+      "kind": "pawn_legal",
+      "history": [],
+      "candidate": "e3",
+      "expected": false
+    },
+    {
+      "name": "p0 cannot move diagonally without jump",
+      "kind": "pawn_legal",
+      "history": [],
+      "candidate": "d2",
+      "expected": false
+    },
+    {
+      "name": "p0 cannot stay put",
+      "kind": "pawn_legal",
+      "history": [],
+      "candidate": "e1",
+      "expected": false
+    },
+    {
+      "name": "wall in middle of empty board is legal",
+      "kind": "wall_legal",
+      "history": [],
+      "candidate": "e7h",
+      "expected": true
+    },
+    {
+      "name": "wall with col index out of range is illegal",
+      "kind": "wall_legal",
+      "history": [],
+      "candidate": "i2v",
+      "expected": false
+    },
+    {
+      "name": "duplicate wall placement is illegal",
+      "kind": "wall_legal",
+      "history": ["e7h"],
+      "candidate": "e7h",
+      "expected": false
+    },
+    {
+      "name": "intersecting horizontal walls are illegal",
+      "kind": "wall_legal",
+      "history": ["e7h"],
+      "candidate": "f7h",
+      "expected": false
+    },
+    {
+      "name": "p1 can jump straight over p0",
+      "kind": "pawn_legal",
+      "history": ["e2", "e8", "e3", "e7", "e4", "e6", "e5"],
+      "candidate": "e4",
+      "expected": true
+    },
+    {
+      "name": "p0 reaches goal row in 15-move straight march",
+      "kind": "history_winner",
+      "history": ["e2", "d9", "e3", "e9", "e4", "d9", "e5", "e9", "e6", "d9", "e7", "e9", "e8", "d9", "e9"],
+      "expected_winner": 0
+    },
+    {
+      "name": "history with non-adjacent jump is rejected",
+      "kind": "history_invalid",
+      "history": ["e2", "e2"]
+    }
+  ]
+}
