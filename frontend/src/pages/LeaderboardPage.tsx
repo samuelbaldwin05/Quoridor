@@ -20,7 +20,7 @@ function eloColor(elo: number): string {
 }
 
 const SORT_OPTIONS: { id: SortMode; label: string }[] = [
-  { id: 'elo',          label: 'By ELO' },
+  { id: 'elo', label: 'By ELO' },
   { id: 'games_played', label: 'By Games Played' },
 ];
 

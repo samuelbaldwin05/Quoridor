@@ -36,11 +36,9 @@ export function GameBoard({
   for (let row = 0; row < 9; row++) {
     for (let col = 0; col < 9; col++) {
       const occupant =
-        gameState.players[0].position.row === row &&
-        gameState.players[0].position.col === col
+        gameState.players[0].position.row === row && gameState.players[0].position.col === col
           ? (0 as const)
-          : gameState.players[1].position.row === row &&
-              gameState.players[1].position.col === col
+          : gameState.players[1].position.row === row && gameState.players[1].position.col === col
             ? (1 as const)
             : null;
 
@@ -98,7 +96,9 @@ export function GameBoard({
       {/* Left axis — row numbers */}
       <div className="board-axis-y">
         {rowLabels.map((r) => (
-          <span key={r} className="board-axis-label">{r}</span>
+          <span key={r} className="board-axis-label">
+            {r}
+          </span>
         ))}
       </div>
 
@@ -108,7 +108,9 @@ export function GameBoard({
         {/* Bottom axis — column letters */}
         <div className="board-axis-x">
           {colLabels.map((c) => (
-            <span key={c} className="board-axis-label">{c}</span>
+            <span key={c} className="board-axis-label">
+              {c}
+            </span>
           ))}
         </div>
       </div>

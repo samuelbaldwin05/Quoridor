@@ -111,11 +111,7 @@ export function hasPathToGoal(
     for (const dir of directions) {
       const next: Position = { row: current.row + dir.row, col: current.col + dir.col };
       const key = `${next.row},${next.col}`;
-      if (
-        isOnBoard(next) &&
-        !visited.has(key) &&
-        !isMovementBlocked(current, next, walls)
-      ) {
+      if (isOnBoard(next) && !visited.has(key) && !isMovementBlocked(current, next, walls)) {
         visited.add(key);
         queue.push(next);
       }

@@ -6,12 +6,12 @@ import { supabase } from '@/lib/supabase';
 type PageId = 'play' | 'rules' | 'puzzles' | 'friends' | 'history' | 'leaderboard';
 
 const NAV_ITEMS: { id: PageId; label: string; path: string; emoji: string }[] = [
-  { id: 'play',        label: 'Play',         path: '/',            emoji: '♟️' },
-  { id: 'puzzles',     label: 'Puzzles',      path: '/puzzles',     emoji: '🧩' },
-  { id: 'friends',     label: 'Friends',      path: '/friends',     emoji: '👥' },
-  { id: 'history',     label: 'Game History', path: '/history',     emoji: '📋' },
-  { id: 'leaderboard', label: 'Leaderboard',  path: '/leaderboard', emoji: '🏆' },
-  { id: 'rules',       label: 'Rules',        path: '/rules',       emoji: '📖' },
+  { id: 'play', label: 'Play', path: '/', emoji: '♟️' },
+  { id: 'puzzles', label: 'Puzzles', path: '/puzzles', emoji: '🧩' },
+  { id: 'friends', label: 'Friends', path: '/friends', emoji: '👥' },
+  { id: 'history', label: 'Game History', path: '/history', emoji: '📋' },
+  { id: 'leaderboard', label: 'Leaderboard', path: '/leaderboard', emoji: '🏆' },
+  { id: 'rules', label: 'Rules', path: '/rules', emoji: '📖' },
 ];
 
 interface NavSidebarProps {
@@ -40,7 +40,10 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!user) { setPendingCount(0); return; }
+    if (!user) {
+      setPendingCount(0);
+      return;
+    }
     void supabase
       .from('friendships')
       .select('id', { count: 'exact', head: true })
@@ -62,7 +65,8 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
     return () => document.removeEventListener('mousedown', onDown);
   }, []);
 
-  const displayName = profile?.username ?? profile?.display_name ?? user?.email?.split('@')[0] ?? 'Guest';
+  const displayName =
+    profile?.username ?? profile?.display_name ?? user?.email?.split('@')[0] ?? 'Guest';
   const avatarLetter = displayName[0]?.toUpperCase() ?? 'G';
   const eloLabel = profile ? `ELO ${profile.elo}` : isGuest ? 'Guest' : '…';
 
@@ -79,8 +83,14 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
 
   async function saveUsername() {
     const trimmed = usernameInput.trim();
-    if (trimmed.length < 3) { setUsernameError('At least 3 characters.'); return; }
-    if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) { setUsernameError('Letters, numbers, underscores only.'); return; }
+    if (trimmed.length < 3) {
+      setUsernameError('At least 3 characters.');
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) {
+      setUsernameError('Letters, numbers, underscores only.');
+      return;
+    }
     setSavingUsername(true);
     setUsernameError('');
     try {
@@ -88,7 +98,9 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
       setEditingUsername(false);
       setMenuOpen(false);
     } catch (err) {
-      setUsernameError(err instanceof Error && err.message.includes('409') ? 'Username taken.' : 'Error saving.');
+      setUsernameError(
+        err instanceof Error && err.message.includes('409') ? 'Username taken.' : 'Error saving.',
+      );
     } finally {
       setSavingUsername(false);
     }
@@ -113,7 +125,9 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
             <span className="nav-item-emoji">{item.emoji}</span>
             {item.label}
             {item.id === 'friends' && pendingCount > 0 && (
-              <span className="nav-badge" aria-label={`${pendingCount} pending`}>{pendingCount}</span>
+              <span className="nav-badge" aria-label={`${pendingCount} pending`}>
+                {pendingCount}
+              </span>
             )}
           </button>
         ))}
@@ -136,13 +150,22 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
         ) : (
           <div className="nav-profile-wrap" ref={menuRef}>
             {/* Profile button → opens mini menu */}
-            <button className="nav-item nav-profile nav-profile-btn" onClick={() => setMenuOpen((v) => !v)}>
+            <button
+              className="nav-item nav-profile nav-profile-btn"
+              onClick={() => setMenuOpen((v) => !v)}
+            >
               <div className="nav-avatar">{avatarLetter}</div>
               <div className="nav-profile-info">
                 <span className="nav-profile-name">{displayName}</span>
                 <span className="nav-profile-id">{eloLabel}</span>
               </div>
-              <svg className="nav-chevron" viewBox="0 0 10 6" fill="currentColor" width="10" height="6">
+              <svg
+                className="nav-chevron"
+                viewBox="0 0 10 6"
+                fill="currentColor"
+                width="10"
+                height="6"
+              >
                 <path d={menuOpen ? 'M0 6L5 0L10 6' : 'M0 0L5 6L10 0'} />
               </svg>
             </button>
@@ -152,7 +175,10 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
               <div className="nav-profile-menu">
                 <button
                   className="nav-profile-menu-item"
-                  onClick={() => { setMenuOpen(false); navigate(`/profile/${profile?.id}`); }}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    navigate(`/profile/${profile?.id}`);
+                  }}
                 >
                   <span>👤</span> View Profile
                 </button>
@@ -166,18 +192,33 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
                     <input
                       className={`nav-username-input${usernameError ? ' nav-username-input-error' : ''}`}
                       value={usernameInput}
-                      onChange={(e) => { setUsernameInput(e.target.value); setUsernameError(''); }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') void saveUsername(); if (e.key === 'Escape') setEditingUsername(false); }}
+                      onChange={(e) => {
+                        setUsernameInput(e.target.value);
+                        setUsernameError('');
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void saveUsername();
+                        if (e.key === 'Escape') setEditingUsername(false);
+                      }}
                       placeholder="new username"
                       maxLength={24}
                       autoFocus
                     />
                     {usernameError && <p className="nav-username-error">{usernameError}</p>}
                     <div className="nav-username-actions">
-                      <button className="btn nav-username-save" onClick={saveUsername} disabled={savingUsername}>
+                      <button
+                        className="btn nav-username-save"
+                        onClick={saveUsername}
+                        disabled={savingUsername}
+                      >
                         {savingUsername ? '…' : 'Save'}
                       </button>
-                      <button className="btn nav-username-cancel" onClick={() => setEditingUsername(false)}>Cancel</button>
+                      <button
+                        className="btn nav-username-cancel"
+                        onClick={() => setEditingUsername(false)}
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </div>
                 )}
@@ -185,7 +226,16 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
             )}
 
             <button className="nav-item nav-item-logout" onClick={handleLogout}>
-              <svg className="nav-logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg
+                className="nav-logout-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h8" />
                 <polyline points="17 8 21 12 17 16" />
                 <line x1="21" y1="12" x2="9" y2="12" />

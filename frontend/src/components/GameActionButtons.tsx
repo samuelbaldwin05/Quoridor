@@ -4,11 +4,7 @@ interface GameActionButtonsProps {
   onNewGame: () => void;
 }
 
-export function GameActionButtons({
-  gameStatus,
-  onStartGame,
-  onNewGame,
-}: GameActionButtonsProps) {
+export function GameActionButtons({ gameStatus, onStartGame, onNewGame }: GameActionButtonsProps) {
   if (gameStatus === 'idle') {
     return (
       <div className="game-buttons flex-column flex-gap-md">

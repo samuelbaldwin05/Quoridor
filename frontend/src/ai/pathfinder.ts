@@ -7,14 +7,9 @@ import { getValidPawnMoves } from '@/engine/moveValidation';
  * When evaluating moves from each node, we temporarily place the pathfinding
  * player at that node position so jump logic works correctly.
  */
-export function dijkstraDistance(
-  state: GameState,
-  startPos: Position,
-  goalRow: number,
-): number {
+export function dijkstraDistance(state: GameState, startPos: Position, goalRow: number): number {
   // Find which player index has the given goalRow (for building temp state)
-  const playerIndex: PlayerIndex =
-    state.players[0].goalRow === goalRow ? 0 : 1;
+  const playerIndex: PlayerIndex = state.players[0].goalRow === goalRow ? 0 : 1;
 
   const distances: Record<string, number> = {};
   const visited = new Set<string>();
@@ -41,7 +36,7 @@ export function dijkstraDistance(
     if (current.position.row === goalRow) return current.distance;
 
     // Temporarily set this player's position to current for move generation
-    const newPlayers: [typeof state.players[0], typeof state.players[1]] = [
+    const newPlayers: [(typeof state.players)[0], (typeof state.players)[1]] = [
       { ...state.players[0] },
       { ...state.players[1] },
     ];
@@ -115,7 +110,7 @@ export function getShortestPathFromPosition(
     }
 
     // Temporarily set player position to current for move generation
-    const newPlayers: [typeof state.players[0], typeof state.players[1]] = [
+    const newPlayers: [(typeof state.players)[0], (typeof state.players)[1]] = [
       { ...state.players[0] },
       { ...state.players[1] },
     ];
@@ -172,9 +167,7 @@ export function findBestMoveWithDijkstra(
   }
 
   const nextOptimal = pathData.path[1]!;
-  const bestMove = validMoves.find(
-    (m) => m.row === nextOptimal.row && m.col === nextOptimal.col,
-  );
+  const bestMove = validMoves.find((m) => m.row === nextOptimal.row && m.col === nextOptimal.col);
   return bestMove ?? validMoves[0]!;
 }
 
@@ -222,10 +215,7 @@ export function calculateFenceProximityPenalty(walls: readonly Wall[], position:
   return penalties.NONE;
 }
 
-export function calculateOpposingPlayerPenalty(
-  opposingPos: Position,
-  position: Position,
-): number {
+export function calculateOpposingPlayerPenalty(opposingPos: Position, position: Position): number {
   const rowDiff = Math.abs(position.row - opposingPos.row);
   const colDiff = Math.abs(position.col - opposingPos.col);
   if (rowDiff <= 1 && colDiff <= 1 && !(rowDiff === 0 && colDiff === 0)) {

@@ -9,7 +9,7 @@ import { apiFetch } from '@/lib/api';
 export interface UserProfile {
   id: string;
   email: string;
-  display_name: string;  // google name, never overwritten
+  display_name: string; // google name, never overwritten
   username: string | null;
   elo: number;
   games_played: number;
@@ -69,7 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session) {

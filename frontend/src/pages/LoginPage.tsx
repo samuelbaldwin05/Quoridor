@@ -65,11 +65,7 @@ export function LoginPage() {
             </button>
 
             {isDev && (
-              <button
-                className="btn btn-dev"
-                onClick={handleDev}
-                disabled={devLoading}
-              >
+              <button className="btn btn-dev" onClick={handleDev} disabled={devLoading}>
                 {devLoading ? 'Logging in…' : '🛠 Log in as Dev'}
               </button>
             )}
@@ -77,9 +73,7 @@ export function LoginPage() {
 
           {devError && <p className="login-error">{devError}</p>}
 
-          <p className="login-guest-note">
-            No account needed to play vs bots or pass-and-play.
-          </p>
+          <p className="login-guest-note">No account needed to play vs bots or pass-and-play.</p>
         </div>
       </div>
     </div>

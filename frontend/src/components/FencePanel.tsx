@@ -6,7 +6,7 @@ interface FencePanelProps {
 }
 
 export function FencePanel({ playerFences, computerFences, flipped = false }: FencePanelProps) {
-  const myLabelColor       = flipped ? 'var(--player2-color)' : 'var(--player1-color)';
+  const myLabelColor = flipped ? 'var(--player2-color)' : 'var(--player1-color)';
   const opponentLabelColor = flipped ? 'var(--player1-color)' : 'var(--player2-color)';
 
   return (

@@ -63,7 +63,9 @@ export function OnlineGamePage() {
 
   // Always-current ref to game state — lets onMoveReceived validate without stale closures
   const gameStateRef = useRef<GameState>(state.game);
-  useEffect(() => { gameStateRef.current = state.game; }, [state.game]);
+  useEffect(() => {
+    gameStateRef.current = state.game;
+  }, [state.game]);
 
   // Cosmetic history viewing (does NOT affect actual game state)
   const [viewIndex, setViewIndex] = useState<number | null>(null);
@@ -80,29 +82,28 @@ export function OnlineGamePage() {
   useTheme(state.settings.theme);
   const audio = useAudio(state.settings.soundEnabled, state.settings.volume);
 
-  const { result, broadcastMove, broadcastResign, submitResult } =
-    useOnlineGame({
-      gameId: gameId ?? '',
-      myRole,
-      myUserId,
-      onMoveReceived: useCallback(
-        (move: Move, playerIndex: PlayerIndex) => {
-          // Validate against current state — illegal move means the sender cheated
-          const validation = applyMove(gameStateRef.current, move);
-          if (!validation.valid) {
-            dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
-            return;
-          }
-          dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex });
-          audio.playMove();
-          setViewIndex(null);
-        },
-        [dispatch, audio, myRole],
-      ),
-      onOpponentResigned: useCallback(() => {
-        dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
-      }, [dispatch, myRole]),
-    });
+  const { result, broadcastMove, broadcastResign, submitResult } = useOnlineGame({
+    gameId: gameId ?? '',
+    myRole,
+    myUserId,
+    onMoveReceived: useCallback(
+      (move: Move, playerIndex: PlayerIndex) => {
+        // Validate against current state — illegal move means the sender cheated
+        const validation = applyMove(gameStateRef.current, move);
+        if (!validation.valid) {
+          dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
+          return;
+        }
+        dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex });
+        audio.playMove();
+        setViewIndex(null);
+      },
+      [dispatch, audio, myRole],
+    ),
+    onOpponentResigned: useCallback(() => {
+      dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
+    }, [dispatch, myRole]),
+  });
 
   // Start the game, clean up matchmaking queue, play start sound
   useEffect(() => {
@@ -161,12 +162,10 @@ export function OnlineGamePage() {
     return replayToIndex(state.moveHistory, effectiveIndex);
   }, [isLive, effectiveIndex, state.moveHistory, state.game]);
 
-  const isMyTurn =
-    state.game.status === 'playing' && state.game.currentPlayerIndex === myRole;
+  const isMyTurn = state.game.status === 'playing' && state.game.currentPlayerIndex === myRole;
 
-  const validPawnMoves: Position[] = isMyTurn && isLive
-    ? getValidPawnMoves(state.game, myRole)
-    : [];
+  const validPawnMoves: Position[] =
+    isMyTurn && isLive ? getValidPawnMoves(state.game, myRole) : [];
 
   const handleCellClick = useCallback(
     (pos: Position) => {
@@ -178,7 +177,16 @@ export function OnlineGamePage() {
       broadcastMove(move);
       audio.playMove();
     },
-    [isMyTurn, isLive, state.game, state.settings.clickMoveEnabled, myRole, dispatch, broadcastMove, audio],
+    [
+      isMyTurn,
+      isLive,
+      state.game,
+      state.settings.clickMoveEnabled,
+      myRole,
+      dispatch,
+      broadcastMove,
+      audio,
+    ],
   );
 
   const handleWallHover = useCallback(
@@ -235,7 +243,10 @@ export function OnlineGamePage() {
     }
 
     function stopCountdown() {
-      if (intervalId) { clearInterval(intervalId); intervalId = null; }
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
       setAwayCountdown(null);
     }
 
@@ -250,7 +261,7 @@ export function OnlineGamePage() {
       if (intervalId) clearInterval(intervalId);
       setAwayCountdown(null);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.game.status]);
 
   function handleBack() {
@@ -279,8 +290,7 @@ export function OnlineGamePage() {
   const topPlayerIndex = boardFlipped ? (0 as const) : (1 as const);
   const bottomPlayerIndex = boardFlipped ? (1 as const) : (0 as const);
 
-  const playerLabel = (idx: 0 | 1) =>
-    idx === myRole ? 'You' : opponentName;
+  const playerLabel = (idx: 0 | 1) => (idx === myRole ? 'You' : opponentName);
 
   return (
     <div className="game-layout">
@@ -295,7 +305,9 @@ export function OnlineGamePage() {
             opponentLabel={topLabel}
             playerLabel={bottomLabel}
             topRight={
-              <div className={`online-timer-card${state.game.currentPlayerIndex === topPlayerIndex && state.game.status === 'playing' ? ' online-timer-card-active' : ''}`}>
+              <div
+                className={`online-timer-card${state.game.currentPlayerIndex === topPlayerIndex && state.game.status === 'playing' ? ' online-timer-card-active' : ''}`}
+              >
                 {formatTime(times[topPlayerIndex])}
               </div>
             }
@@ -304,7 +316,9 @@ export function OnlineGamePage() {
                 {awayCountdown !== null && (
                   <span className="online-away-countdown">{awayCountdown}</span>
                 )}
-                <div className={`online-timer-card${state.game.currentPlayerIndex === bottomPlayerIndex && state.game.status === 'playing' ? ' online-timer-card-active' : ''}`}>
+                <div
+                  className={`online-timer-card${state.game.currentPlayerIndex === bottomPlayerIndex && state.game.status === 'playing' ? ' online-timer-card-active' : ''}`}
+                >
                   {formatTime(times[bottomPlayerIndex])}
                 </div>
               </div>
@@ -333,7 +347,9 @@ export function OnlineGamePage() {
           {/* Right panel — always shown */}
           <div className="right-panel game-history-panel">
             <div className="ghp-header">
-              <span className="play-panel-heading" style={{ margin: 0 }}>Moves</span>
+              <span className="play-panel-heading" style={{ margin: 0 }}>
+                Moves
+              </span>
               {!isLive && (
                 <button className="ghp-live-btn" onClick={() => setViewIndex(null)}>
                   Live ↓
@@ -367,11 +383,33 @@ export function OnlineGamePage() {
             </div>
 
             <div className="ghp-controls">
-              <button className="btn ghp-nav-btn" onClick={handleBack} disabled={effectiveIndex === 0} title="Previous move">←</button>
-              <span className="ghp-position">{isLive ? 'Live' : `${effectiveIndex} / ${totalMoves}`}</span>
-              <button className="btn ghp-nav-btn" onClick={handleForward} disabled={isLive} title="Next move">→</button>
+              <button
+                className="btn ghp-nav-btn"
+                onClick={handleBack}
+                disabled={effectiveIndex === 0}
+                title="Previous move"
+              >
+                ←
+              </button>
+              <span className="ghp-position">
+                {isLive ? 'Live' : `${effectiveIndex} / ${totalMoves}`}
+              </span>
+              <button
+                className="btn ghp-nav-btn"
+                onClick={handleForward}
+                disabled={isLive}
+                title="Next move"
+              >
+                →
+              </button>
               {state.game.status === 'playing' && (
-                <button className="btn ghp-nav-btn ghp-resign-btn" onClick={handleResign} title="Resign">⚑</button>
+                <button
+                  className="btn ghp-nav-btn ghp-resign-btn"
+                  onClick={handleResign}
+                  title="Resign"
+                >
+                  ⚑
+                </button>
               )}
             </div>
           </div>
@@ -382,20 +420,32 @@ export function OnlineGamePage() {
       {result !== null && (
         <div className="win-lose-overlay flex-center">
           <div className="win-lose-modal">
-            <h1 className={`win-lose-title ${result.winner === myRole ? 'win-lose-win' : 'win-lose-lose'}`}>
+            <h1
+              className={`win-lose-title ${result.winner === myRole ? 'win-lose-win' : 'win-lose-lose'}`}
+            >
               {result.winner === myRole ? 'You Win!' : 'You Lose!'}
             </h1>
             {result.eloChange !== 0 && (
               <p className="online-elo-change">
-                ELO {result.eloChange > 0 ? '+' : ''}{result.eloChange}
+                ELO {result.eloChange > 0 ? '+' : ''}
+                {result.eloChange}
               </p>
             )}
             <div className="win-lose-buttons">
-              <button className="btn action-btn" onClick={() => { dispatch({ type: 'RESET_TO_IDLE' }); navigate('/'); }}>
+              <button
+                className="btn action-btn"
+                onClick={() => {
+                  dispatch({ type: 'RESET_TO_IDLE' });
+                  navigate('/');
+                }}
+              >
                 Play Again
               </button>
               {result.savedGameId && (
-                <button className="btn action-btn" onClick={() => navigate(`/history/${result.savedGameId}`)}>
+                <button
+                  className="btn action-btn"
+                  onClick={() => navigate(`/history/${result.savedGameId}`)}
+                >
                   Analyze Game
                 </button>
               )}

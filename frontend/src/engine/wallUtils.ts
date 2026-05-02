@@ -20,10 +20,7 @@ export function wallBlocksMovement(wall: Wall, from: Position, to: Position): bo
       const minRow = Math.min(from.row, to.row);
       const maxRow = Math.max(from.row, to.row);
       return (
-        wall.row >= minRow &&
-        wall.row < maxRow &&
-        from.col >= wall.col &&
-        from.col <= wall.col + 1
+        wall.row >= minRow && wall.row < maxRow && from.col >= wall.col && from.col <= wall.col + 1
       );
     }
   } else {
@@ -32,10 +29,7 @@ export function wallBlocksMovement(wall: Wall, from: Position, to: Position): bo
       const minCol = Math.min(from.col, to.col);
       const maxCol = Math.max(from.col, to.col);
       return (
-        wall.col >= minCol &&
-        wall.col < maxCol &&
-        from.row >= wall.row &&
-        from.row <= wall.row + 1
+        wall.col >= minCol && wall.col < maxCol && from.row >= wall.row && from.row <= wall.row + 1
       );
     }
   }

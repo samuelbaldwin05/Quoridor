@@ -110,11 +110,7 @@ export function useOnlineGame({
     });
   }
 
-  async function submitResult(
-    winner: 0 | 1,
-    finalTimes?: [number, number],
-    savedGameId?: string,
-  ) {
+  async function submitResult(winner: 0 | 1, finalTimes?: [number, number], savedGameId?: string) {
     if (resultSubmittedRef.current) return;
     resultSubmittedRef.current = true;
     try {

@@ -3,10 +3,7 @@ import { findBestMoveWithDijkstra, findWinningMove } from '@/ai/pathfinder';
 import type { GameState, PlayerIndex } from '@/engine/gameTypes';
 import { getValidPawnMoves } from '@/engine/moveValidation';
 
-export function makeBot0Move(
-  state: GameState,
-  playerIndex: PlayerIndex,
-): AiDecision | null {
+export function makeBot0Move(state: GameState, playerIndex: PlayerIndex): AiDecision | null {
   const player = state.players[playerIndex];
   const validMoves = getValidPawnMoves(state, playerIndex);
   if (validMoves.length === 0) return null;
