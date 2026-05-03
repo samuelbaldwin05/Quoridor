@@ -44,16 +44,23 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
       setPendingCount(0);
       return;
     }
-    const fetchPending = () => {
-      void supabase
-        .from('friendships')
-        .select('id', { count: 'exact', head: true })
-        .eq('receiver_id', user.id)
-        .eq('status', 'pending')
-        .then(({ count }) => setPendingCount(count ?? 0));
+    const fetchPending = async () => {
+      const [friends, challenges] = await Promise.all([
+        supabase
+          .from('friendships')
+          .select('id', { count: 'exact', head: true })
+          .eq('receiver_id', user.id)
+          .eq('status', 'pending'),
+        supabase
+          .from('challenges')
+          .select('id', { count: 'exact', head: true })
+          .eq('challenged_id', user.id)
+          .eq('status', 'pending'),
+      ]);
+      setPendingCount((friends.count ?? 0) + (challenges.count ?? 0));
     };
-    fetchPending();
-    const interval = setInterval(fetchPending, 5000);
+    void fetchPending();
+    const interval = setInterval(() => void fetchPending(), 5000);
     return () => clearInterval(interval);
     // user.id is the stable identifier; full user object reference changes on every auth refresh
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -43,9 +43,14 @@ def _fetch_profiles(client: Client, user_ids: list[str]) -> dict[str, dict]:
 
 
 def get_my_challenges(client: Client, user_id: UUID) -> list[ChallengeRead]:
+    """Return challenges the caller still needs to act on.
+
+    Includes pending challenges (either side) and accepted challenges I sent —
+    the latter so the challenger's client can detect the acceptance, navigate
+    to the game, then delete the row. Accepted challenges I received are
+    excluded; that side already navigated when they hit Accept.
+    """
     uid = str(user_id)
-    # Best-effort sweep of expired pending challenges. The function is cheap
-    # (partial index on expires_at) and silently no-ops if none are due.
     try:
         client.rpc("expire_old_challenges", {}).execute()
     except Exception:
@@ -56,21 +61,24 @@ def get_my_challenges(client: Client, user_id: UUID) -> list[ChallengeRead]:
             client.table("challenges")
             .select("*")
             .or_(f"challenger_id.eq.{uid},challenged_id.eq.{uid}")
-            .eq("status", "pending")
+            .in_("status", ["pending", "accepted"])
             .order("created_at", desc=True)
             .execute()
         )
     except Exception as exc:
         raise DatabaseError("challenges fetch failed") from exc
 
-    if not resp.data:
+    rows = [
+        row
+        for row in (resp.data or [])
+        if row["status"] == "pending" or row["challenger_id"] == uid
+    ]
+    if not rows:
         return []
 
-    ids = list(
-        {row["challenger_id"] for row in resp.data} | {row["challenged_id"] for row in resp.data}
-    )
+    ids = list({row["challenger_id"] for row in rows} | {row["challenged_id"] for row in rows})
     profiles = _fetch_profiles(client, ids)
-    return _enrich(resp.data, profiles)
+    return _enrich(rows, profiles)
 
 
 def create_challenge(
