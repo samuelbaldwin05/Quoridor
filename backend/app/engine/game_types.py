@@ -1,9 +1,3 @@
-"""Engine types — mirror frontend/src/engine/gameTypes.ts.
-
-All types are immutable dataclasses with frozen=True so engine functions
-remain pure (state in → new state out).
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

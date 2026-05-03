@@ -1,5 +1,3 @@
-"""Server-side Quoridor engine. Keep in lockstep with frontend/src/engine/."""
-
 from app.engine.game_engine import (
     apply_move,
     check_win,

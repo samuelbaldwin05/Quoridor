@@ -1,5 +1,3 @@
-"""Minimal structured-logging setup. Stdlib only — no third-party deps."""
-
 from __future__ import annotations
 
 import json

@@ -1,5 +1,3 @@
-"""Shared constants — must match frontend/src/engine/constants.ts."""
-
 BOARD_SIZE = 9
 INITIAL_WALL_COUNT = 10
 

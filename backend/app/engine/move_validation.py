@@ -1,5 +1,3 @@
-"""Move legality + path-to-goal — mirrors frontend/src/engine/moveValidation.ts."""
-
 from __future__ import annotations
 
 from collections import deque

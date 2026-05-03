@@ -1,14 +1,3 @@
-"""Algebraic-notation parser/serializer matching the frontend.
-
-Frontend convention (see GameRightPanel.tsx moveNotation):
-    col_letter = chr(97 + col)            # 'a'..'i'  (col 0..8)
-    rank       = str(9 - row)             # '1'..'9'  (engine row 8..0)
-    pawn move:  f"{col}{rank}"            e.g. "e2"
-    wall move:  f"{col}{rank}{orient}"    e.g. "e3v"
-
-Walls store engine row in 0..7; notation rank for walls is therefore 2..9.
-"""
-
 from __future__ import annotations
 
 import re
