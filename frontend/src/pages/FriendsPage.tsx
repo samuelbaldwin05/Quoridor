@@ -81,7 +81,6 @@ export function FriendsPage() {
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [pendingActions, setPendingActions] = useState<Set<string>>(new Set());
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const navigatedChallengeRef = useRef<Set<string>>(new Set());
 
   const myId = profile?.id ?? '';
 
@@ -116,33 +115,13 @@ export function FriendsPage() {
   );
 
   // Initial load + 5s background poll so incoming requests/challenges show up
-  // without needing a page interaction.
+  // without needing a page interaction. The "challenger gets redirected on
+  // accept" half lives in <ChallengeRedirector /> so it works app-wide.
   useEffect(() => {
     void loadFriends(false);
     const interval = setInterval(() => void loadFriends(true), 5000);
     return () => clearInterval(interval);
   }, [loadFriends]);
-
-  // When a challenge I sent gets accepted, the backend now returns it with
-  // status='accepted' and a game_id. Redirect the challenger to the game and
-  // delete the row so we don't re-fire on the next poll.
-  useEffect(() => {
-    if (!myId) return;
-    const accepted = challenges.find(
-      (c) =>
-        c.status === 'accepted' &&
-        c.challenger_id === myId &&
-        c.game_id &&
-        !navigatedChallengeRef.current.has(c.id),
-    );
-    if (!accepted || !accepted.game_id) return;
-    navigatedChallengeRef.current.add(accepted.id);
-    void apiFetch(`/api/challenges/${accepted.id}`, { method: 'DELETE' }).catch(() => {});
-    const opponent = encodeURIComponent(accepted.challenged_name ?? 'Opponent');
-    navigate(
-      `/game/online/${accepted.game_id}?role=0&opponent=${opponent}&opponentElo=500&tc=${accepted.time_control}`,
-    );
-  }, [challenges, myId, navigate]);
 
   // ── Debounced search ─────────────────────────────────────────────────────
 

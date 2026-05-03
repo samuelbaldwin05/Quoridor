@@ -53,6 +53,7 @@ def get_my_challenges(client: Client, user_id: UUID) -> list[ChallengeRead]:
     uid = str(user_id)
     try:
         client.rpc("expire_old_challenges", {}).execute()
+        client.rpc("cleanup_stale_challenges", {}).execute()
     except Exception:
         pass
 
@@ -175,11 +176,15 @@ def cancel_or_decline_challenge(client: Client, challenge_id: UUID, user_id: UUI
 
 
 def cancel_challenges_for_user(client: Client, user_id: UUID) -> None:
-    """Cancel all outgoing pending challenges when a user joins a game."""
+    """Cancel all pending challenges involving a user (either direction).
+
+    Called when the user enters a game (matchmaking match or challenge accept).
+    Both their outgoing invites and any incoming invites become irrelevant.
+    """
     uid = str(user_id)
     try:
-        client.table("challenges").delete().eq("challenger_id", uid).eq(
-            "status", "pending"
-        ).execute()
+        client.table("challenges").delete().or_(
+            f"challenger_id.eq.{uid},challenged_id.eq.{uid}"
+        ).eq("status", "pending").execute()
     except Exception:
         pass  # best-effort cleanup

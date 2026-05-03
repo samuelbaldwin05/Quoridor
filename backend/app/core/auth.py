@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import Depends, HTTPException
@@ -66,9 +67,16 @@ def _get_or_create_user(
     display_name: str,
 ) -> UserRead:
     try:
-        # Only upsert google-owned fields — never overwrite username (user-set)
+        # Only upsert google-owned fields — never overwrite username (user-set).
+        # last_seen_at gets bumped on every authed request, doubling as a
+        # cheap presence heartbeat for cleanup_stale_challenges().
         supabase.table("users").upsert(
-            {"id": str(user_id), "email": email, "display_name": display_name},
+            {
+                "id": str(user_id),
+                "email": email,
+                "display_name": display_name,
+                "last_seen_at": datetime.now(UTC).isoformat(),
+            },
             on_conflict="id",
             ignore_duplicates=False,
         ).execute()
