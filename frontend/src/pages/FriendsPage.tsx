@@ -237,7 +237,7 @@ export function FriendsPage() {
   const pendingSent = friends.filter((f) => f.status === 'pending_sent');
   const incomingChallenges = challenges.filter((c) => c.challenged_id === myId);
   const outgoingChallenges = challenges.filter((c) => c.challenger_id === myId);
-  const alreadyFriendIds = new Set(friends.map((f) => f.friend_id));
+  const friendByUserId = new Map(friends.map((f) => [f.friend_id, f]));
 
   const filteredAccepted = friendSearch.trim()
     ? acceptedFriends.filter((f) =>
@@ -307,8 +307,9 @@ export function FriendsPage() {
                     )}
                   {searchResults.map((user) => {
                     const name = displayFor(user);
-                    const isFriend = alreadyFriendIds.has(user.id);
+                    const existing = friendByUserId.get(user.id);
                     const isMe = user.id === myId;
+                    const pendingKey = existing?.friendship_id ?? user.id;
                     return (
                       <div key={user.id} className="friend-item">
                         <Avatar name={name} />
@@ -326,8 +327,18 @@ export function FriendsPage() {
                         <div className="friend-item-actions">
                           {isMe ? (
                             <span className="friend-added-badge">You</span>
-                          ) : isFriend ? (
+                          ) : existing?.status === 'accepted' ? (
                             <span className="friend-added-badge">Friends ✓</span>
+                          ) : existing?.status === 'pending_sent' ? (
+                            <span className="friend-added-badge">Sent</span>
+                          ) : existing?.status === 'pending_received' ? (
+                            <button
+                              className="btn friend-add-btn"
+                              onClick={() => handleAccept(existing.friendship_id)}
+                              disabled={pendingActions.has(pendingKey)}
+                            >
+                              {pendingActions.has(pendingKey) ? '…' : 'Accept'}
+                            </button>
                           ) : (
                             <button
                               className="btn friend-add-btn"

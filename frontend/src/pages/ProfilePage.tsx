@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { NavSidebar } from '@/components/NavSidebar';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,6 +23,15 @@ interface ProfileData {
   time_stats: TimeStats[];
 }
 
+interface ApiFriend {
+  friendship_id: string;
+  friend_id: string;
+  status: string;
+  requester_id?: string;
+}
+
+type FriendStatus = 'self' | 'none' | 'pending_sent' | 'pending_received' | 'accepted';
+
 function eloColor(elo: number): string {
   if (elo >= 1800) return '#f39c12';
   if (elo >= 1500) return '#3498db';
@@ -37,11 +46,17 @@ function tcLabel(tc: number): string {
 
 export function ProfilePage() {
   const { userId } = useParams<{ userId: string }>();
-  const navigate = useNavigate();
   const { profile: myProfile } = useAuth();
+  const myId = myProfile?.id ?? '';
+  const isMe = myProfile?.id === userId;
+
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const [friendStatus, setFriendStatus] = useState<FriendStatus>('none');
+  const [friendshipId, setFriendshipId] = useState<string | null>(null);
+  const [acting, setActing] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -53,14 +68,88 @@ export function ProfilePage() {
       .finally(() => setLoading(false));
   }, [userId]);
 
+  useEffect(() => {
+    if (!userId || isMe || !myId) return;
+    apiFetch<ApiFriend[]>('/api/friends/')
+      .then((friends) => {
+        const f = friends.find((x) => x.friend_id === userId);
+        if (!f) {
+          setFriendStatus('none');
+          setFriendshipId(null);
+          return;
+        }
+        setFriendshipId(f.friendship_id);
+        if (f.status === 'accepted') {
+          setFriendStatus('accepted');
+        } else {
+          setFriendStatus(f.requester_id === myId ? 'pending_sent' : 'pending_received');
+        }
+      })
+      .catch(() => {});
+  }, [userId, isMe, myId]);
+
+  async function handleAddFriend() {
+    if (!userId) return;
+    setActing(true);
+    try {
+      await apiFetch('/api/friends/request', {
+        method: 'POST',
+        body: JSON.stringify({ receiver_id: userId }),
+      });
+      setFriendStatus('pending_sent');
+    } catch {
+      // 409 (already exists) or other — leave state alone; the duplicate-prevent
+      // logic on the server is the authoritative guard.
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function handleAcceptRequest() {
+    if (!friendshipId) return;
+    setActing(true);
+    try {
+      await apiFetch(`/api/friends/${friendshipId}/accept`, { method: 'PUT' });
+      setFriendStatus('accepted');
+    } finally {
+      setActing(false);
+    }
+  }
+
+  const status: FriendStatus = isMe ? 'self' : friendStatus;
   const displayName = profile?.username ?? profile?.display_name ?? '…';
-  const isMe = myProfile?.id === userId;
   const winPct =
     profile && profile.games_played > 0
       ? Math.round(
           (profile.time_stats.reduce((s, t) => s + t.wins, 0) / profile.games_played) * 100,
         )
       : 0;
+
+  function renderFriendAction() {
+    if (status === 'self') return null;
+    if (status === 'accepted') {
+      return <span className="profile-friend-badge">Friends ✓</span>;
+    }
+    if (status === 'pending_sent') {
+      return <span className="profile-friend-badge">Request Sent</span>;
+    }
+    if (status === 'pending_received') {
+      return (
+        <button
+          className="btn profile-add-btn"
+          onClick={handleAcceptRequest}
+          disabled={acting}
+        >
+          {acting ? '…' : 'Accept Request'}
+        </button>
+      );
+    }
+    return (
+      <button className="btn profile-add-btn" onClick={handleAddFriend} disabled={acting}>
+        {acting ? '…' : '+ Add Friend'}
+      </button>
+    );
+  }
 
   return (
     <div className="game-layout">
@@ -82,11 +171,7 @@ export function ProfilePage() {
                     {profile.elo} ELO
                   </p>
                 </div>
-                {!isMe && (
-                  <button className="btn profile-add-btn" onClick={() => navigate('/friends')}>
-                    + Add Friend
-                  </button>
-                )}
+                {renderFriendAction()}
               </div>
 
               <div className="profile-stats-grid">
