@@ -53,11 +53,15 @@ export function useOnlineGame({
   const channelRef = useRef<RealtimeChannel | null>(null);
   const resultSubmittedRef = useRef(false);
 
-  // Keep callbacks in refs so channel handlers don't go stale
+  // Keep callbacks in refs so channel handlers don't go stale. Updates run in
+  // an effect (not during render) per React rules; the channel handlers read
+  // ref.current at fire time, so a one-frame lag here is fine.
   const onMoveReceivedRef = useRef(onMoveReceived);
-  onMoveReceivedRef.current = onMoveReceived;
   const onOpponentResignedRef = useRef(onOpponentResigned);
-  onOpponentResignedRef.current = onOpponentResigned;
+  useEffect(() => {
+    onMoveReceivedRef.current = onMoveReceived;
+    onOpponentResignedRef.current = onOpponentResigned;
+  });
 
   useEffect(() => {
     const channel = supabase.channel(`game:${gameId}`, {
@@ -92,7 +96,7 @@ export function useOnlineGame({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [gameId, myUserId]);
+  }, [gameId, myUserId, myRole]);
 
   function broadcastMove(move: Move) {
     channelRef.current?.send({

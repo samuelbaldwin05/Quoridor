@@ -45,6 +45,7 @@ export function ProfilePage() {
 
   useEffect(() => {
     if (!userId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     apiFetch<ProfileData>(`/api/users/${userId}`)
       .then(setProfile)

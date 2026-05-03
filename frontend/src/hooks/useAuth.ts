@@ -53,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (getDevToken()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAuthMode('dev');
       fetchProfile().finally(() => setIsLoading(false));
       return;
@@ -85,7 +86,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function signInWithGoogle(): Promise<void> {

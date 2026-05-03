@@ -119,7 +119,8 @@ export function OnlineGamePage() {
       const winner = state.game.winner as 0 | 1;
       const savedId = saveGame(state.moveHistory, winner, opponentName);
       void submitResult(winner, timesRef.current, savedId).then(() => refreshProfile());
-      winner === myRole ? audio.playWin() : audio.playLose();
+      if (winner === myRole) audio.playWin();
+      else audio.playLose();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.game.status, state.game.winner]);
@@ -261,7 +262,6 @@ export function OnlineGamePage() {
       if (intervalId) clearInterval(intervalId);
       setAwayCountdown(null);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.game.status]);
 
   function handleBack() {

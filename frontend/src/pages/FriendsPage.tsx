@@ -142,7 +142,8 @@ export function FriendsPage() {
   function setPending(id: string, on: boolean) {
     setPendingActions((prev) => {
       const next = new Set(prev);
-      on ? next.add(id) : next.delete(id);
+      if (on) next.add(id);
+      else next.delete(id);
       return next;
     });
   }

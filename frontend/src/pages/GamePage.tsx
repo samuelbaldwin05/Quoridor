@@ -85,7 +85,8 @@ export function GamePage() {
 
   useEffect(() => {
     if (state.game.status === 'finished') {
-      state.game.winner === 0 ? audio.playWin() : audio.playLose();
+      if (state.game.winner === 0) audio.playWin();
+      else audio.playLose();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.game.status, state.game.winner]);

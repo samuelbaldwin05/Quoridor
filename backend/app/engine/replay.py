@@ -11,7 +11,10 @@ from app.engine.notation import NotationError, parse_move
 
 
 def replay(moves: Sequence[str]) -> GameState:
-    """Apply each notation string to a fresh game; raise InvalidMoveError on the first illegal move."""
+    """Apply each notation string to a fresh game.
+
+    Raises InvalidMoveError on the first illegal move.
+    """
     state = start_game(create_initial_state())
     for i, text in enumerate(moves):
         try:

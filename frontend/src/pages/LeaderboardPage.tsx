@@ -31,6 +31,7 @@ export function LeaderboardPage() {
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     void supabase
       .from('users')

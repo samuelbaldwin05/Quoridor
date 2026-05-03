@@ -50,6 +50,8 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
       .eq('receiver_id', user.id)
       .eq('status', 'pending')
       .then(({ count }) => setPendingCount(count ?? 0));
+    // user.id is the stable identifier; full user object reference changes on every auth refresh
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Close menu on outside click

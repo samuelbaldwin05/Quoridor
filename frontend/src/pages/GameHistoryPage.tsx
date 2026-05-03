@@ -84,6 +84,7 @@ export function GameHistoryPage() {
 
   // Jump to first move when a new game is loaded
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (currentGame) setMoveIndex(0);
   }, [currentGame?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
