@@ -91,10 +91,7 @@ export function ProfileModal({ userId, onClose }: ProfileModalProps) {
 
   return (
     <div className="modal profile-modal-overlay" onClick={onClose}>
-      <div
-        className="profile-modal-card"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="profile-modal-card" onClick={(e) => e.stopPropagation()}>
         <button className="profile-modal-close" onClick={onClose} aria-label="Close">
           ×
         </button>
@@ -156,18 +153,13 @@ export function ProfileModal({ userId, onClose }: ProfileModalProps) {
                       <span className="profile-tc-format">
                         {TC_LABELS[ts.time_control] ?? `${ts.time_control}s`}
                       </span>
-                      <span
-                        className="profile-tc-elo"
-                        style={{ color: eloColor(ts.elo) }}
-                      >
+                      <span className="profile-tc-elo" style={{ color: eloColor(ts.elo) }}>
                         {ts.elo}
                       </span>
                       <span className="profile-tc-wl">
                         {ts.wins} / {ts.losses}
                       </span>
-                      <span className="profile-tc-pct">
-                        {winPct(ts.wins, ts.games_played)}
-                      </span>
+                      <span className="profile-tc-pct">{winPct(ts.wins, ts.games_played)}</span>
                     </div>
                   ))}
                 </div>

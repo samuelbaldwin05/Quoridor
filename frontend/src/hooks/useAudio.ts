@@ -30,30 +30,15 @@ export function useAudio(enabled: boolean, volume: number) {
     [enabled, volume],
   );
 
-  const playMove = useCallback(
-    () => playSound(moveAudio, '/sounds/click.mp3'),
-    [playSound],
-  );
+  const playMove = useCallback(() => playSound(moveAudio, '/sounds/click.mp3'), [playSound]);
 
-  const playWall = useCallback(
-    () => playSound(wallAudio, '/sounds/clack.mp3'),
-    [playSound],
-  );
+  const playWall = useCallback(() => playSound(wallAudio, '/sounds/clack.mp3'), [playSound]);
 
-  const playWin = useCallback(
-    () => playSound(winAudio, '/sounds/win.mp3'),
-    [playSound],
-  );
+  const playWin = useCallback(() => playSound(winAudio, '/sounds/win.mp3'), [playSound]);
 
-  const playLose = useCallback(
-    () => playSound(loseAudio, '/sounds/lose.mp3'),
-    [playSound],
-  );
+  const playLose = useCallback(() => playSound(loseAudio, '/sounds/lose.mp3'), [playSound]);
 
-  const playStart = useCallback(
-    () => playSound(startAudio, '/sounds/start.mp3'),
-    [playSound],
-  );
+  const playStart = useCallback(() => playSound(startAudio, '/sounds/start.mp3'), [playSound]);
 
   return { playMove, playWall, playWin, playLose, playStart };
 }

@@ -39,8 +39,13 @@ export function GamePage() {
 
   const audio = useAudio(state.settings.soundEnabled, state.settings.volume);
 
-  const { wallPreview, validPawnMoves: liveValidMoves, handleCellClick, handleWallHover, handleWallClick } =
-    useBoardInteraction(state, dispatch);
+  const {
+    wallPreview,
+    validPawnMoves: liveValidMoves,
+    handleCellClick,
+    handleWallHover,
+    handleWallClick,
+  } = useBoardInteraction(state, dispatch);
 
   useAi(state, dispatch);
   useTheme(state.settings.theme);
@@ -80,7 +85,8 @@ export function GamePage() {
 
   useEffect(() => {
     if (state.game.status === 'finished') {
-      state.game.winner === 0 ? audio.playWin() : audio.playLose();
+      if (state.game.winner === 0) audio.playWin();
+      else audio.playLose();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.game.status, state.game.winner]);
@@ -94,14 +100,30 @@ export function GamePage() {
 
       let target: Position | undefined;
       switch (action) {
-        case 'up':      target = validMoves.find((m) => m.col === position.col && m.row < position.row); break;
-        case 'down':    target = validMoves.find((m) => m.col === position.col && m.row > position.row); break;
-        case 'left':    target = validMoves.find((m) => m.row === position.row && m.col < position.col); break;
-        case 'right':   target = validMoves.find((m) => m.row === position.row && m.col > position.col); break;
-        case 'diag-ul': target = validMoves.find((m) => m.row < position.row && m.col < position.col); break;
-        case 'diag-ur': target = validMoves.find((m) => m.row < position.row && m.col > position.col); break;
-        case 'diag-dl': target = validMoves.find((m) => m.row > position.row && m.col < position.col); break;
-        case 'diag-dr': target = validMoves.find((m) => m.row > position.row && m.col > position.col); break;
+        case 'up':
+          target = validMoves.find((m) => m.col === position.col && m.row < position.row);
+          break;
+        case 'down':
+          target = validMoves.find((m) => m.col === position.col && m.row > position.row);
+          break;
+        case 'left':
+          target = validMoves.find((m) => m.row === position.row && m.col < position.col);
+          break;
+        case 'right':
+          target = validMoves.find((m) => m.row === position.row && m.col > position.col);
+          break;
+        case 'diag-ul':
+          target = validMoves.find((m) => m.row < position.row && m.col < position.col);
+          break;
+        case 'diag-ur':
+          target = validMoves.find((m) => m.row < position.row && m.col > position.col);
+          break;
+        case 'diag-dl':
+          target = validMoves.find((m) => m.row > position.row && m.col < position.col);
+          break;
+        case 'diag-dr':
+          target = validMoves.find((m) => m.row > position.row && m.col > position.col);
+          break;
       }
 
       if (target) dispatch({ type: 'APPLY_MOVE', move: { kind: 'pawn', to: target } });

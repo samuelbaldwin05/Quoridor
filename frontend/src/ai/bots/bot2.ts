@@ -105,9 +105,7 @@ function findBot2OpeningMove(
   };
 
   const validMoves = getValidPawnMoves(state, playerIndex);
-  const desiredMove = validMoves.find(
-    (m) => m.row === targetPos.row && m.col === targetPos.col,
-  );
+  const desiredMove = validMoves.find((m) => m.row === targetPos.row && m.col === targetPos.col);
 
   if (desiredMove) {
     return {
@@ -137,7 +135,10 @@ export function makeBot2Move(
   if (validMoves.length === 0) return { decision: null, nextCtx: ctx };
 
   // 1. Opening strategy
-  if (ctx.moveCount <= AI_CONFIG.BOT2_OPENING_MOVES && Math.random() < AI_CONFIG.BOT2_OPENING_CHANCE) {
+  if (
+    ctx.moveCount <= AI_CONFIG.BOT2_OPENING_MOVES &&
+    Math.random() < AI_CONFIG.BOT2_OPENING_CHANCE
+  ) {
     const { position, nextCtx } = findBot2OpeningMove(state, playerIndex, ctx);
     if (position) {
       return {
@@ -213,7 +214,10 @@ export function makeBot2Move(
 
       if (bestStrategicFence) {
         return {
-          decision: { move: { kind: 'wall', wall: bestStrategicFence }, message: 'Computer placed a fence.' },
+          decision: {
+            move: { kind: 'wall', wall: bestStrategicFence },
+            message: 'Computer placed a fence.',
+          },
           nextCtx: ctx,
         };
       }

@@ -30,15 +30,78 @@ function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/setup" element={<UsernameSetupPage />} />
-            <Route path="/" element={<UsernameGuard><GamePage /></UsernameGuard>} />
-            <Route path="/rules" element={<UsernameGuard><RulesPage /></UsernameGuard>} />
-            <Route path="/puzzles" element={<UsernameGuard><PuzzlesPage /></UsernameGuard>} />
-            <Route path="/friends" element={<UsernameGuard><FriendsPage /></UsernameGuard>} />
-            <Route path="/leaderboard" element={<UsernameGuard><LeaderboardPage /></UsernameGuard>} />
-            <Route path="/history" element={<UsernameGuard><GameHistoryPage /></UsernameGuard>} />
-            <Route path="/history/:id" element={<UsernameGuard><GameHistoryPage /></UsernameGuard>} />
-            <Route path="/game/online/:gameId" element={<UsernameGuard><OnlineGamePage /></UsernameGuard>} />
-            <Route path="/profile/:userId" element={<UsernameGuard><ProfilePage /></UsernameGuard>} />
+            <Route
+              path="/"
+              element={
+                <UsernameGuard>
+                  <GamePage />
+                </UsernameGuard>
+              }
+            />
+            <Route
+              path="/rules"
+              element={
+                <UsernameGuard>
+                  <RulesPage />
+                </UsernameGuard>
+              }
+            />
+            <Route
+              path="/puzzles"
+              element={
+                <UsernameGuard>
+                  <PuzzlesPage />
+                </UsernameGuard>
+              }
+            />
+            <Route
+              path="/friends"
+              element={
+                <UsernameGuard>
+                  <FriendsPage />
+                </UsernameGuard>
+              }
+            />
+            <Route
+              path="/leaderboard"
+              element={
+                <UsernameGuard>
+                  <LeaderboardPage />
+                </UsernameGuard>
+              }
+            />
+            <Route
+              path="/history"
+              element={
+                <UsernameGuard>
+                  <GameHistoryPage />
+                </UsernameGuard>
+              }
+            />
+            <Route
+              path="/history/:id"
+              element={
+                <UsernameGuard>
+                  <GameHistoryPage />
+                </UsernameGuard>
+              }
+            />
+            <Route
+              path="/game/online/:gameId"
+              element={
+                <UsernameGuard>
+                  <OnlineGamePage />
+                </UsernameGuard>
+              }
+            />
+            <Route
+              path="/profile/:userId"
+              element={
+                <UsernameGuard>
+                  <ProfilePage />
+                </UsernameGuard>
+              }
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AuthProvider>

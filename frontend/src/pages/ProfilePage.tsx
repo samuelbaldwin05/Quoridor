@@ -45,6 +45,7 @@ export function ProfilePage() {
 
   useEffect(() => {
     if (!userId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     apiFetch<ProfileData>(`/api/users/${userId}`)
       .then(setProfile)
@@ -54,9 +55,12 @@ export function ProfilePage() {
 
   const displayName = profile?.username ?? profile?.display_name ?? '…';
   const isMe = myProfile?.id === userId;
-  const winPct = profile && profile.games_played > 0
-    ? Math.round((profile.time_stats.reduce((s, t) => s + t.wins, 0) / profile.games_played) * 100)
-    : 0;
+  const winPct =
+    profile && profile.games_played > 0
+      ? Math.round(
+          (profile.time_stats.reduce((s, t) => s + t.wins, 0) / profile.games_played) * 100,
+        )
+      : 0;
 
   return (
     <div className="game-layout">
@@ -95,12 +99,17 @@ export function ProfilePage() {
                   <span className="profile-stat-label">Win Rate</span>
                 </div>
                 <div className="profile-stat-card">
-                  <span className="profile-stat-value" style={{ color: eloColor(profile.elo) }}>{profile.elo}</span>
+                  <span className="profile-stat-value" style={{ color: eloColor(profile.elo) }}>
+                    {profile.elo}
+                  </span>
                   <span className="profile-stat-label">ELO</span>
                 </div>
                 <div className="profile-stat-card">
                   <span className="profile-stat-value">
-                    {new Date(profile.created_at).toLocaleDateString([], { month: 'short', year: 'numeric' })}
+                    {new Date(profile.created_at).toLocaleDateString([], {
+                      month: 'short',
+                      year: 'numeric',
+                    })}
                   </span>
                   <span className="profile-stat-label">Member Since</span>
                 </div>
@@ -115,7 +124,9 @@ export function ProfilePage() {
                         <span className="profile-tc-label">{tcLabel(t.time_control)}</span>
                         <span className="profile-tc-stat">{t.games_played} games</span>
                         <span className="profile-tc-stat">{Math.round(t.win_pct * 100)}% wins</span>
-                        <span className="profile-tc-elo" style={{ color: eloColor(t.elo) }}>{t.elo}</span>
+                        <span className="profile-tc-elo" style={{ color: eloColor(t.elo) }}>
+                          {t.elo}
+                        </span>
                       </div>
                     ))}
                   </div>

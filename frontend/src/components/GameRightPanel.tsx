@@ -84,7 +84,9 @@ export function GameRightPanel({
   return (
     <div className="right-panel game-history-panel">
       <div className="ghp-header">
-        <span className="play-panel-heading" style={{ margin: 0 }}>Moves</span>
+        <span className="play-panel-heading" style={{ margin: 0 }}>
+          Moves
+        </span>
         {!isLive && (
           <button className="ghp-live-btn" onClick={() => onViewIndex(null)}>
             Live ↓
@@ -148,11 +150,7 @@ export function GameRightPanel({
           </button>
         )}
         {onResign && isPlaying && (
-          <button
-            className="btn ghp-nav-btn ghp-resign-btn"
-            onClick={onResign}
-            title="Resign"
-          >
+          <button className="btn ghp-nav-btn ghp-resign-btn" onClick={onResign} title="Resign">
             ⚑
           </button>
         )}

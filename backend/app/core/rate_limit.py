@@ -4,6 +4,7 @@ Keyed on the authenticated user's UUID when present, falling back to client
 IP. The Limiter is wired to the app in api/main.py; routes apply limits via
 the @limiter.limit("...") decorator.
 """
+
 from __future__ import annotations
 
 from fastapi import Request

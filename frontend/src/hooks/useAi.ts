@@ -3,10 +3,7 @@ import { makeAiMove } from '@/ai/aiCoordinator';
 import { AI_MOVE_DELAY_MS } from '@/engine/constants';
 import type { FullState, GameAction } from './gameReducer';
 
-export function useAi(
-  state: FullState,
-  dispatch: React.Dispatch<GameAction>,
-): void {
+export function useAi(state: FullState, dispatch: React.Dispatch<GameAction>): void {
   const { game, aiContext, settings } = state;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

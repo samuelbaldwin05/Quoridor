@@ -88,7 +88,10 @@ export function makeBot1Move(
   }
 
   // 2. Random early moves (avoid backtrack)
-  if (ctx.moveCount <= AI_CONFIG.BOT1_RANDOM_MOVES && Math.random() < AI_CONFIG.BOT1_RANDOM_CHANCE) {
+  if (
+    ctx.moveCount <= AI_CONFIG.BOT1_RANDOM_MOVES &&
+    Math.random() < AI_CONFIG.BOT1_RANDOM_CHANCE
+  ) {
     const nonBacktrack = ctx.previousPosition
       ? validMoves.filter(
           (m) => !(m.row === ctx.previousPosition!.row && m.col === ctx.previousPosition!.col),
@@ -113,7 +116,10 @@ export function makeBot1Move(
   }
 
   // 4. Strategic fence when opponent is close
-  if (player.wallsRemaining > 0 && opponent.position.row >= AI_CONFIG.BOT1_STRATEGIC_ROW_THRESHOLD) {
+  if (
+    player.wallsRemaining > 0 &&
+    opponent.position.row >= AI_CONFIG.BOT1_STRATEGIC_ROW_THRESHOLD
+  ) {
     const currentDist = dijkstraDistance(state, opponent.position, opponent.goalRow);
     const directFences = getDirectBlockingFences(opponent.position, opponent.goalRow);
     for (const wall of directFences) {

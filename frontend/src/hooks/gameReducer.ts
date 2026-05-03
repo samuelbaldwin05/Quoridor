@@ -180,9 +180,7 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
 
       const winner = checkWin(result.nextState);
       const nextGame: GameState =
-        winner !== null
-          ? { ...result.nextState, status: 'finished', winner }
-          : result.nextState;
+        winner !== null ? { ...result.nextState, status: 'finished', winner } : result.nextState;
 
       return { ...state, game: nextGame, moveHistory: [...state.moveHistory, storedMove] };
     }

@@ -42,10 +42,7 @@ export function GameHistoryPage() {
   const filterPanelRef = useRef<HTMLDivElement>(null);
 
   const games = useMemo(() => listGames(), []);
-  const currentGame = useMemo(
-    () => (selectedId ? loadGame(selectedId) : null),
-    [selectedId],
-  );
+  const currentGame = useMemo(() => (selectedId ? loadGame(selectedId) : null), [selectedId]);
 
   const boardState = useMemo(() => {
     if (!currentGame) return null;
@@ -64,8 +61,10 @@ export function GameHistoryPage() {
     if (filterResult === 'win') list = list.filter((g) => g.winner === 0);
     else if (filterResult === 'lose') list = list.filter((g) => g.winner !== 0);
     // Filter by opponent type
-    if (filterOpponent === 'bot') list = list.filter((g) => (g.opponentLabel ?? '').includes('Bot'));
-    else if (filterOpponent === 'human') list = list.filter((g) => !(g.opponentLabel ?? '').includes('Bot'));
+    if (filterOpponent === 'bot')
+      list = list.filter((g) => (g.opponentLabel ?? '').includes('Bot'));
+    else if (filterOpponent === 'human')
+      list = list.filter((g) => !(g.opponentLabel ?? '').includes('Bot'));
     // Search
     const q = gameSearch.trim().toLowerCase();
     if (q) list = list.filter((g) => (g.opponentLabel ?? 'Bot').toLowerCase().includes(q));
@@ -85,6 +84,7 @@ export function GameHistoryPage() {
 
   // Jump to first move when a new game is loaded
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (currentGame) setMoveIndex(0);
   }, [currentGame?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -122,7 +122,10 @@ export function GameHistoryPage() {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [handleOutsideClick]);
 
-  const activeFilterCount = (sortOrder !== 'newest' ? 1 : 0) + (filterResult !== 'all' ? 1 : 0) + (filterOpponent !== 'all' ? 1 : 0);
+  const activeFilterCount =
+    (sortOrder !== 'newest' ? 1 : 0) +
+    (filterResult !== 'all' ? 1 : 0) +
+    (filterOpponent !== 'all' ? 1 : 0);
 
   const displayState = boardState ?? { ...createInitialState(), status: 'idle' as const };
   const selectedGame = games.find((g) => g.id === selectedId);
@@ -133,7 +136,6 @@ export function GameHistoryPage() {
 
       <div className="main-content">
         <div className="board-section">
-
           {/* Board */}
           <GameCard
             gameStatus={displayState.status}
@@ -159,12 +161,13 @@ export function GameHistoryPage() {
 
           {/* Right panel — game list OR move list */}
           <div className="right-panel game-history-panel">
-
             {!currentGame ? (
               /* ── Game list ── */
               <>
                 <div className="ghp-header">
-                  <span className="play-panel-heading" style={{ margin: 0 }}>Game History</span>
+                  <span className="play-panel-heading" style={{ margin: 0 }}>
+                    Game History
+                  </span>
                 </div>
 
                 {/* Search + filter row */}
@@ -179,17 +182,30 @@ export function GameHistoryPage() {
                       onChange={(e) => setGameSearch(e.target.value)}
                     />
                     {gameSearch && (
-                      <button className="ghp-search-clear" onClick={() => setGameSearch('')}>×</button>
+                      <button className="ghp-search-clear" onClick={() => setGameSearch('')}>
+                        ×
+                      </button>
                     )}
                     <button
                       className={`ghp-filter-btn${activeFilterCount > 0 ? ' ghp-filter-btn-active' : ''}`}
-                      onMouseDown={(e) => { e.stopPropagation(); setShowFilters((v) => !v); }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        setShowFilters((v) => !v);
+                      }}
                       title="Filters"
                     >
-                      <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12" aria-hidden="true">
-                        <path d="M1 3h14v1.5L9.5 9v5l-3-1.5V9L1 4.5V3z"/>
+                      <svg
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                        width="12"
+                        height="12"
+                        aria-hidden="true"
+                      >
+                        <path d="M1 3h14v1.5L9.5 9v5l-3-1.5V9L1 4.5V3z" />
                       </svg>
-                      {activeFilterCount > 0 && <span className="ghp-filter-count">{activeFilterCount}</span>}
+                      {activeFilterCount > 0 && (
+                        <span className="ghp-filter-count">{activeFilterCount}</span>
+                      )}
                     </button>
                   </div>
 
@@ -255,14 +271,22 @@ export function GameHistoryPage() {
                       >
                         <div className="history-item-row">
                           <span className="history-item-who">{g.opponentLabel ?? 'Bot'}</span>
-                          <span className={`history-item-result ${g.winner === 0 ? 'result-win' : 'result-lose'}`}>
+                          <span
+                            className={`history-item-result ${g.winner === 0 ? 'result-win' : 'result-lose'}`}
+                          >
                             {g.winner === 0 ? 'Win' : 'Loss'}
                           </span>
                         </div>
                         <div className="history-item-row history-item-meta">
                           <span>
-                            {new Date(g.date).toLocaleDateString([], { month: 'short', day: 'numeric' })}{' '}
-                            {new Date(g.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(g.date).toLocaleDateString([], {
+                              month: 'short',
+                              day: 'numeric',
+                            })}{' '}
+                            {new Date(g.date).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
                           </span>
                         </div>
                       </button>
@@ -274,8 +298,12 @@ export function GameHistoryPage() {
               /* ── Move list ── */
               <>
                 <div className="ghp-header">
-                  <button className="ghp-back-btn" onClick={clearSelection}>← Games</button>
-                  <span className="play-panel-heading" style={{ margin: 0 }}>Moves</span>
+                  <button className="ghp-back-btn" onClick={clearSelection}>
+                    ← Games
+                  </button>
+                  <span className="play-panel-heading" style={{ margin: 0 }}>
+                    Moves
+                  </span>
                 </div>
 
                 <div className="ghp-list" ref={moveListRef}>
@@ -288,7 +316,8 @@ export function GameHistoryPage() {
 
                   {currentGame.moves.map((sm, i) => {
                     const isActive = moveIndex === i + 1;
-                    const who = sm.playerIndex === 0 ? 'You' : (selectedGame?.opponentLabel ?? 'Opponent');
+                    const who =
+                      sm.playerIndex === 0 ? 'You' : (selectedGame?.opponentLabel ?? 'Opponent');
                     return (
                       <button
                         key={i}
@@ -312,7 +341,9 @@ export function GameHistoryPage() {
                   >
                     ←
                   </button>
-                  <span className="ghp-position">{moveIndex} / {totalMoves}</span>
+                  <span className="ghp-position">
+                    {moveIndex} / {totalMoves}
+                  </span>
                   <button
                     className="btn ghp-nav-btn"
                     onClick={() => setMoveIndex((i) => Math.min(totalMoves, i + 1))}
@@ -323,9 +354,7 @@ export function GameHistoryPage() {
                 </div>
               </>
             )}
-
           </div>
-
         </div>
       </div>
     </div>

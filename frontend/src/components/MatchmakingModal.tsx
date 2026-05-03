@@ -2,10 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 
 interface MatchmakingModalProps {
-  timeControl: number;   // 180 | 300 | 600
+  timeControl: number; // 180 | 300 | 600
   displayName: string;
   elo: number;
-  onMatchFound: (gameId: string, opponentName: string, opponentElo: number, playerRole: 0 | 1) => void;
+  onMatchFound: (
+    gameId: string,
+    opponentName: string,
+    opponentElo: number,
+    playerRole: 0 | 1,
+  ) => void;
   onCancel: () => void;
 }
 
@@ -52,7 +57,12 @@ export function MatchmakingModal({
       setCountdown((c) => {
         if (c <= 1) {
           clearInterval(t);
-          onMatchFound(matchInfo.gameId, matchInfo.opponentName, matchInfo.opponentElo, matchInfo.playerRole);
+          onMatchFound(
+            matchInfo.gameId,
+            matchInfo.opponentName,
+            matchInfo.opponentElo,
+            matchInfo.playerRole,
+          );
           return 0;
         }
         return c - 1;
@@ -127,9 +137,7 @@ export function MatchmakingModal({
   return (
     <div className="modal matchmaking-overlay">
       <div className="matchmaking-card">
-        <div className="matchmaking-tc-badge">
-          {TC_LABELS[timeControl] ?? `${timeControl}s`}
-        </div>
+        <div className="matchmaking-tc-badge">{TC_LABELS[timeControl] ?? `${timeControl}s`}</div>
 
         {(phase === 'joining' || phase === 'searching') && (
           <>
@@ -138,8 +146,7 @@ export function MatchmakingModal({
               {phase === 'joining' ? 'Joining queue…' : `Searching${dots}`}
             </h2>
             <p className="matchmaking-sub">
-              Looking for a {TC_LABELS[timeControl]} opponent near{' '}
-              <strong>{elo} ELO</strong>
+              Looking for a {TC_LABELS[timeControl]} opponent near <strong>{elo} ELO</strong>
             </p>
             <button className="btn matchmaking-cancel-btn" onClick={handleCancel}>
               Cancel

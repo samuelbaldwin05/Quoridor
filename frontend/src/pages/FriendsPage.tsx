@@ -111,14 +111,19 @@ export function FriendsPage() {
     }
   }, [myId]);
 
-  useEffect(() => { void loadFriends(); }, [loadFriends]);
+  useEffect(() => {
+    void loadFriends();
+  }, [loadFriends]);
 
   // ── Debounced search ─────────────────────────────────────────────────────
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     const q = searchQuery.trim();
-    if (q.length < 2) { setSearchResults([]); return; }
+    if (q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
     searchTimer.current = setTimeout(async () => {
       setLoadingSearch(true);
       try {
@@ -137,7 +142,8 @@ export function FriendsPage() {
   function setPending(id: string, on: boolean) {
     setPendingActions((prev) => {
       const next = new Set(prev);
-      on ? next.add(id) : next.delete(id);
+      if (on) next.add(id);
+      else next.delete(id);
       return next;
     });
   }
@@ -162,7 +168,7 @@ export function FriendsPage() {
     try {
       await apiFetch(`/api/friends/${friendshipId}/accept`, { method: 'PUT' });
       setFriends((prev) =>
-        prev.map((f) => f.friendship_id === friendshipId ? { ...f, status: 'accepted' } : f),
+        prev.map((f) => (f.friendship_id === friendshipId ? { ...f, status: 'accepted' } : f)),
       );
     } finally {
       setPending(friendshipId, false);
@@ -194,10 +200,16 @@ export function FriendsPage() {
     }
   }
 
-  async function handleAcceptChallenge(challengeId: string, timeControl: number, challengerName: string | null) {
+  async function handleAcceptChallenge(
+    challengeId: string,
+    timeControl: number,
+    challengerName: string | null,
+  ) {
     setPending(`chal-${challengeId}`, true);
     try {
-      const result = await apiFetch<ChallengeEntry>(`/api/challenges/${challengeId}/accept`, { method: 'POST' });
+      const result = await apiFetch<ChallengeEntry>(`/api/challenges/${challengeId}/accept`, {
+        method: 'POST',
+      });
       if (result.game_id) {
         navigate(
           `/game/online/${result.game_id}?role=1&opponent=${encodeURIComponent(challengerName ?? 'Opponent')}&opponentElo=500&tc=${timeControl}`,
@@ -228,7 +240,9 @@ export function FriendsPage() {
   const alreadyFriendIds = new Set(friends.map((f) => f.friend_id));
 
   const filteredAccepted = friendSearch.trim()
-    ? acceptedFriends.filter((f) => displayFor(f).toLowerCase().includes(friendSearch.toLowerCase()))
+    ? acceptedFriends.filter((f) =>
+        displayFor(f).toLowerCase().includes(friendSearch.toLowerCase()),
+      )
     : acceptedFriends;
 
   if (!isLoading && isGuest) return <Navigate to="/login" replace />;
@@ -248,7 +262,9 @@ export function FriendsPage() {
               >
                 Friends{acceptedFriends.length > 0 && ` (${acceptedFriends.length})`}
                 {pendingReceived.length > 0 && (
-                  <span className="nav-badge" style={{ marginLeft: 6 }}>{pendingReceived.length}</span>
+                  <span className="nav-badge" style={{ marginLeft: 6 }}>
+                    {pendingReceived.length}
+                  </span>
                 )}
               </button>
               <button
@@ -273,7 +289,9 @@ export function FriendsPage() {
                     autoFocus
                   />
                   {searchQuery && (
-                    <button className="friends-search-clear" onClick={() => setSearchQuery('')}>×</button>
+                    <button className="friends-search-clear" onClick={() => setSearchQuery('')}>
+                      ×
+                    </button>
                   )}
                 </div>
 
@@ -282,9 +300,11 @@ export function FriendsPage() {
                     <p className="friends-empty">Type at least 2 characters to search.</p>
                   )}
                   {loadingSearch && <p className="friends-empty">Searching…</p>}
-                  {!loadingSearch && searchQuery.trim().length >= 2 && searchResults.length === 0 && (
-                    <p className="friends-empty">No players found.</p>
-                  )}
+                  {!loadingSearch &&
+                    searchQuery.trim().length >= 2 &&
+                    searchResults.length === 0 && (
+                      <p className="friends-empty">No players found.</p>
+                    )}
                   {searchResults.map((user) => {
                     const name = displayFor(user);
                     const isFriend = alreadyFriendIds.has(user.id);
@@ -293,10 +313,15 @@ export function FriendsPage() {
                       <div key={user.id} className="friend-item">
                         <Avatar name={name} />
                         <div className="friend-item-info">
-                          <button className="friend-item-name" onClick={() => navigate(`/profile/${user.id}`)}>
+                          <button
+                            className="friend-item-name"
+                            onClick={() => navigate(`/profile/${user.id}`)}
+                          >
                             {name}
                           </button>
-                          <span className="friend-item-elo" style={{ color: eloColor(user.elo) }}>{user.elo} ELO</span>
+                          <span className="friend-item-elo" style={{ color: eloColor(user.elo) }}>
+                            {user.elo} ELO
+                          </span>
                         </div>
                         <div className="friend-item-actions">
                           {isMe ? (
@@ -324,13 +349,17 @@ export function FriendsPage() {
             {tab === 'friends' && (
               <div className="friends-list-body">
                 {loadingFriends ? (
-                  <p className="friends-empty" style={{ padding: '24px 20px' }}>Loading…</p>
+                  <p className="friends-empty" style={{ padding: '24px 20px' }}>
+                    Loading…
+                  </p>
                 ) : (
                   <>
                     {/* Incoming challenges */}
                     {incomingChallenges.length > 0 && (
                       <div className="friends-section">
-                        <p className="friends-section-label">CHALLENGES ({incomingChallenges.length})</p>
+                        <p className="friends-section-label">
+                          CHALLENGES ({incomingChallenges.length})
+                        </p>
                         {incomingChallenges.map((c) => (
                           <div key={c.id} className="friend-item">
                             <Avatar name={c.challenger_name ?? '?'} />
@@ -338,21 +367,29 @@ export function FriendsPage() {
                               <span className="friend-item-name" style={{ cursor: 'default' }}>
                                 {c.challenger_name ?? 'Unknown'}
                               </span>
-                              <span className="friend-item-elo">{tcLabel(c.time_control)} game</span>
+                              <span className="friend-item-elo">
+                                {tcLabel(c.time_control)} game
+                              </span>
                             </div>
                             <div className="friend-item-actions">
                               <button
                                 className="btn friend-accept-btn"
-                                onClick={() => handleAcceptChallenge(c.id, c.time_control, c.challenger_name)}
+                                onClick={() =>
+                                  handleAcceptChallenge(c.id, c.time_control, c.challenger_name)
+                                }
                                 disabled={pendingActions.has(`chal-${c.id}`)}
                                 title="Accept challenge"
-                              >✓</button>
+                              >
+                                ✓
+                              </button>
                               <button
                                 className="btn friend-decline-btn"
                                 onClick={() => handleDeleteChallenge(c.id)}
                                 disabled={pendingActions.has(`chal-${c.id}`)}
                                 title="Decline"
-                              >✕</button>
+                              >
+                                ✕
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -362,7 +399,9 @@ export function FriendsPage() {
                     {/* Outgoing challenges */}
                     {outgoingChallenges.length > 0 && (
                       <div className="friends-section">
-                        <p className="friends-section-label">SENT CHALLENGES ({outgoingChallenges.length})</p>
+                        <p className="friends-section-label">
+                          SENT CHALLENGES ({outgoingChallenges.length})
+                        </p>
                         {outgoingChallenges.map((c) => (
                           <div key={c.id} className="friend-item">
                             <Avatar name={c.challenged_name ?? '?'} />
@@ -370,7 +409,9 @@ export function FriendsPage() {
                               <span className="friend-item-name" style={{ cursor: 'default' }}>
                                 {c.challenged_name ?? 'Unknown'}
                               </span>
-                              <span className="friend-item-elo">{tcLabel(c.time_control)} game</span>
+                              <span className="friend-item-elo">
+                                {tcLabel(c.time_control)} game
+                              </span>
                             </div>
                             <div className="friend-item-actions">
                               <span className="friend-pending-badge">Pending</span>
@@ -379,7 +420,9 @@ export function FriendsPage() {
                                 onClick={() => handleDeleteChallenge(c.id)}
                                 disabled={pendingActions.has(`chal-${c.id}`)}
                                 title="Cancel"
-                              >✕</button>
+                              >
+                                ✕
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -389,19 +432,40 @@ export function FriendsPage() {
                     {/* Pending friend requests received */}
                     {pendingReceived.length > 0 && (
                       <div className="friends-section">
-                        <p className="friends-section-label">FRIEND REQUESTS ({pendingReceived.length})</p>
+                        <p className="friends-section-label">
+                          FRIEND REQUESTS ({pendingReceived.length})
+                        </p>
                         {pendingReceived.map((f) => (
                           <div key={f.friendship_id} className="friend-item">
                             <Avatar name={displayFor(f)} />
                             <div className="friend-item-info">
-                              <button className="friend-item-name" onClick={() => navigate(`/profile/${f.friend_id}`)}>
+                              <button
+                                className="friend-item-name"
+                                onClick={() => navigate(`/profile/${f.friend_id}`)}
+                              >
                                 {displayFor(f)}
                               </button>
-                              <span className="friend-item-elo" style={{ color: eloColor(f.elo) }}>{f.elo} ELO</span>
+                              <span className="friend-item-elo" style={{ color: eloColor(f.elo) }}>
+                                {f.elo} ELO
+                              </span>
                             </div>
                             <div className="friend-item-actions">
-                              <button className="btn friend-accept-btn" onClick={() => handleAccept(f.friendship_id)} disabled={pendingActions.has(f.friendship_id)} title="Accept">✓</button>
-                              <button className="btn friend-decline-btn" onClick={() => handleDecline(f.friendship_id)} disabled={pendingActions.has(f.friendship_id)} title="Decline">✕</button>
+                              <button
+                                className="btn friend-accept-btn"
+                                onClick={() => handleAccept(f.friendship_id)}
+                                disabled={pendingActions.has(f.friendship_id)}
+                                title="Accept"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                className="btn friend-decline-btn"
+                                onClick={() => handleDecline(f.friendship_id)}
+                                disabled={pendingActions.has(f.friendship_id)}
+                                title="Decline"
+                              >
+                                ✕
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -411,19 +475,33 @@ export function FriendsPage() {
                     {/* Sent requests */}
                     {pendingSent.length > 0 && (
                       <div className="friends-section">
-                        <p className="friends-section-label">SENT REQUESTS ({pendingSent.length})</p>
+                        <p className="friends-section-label">
+                          SENT REQUESTS ({pendingSent.length})
+                        </p>
                         {pendingSent.map((f) => (
                           <div key={f.friendship_id} className="friend-item">
                             <Avatar name={displayFor(f)} />
                             <div className="friend-item-info">
-                              <button className="friend-item-name" onClick={() => navigate(`/profile/${f.friend_id}`)}>
+                              <button
+                                className="friend-item-name"
+                                onClick={() => navigate(`/profile/${f.friend_id}`)}
+                              >
                                 {displayFor(f)}
                               </button>
-                              <span className="friend-item-elo" style={{ color: eloColor(f.elo) }}>{f.elo} ELO</span>
+                              <span className="friend-item-elo" style={{ color: eloColor(f.elo) }}>
+                                {f.elo} ELO
+                              </span>
                             </div>
                             <div className="friend-item-actions">
                               <span className="friend-pending-badge">Pending</span>
-                              <button className="btn friend-decline-btn" onClick={() => handleDecline(f.friendship_id)} disabled={pendingActions.has(f.friendship_id)} title="Cancel">✕</button>
+                              <button
+                                className="btn friend-decline-btn"
+                                onClick={() => handleDecline(f.friendship_id)}
+                                disabled={pendingActions.has(f.friendship_id)}
+                                title="Cancel"
+                              >
+                                ✕
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -433,7 +511,10 @@ export function FriendsPage() {
                     {/* Friend search + list */}
                     {acceptedFriends.length > 0 && (
                       <>
-                        <div className="friends-search-bar-wrap" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div
+                          className="friends-search-bar-wrap"
+                          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                        >
                           <span className="friends-search-icon">🔍</span>
                           <input
                             className="friends-search-input"
@@ -442,18 +523,35 @@ export function FriendsPage() {
                             value={friendSearch}
                             onChange={(e) => setFriendSearch(e.target.value)}
                           />
-                          {friendSearch && <button className="friends-search-clear" onClick={() => setFriendSearch('')}>×</button>}
+                          {friendSearch && (
+                            <button
+                              className="friends-search-clear"
+                              onClick={() => setFriendSearch('')}
+                            >
+                              ×
+                            </button>
+                          )}
                         </div>
                         <div className="friends-section">
-                          <p className="friends-section-label">FRIENDS ({filteredAccepted.length})</p>
+                          <p className="friends-section-label">
+                            FRIENDS ({filteredAccepted.length})
+                          </p>
                           {filteredAccepted.map((f) => (
                             <div key={f.friendship_id} className="friend-item">
                               <Avatar name={displayFor(f)} />
                               <div className="friend-item-info">
-                                <button className="friend-item-name" onClick={() => navigate(`/profile/${f.friend_id}`)}>
+                                <button
+                                  className="friend-item-name"
+                                  onClick={() => navigate(`/profile/${f.friend_id}`)}
+                                >
                                   {displayFor(f)}
                                 </button>
-                                <span className="friend-item-elo" style={{ color: eloColor(f.elo) }}>{f.elo} ELO</span>
+                                <span
+                                  className="friend-item-elo"
+                                  style={{ color: eloColor(f.elo) }}
+                                >
+                                  {f.elo} ELO
+                                </span>
                               </div>
                               <div className="friend-item-actions">
                                 <button
@@ -461,7 +559,9 @@ export function FriendsPage() {
                                   title="Challenge"
                                   disabled={pendingActions.has(`challenge-${f.friend_id}`)}
                                   onClick={() => handleChallenge(f.friend_id)}
-                                >⚔</button>
+                                >
+                                  ⚔
+                                </button>
                               </div>
                             </div>
                           ))}
@@ -469,13 +569,17 @@ export function FriendsPage() {
                       </>
                     )}
 
-                    {acceptedFriends.length === 0 && pendingReceived.length === 0 && incomingChallenges.length === 0 && (
-                      <div className="friends-empty-state">
-                        <span className="friends-empty-emoji">👥</span>
-                        <p className="friends-empty-title">No friends yet</p>
-                        <p className="friends-empty-sub">Use "Find Players" to search by username.</p>
-                      </div>
-                    )}
+                    {acceptedFriends.length === 0 &&
+                      pendingReceived.length === 0 &&
+                      incomingChallenges.length === 0 && (
+                        <div className="friends-empty-state">
+                          <span className="friends-empty-emoji">👥</span>
+                          <p className="friends-empty-title">No friends yet</p>
+                          <p className="friends-empty-sub">
+                            Use "Find Players" to search by username.
+                          </p>
+                        </div>
+                      )}
                   </>
                 )}
               </div>

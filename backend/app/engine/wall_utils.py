@@ -1,4 +1,5 @@
 """Wall geometry helpers — mirrors frontend/src/engine/wallUtils.ts."""
+
 from __future__ import annotations
 
 from collections.abc import Iterable

@@ -49,7 +49,7 @@ export function applyMove(state: GameState, move: Move): MoveResult {
     const isValid = validMoves.some((p) => p.row === move.to.row && p.col === move.to.col);
     if (!isValid) return { valid: false, nextState: state };
 
-    const newPlayers: [typeof state.players[0], typeof state.players[1]] = [
+    const newPlayers: [(typeof state.players)[0], (typeof state.players)[1]] = [
       { ...state.players[0] },
       { ...state.players[1] },
     ];
@@ -75,7 +75,7 @@ export function applyMove(state: GameState, move: Move): MoveResult {
     if (player.wallsRemaining <= 0) return { valid: false, nextState: state };
     if (!isValidWallPlacement(state, move.wall)) return { valid: false, nextState: state };
 
-    const newPlayers: [typeof state.players[0], typeof state.players[1]] = [
+    const newPlayers: [(typeof state.players)[0], (typeof state.players)[1]] = [
       { ...state.players[0] },
       { ...state.players[1] },
     ];
@@ -94,9 +94,10 @@ export function applyMove(state: GameState, move: Move): MoveResult {
 
 export function getValidMoves(state: GameState): Move[] {
   const playerIndex = state.currentPlayerIndex;
-  const pawnMoves = getValidPawnMoves(state, playerIndex).map(
-    (to) => ({ kind: 'pawn' as const, to }),
-  );
+  const pawnMoves = getValidPawnMoves(state, playerIndex).map((to) => ({
+    kind: 'pawn' as const,
+    to,
+  }));
 
   const wallMoves: Move[] = [];
   const player = state.players[playerIndex];

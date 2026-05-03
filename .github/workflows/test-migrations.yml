@@ -1,0 +1,37 @@
+name: Migrations
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+      - 'supabase/seed.sql'
+      - '.github/workflows/migrations.yml'
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+      - 'supabase/seed.sql'
+      - '.github/workflows/migrations.yml'
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local supabase stack
+        run: supabase start
+
+      - name: Reset and re-apply migrations
+        run: supabase db reset --no-seed
+
+      - name: Stop stack
+        if: always()
+        run: supabase stop

@@ -75,13 +75,7 @@ def _get_or_create_user(
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Failed to sync user") from exc
 
-    result = (
-        supabase.table("users")
-        .select("*")
-        .eq("id", str(user_id))
-        .maybe_single()
-        .execute()
-    )
+    result = supabase.table("users").select("*").eq("id", str(user_id)).maybe_single().execute()
     if not result.data:
         raise HTTPException(status_code=500, detail="User not found after upsert")
 

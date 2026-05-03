@@ -20,7 +20,7 @@ function eloColor(elo: number): string {
 }
 
 const SORT_OPTIONS: { id: SortMode; label: string }[] = [
-  { id: 'elo',          label: 'By ELO' },
+  { id: 'elo', label: 'By ELO' },
   { id: 'games_played', label: 'By Games Played' },
 ];
 
@@ -31,6 +31,7 @@ export function LeaderboardPage() {
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     void supabase
       .from('users')
