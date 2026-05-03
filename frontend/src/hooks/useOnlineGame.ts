@@ -35,6 +35,8 @@ interface UseOnlineGameOptions {
   onOpponentResigned: () => void;
   /** Called when the opponent's clock hits 0 — caller should record a win for myRole */
   onOpponentTimeout: () => void;
+  /** Called when the opponent's grace period expired — neither side should record a result */
+  onOpponentAborted: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,6 +50,7 @@ export function useOnlineGame({
   onMoveReceived,
   onOpponentResigned,
   onOpponentTimeout,
+  onOpponentAborted,
 }: UseOnlineGameOptions) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [opponentConnected, setOpponentConnected] = useState(false);
@@ -62,10 +65,12 @@ export function useOnlineGame({
   const onMoveReceivedRef = useRef(onMoveReceived);
   const onOpponentResignedRef = useRef(onOpponentResigned);
   const onOpponentTimeoutRef = useRef(onOpponentTimeout);
+  const onOpponentAbortedRef = useRef(onOpponentAborted);
   useEffect(() => {
     onMoveReceivedRef.current = onMoveReceived;
     onOpponentResignedRef.current = onOpponentResigned;
     onOpponentTimeoutRef.current = onOpponentTimeout;
+    onOpponentAbortedRef.current = onOpponentAborted;
   });
 
   useEffect(() => {
@@ -86,6 +91,9 @@ export function useOnlineGame({
       })
       .on('broadcast', { event: 'timeout' }, () => {
         onOpponentTimeoutRef.current();
+      })
+      .on('broadcast', { event: 'abort' }, () => {
+        onOpponentAbortedRef.current();
       })
       .on('presence', { event: 'sync' }, () => {
         const presenceState = channel.presenceState<{ userId: string }>();
@@ -130,6 +138,14 @@ export function useOnlineGame({
     });
   }
 
+  function broadcastAbort() {
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'abort',
+      payload: {},
+    });
+  }
+
   async function submitResult(winner: 0 | 1, finalTimes?: [number, number], savedGameId?: string) {
     if (resultSubmittedRef.current) return;
     resultSubmittedRef.current = true;
@@ -157,6 +173,7 @@ export function useOnlineGame({
     broadcastMove,
     broadcastResign,
     broadcastTimeout,
+    broadcastAbort,
     submitResult,
   };
 }
