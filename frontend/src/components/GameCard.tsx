@@ -5,6 +5,7 @@ const DIFFICULTY_LABELS: Record<Settings['difficulty'], string> = {
   bot0: 'Easy Bot',
   bot1: 'Medium Bot',
   bot2: 'Hard Bot',
+  extreme: 'Extreme AI',
 };
 
 interface GameCardProps {
