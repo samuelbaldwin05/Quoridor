@@ -9,7 +9,7 @@ import { apiFetch } from '@/lib/api';
 export interface UserProfile {
   id: string;
   email: string;
-  display_name: string;  // google name, never overwritten
+  display_name: string; // google name, never overwritten
   username: string | null;
   elo: number;
   games_played: number;
@@ -53,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (getDevToken()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAuthMode('dev');
       fetchProfile().finally(() => setIsLoading(false));
       return;
@@ -69,7 +70,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session) {
@@ -83,7 +86,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function signInWithGoogle(): Promise<void> {

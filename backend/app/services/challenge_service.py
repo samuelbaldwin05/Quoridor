@@ -16,7 +16,10 @@ def list_mine(client: Client, user_id: UUID) -> list[ChallengeRead]:
 
 
 def send(
-    client: Client, challenger_id: UUID, challenged_id: UUID, time_control: int,
+    client: Client,
+    challenger_id: UUID,
+    challenged_id: UUID,
+    time_control: int,
 ) -> ChallengeRead:
     if challenger_id == challenged_id:
         raise ConflictError("cannot challenge yourself")

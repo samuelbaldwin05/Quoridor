@@ -28,13 +28,7 @@ def record_game_result(
     happen in one transaction. Idempotent: a second caller for an already
     finished game gets the stored result back.
     """
-    result = (
-        supabase.table("games")
-        .select("*")
-        .eq("id", str(game_id))
-        .limit(1)
-        .execute()
-    )
+    result = supabase.table("games").select("*").eq("id", str(game_id)).limit(1).execute()
     if not result.data:
         raise NotFoundError("game not found")
 
@@ -91,17 +85,20 @@ def record_game_result(
     new_elo_p2 = new_loser_elo if is_p1_winner else new_winner_elo
 
     try:
-        supabase.rpc("submit_game_result", {
-            "p_game_id": str(game_id),
-            "p_winner_user_id": winner_id,
-            "p_loser_user_id": loser_id,
-            "p_winner_index": body.winner_index,
-            "p_new_winner_elo": new_winner_elo,
-            "p_new_loser_elo": new_loser_elo,
-            "p_elo_change_p1": elo_change_p1,
-            "p_elo_change_p2": elo_change_p2,
-            "p_move_history": body.move_history,
-        }).execute()
+        supabase.rpc(
+            "submit_game_result",
+            {
+                "p_game_id": str(game_id),
+                "p_winner_user_id": winner_id,
+                "p_loser_user_id": loser_id,
+                "p_winner_index": body.winner_index,
+                "p_new_winner_elo": new_winner_elo,
+                "p_new_loser_elo": new_loser_elo,
+                "p_elo_change_p1": elo_change_p1,
+                "p_elo_change_p2": elo_change_p2,
+                "p_move_history": body.move_history,
+            },
+        ).execute()
     except Exception as exc:
         msg = str(exc).lower()
         if "not found" in msg or "p0002" in msg:

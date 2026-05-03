@@ -1,4 +1,5 @@
 """Minimal structured-logging setup. Stdlib only — no third-party deps."""
+
 from __future__ import annotations
 
 import json
@@ -32,10 +33,28 @@ class JsonFormatter(logging.Formatter):
             if key in payload or key.startswith("_"):
                 continue
             if key in {
-                "args", "msg", "levelname", "levelno", "pathname", "filename",
-                "module", "exc_info", "exc_text", "stack_info", "lineno", "funcName",
-                "created", "msecs", "relativeCreated", "thread", "threadName",
-                "processName", "process", "name", "message", "taskName",
+                "args",
+                "msg",
+                "levelname",
+                "levelno",
+                "pathname",
+                "filename",
+                "module",
+                "exc_info",
+                "exc_text",
+                "stack_info",
+                "lineno",
+                "funcName",
+                "created",
+                "msecs",
+                "relativeCreated",
+                "thread",
+                "threadName",
+                "processName",
+                "process",
+                "name",
+                "message",
+                "taskName",
             }:
                 continue
             payload[key] = value

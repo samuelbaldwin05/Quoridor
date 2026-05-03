@@ -1,0 +1,22 @@
+name: Test Frontend
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  vitest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+
+      - name: Vitest
+        working-directory: frontend
+        run: bun run test:run

@@ -8,6 +8,7 @@ Frontend convention (see GameRightPanel.tsx moveNotation):
 
 Walls store engine row in 0..7; notation rank for walls is therefore 2..9.
 """
+
 from __future__ import annotations
 
 import re

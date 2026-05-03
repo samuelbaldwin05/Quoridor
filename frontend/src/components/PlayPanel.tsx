@@ -14,8 +14,8 @@ const BOT_OPTIONS: { id: Settings['difficulty']; label: string; desc: string }[]
 ];
 
 const TIME_CONTROLS: { seconds: number; label: string; sub: string }[] = [
-  { seconds: 180, label: '3 min',  sub: 'Blitz' },
-  { seconds: 300, label: '5 min',  sub: 'Rapid' },
+  { seconds: 180, label: '3 min', sub: 'Blitz' },
+  { seconds: 300, label: '5 min', sub: 'Rapid' },
   { seconds: 600, label: '10 min', sub: 'Classic' },
 ];
 
@@ -44,13 +44,17 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
       setShowMatchmaking(true);
       return;
     }
-    const gameMode: Settings['gameMode'] = mode === 'vs-bot' || mode === 'pass-and-play'
-      ? mode
-      : 'vs-bot';
+    const gameMode: Settings['gameMode'] =
+      mode === 'vs-bot' || mode === 'pass-and-play' ? mode : 'vs-bot';
     onPlay(difficulty, gameMode);
   }
 
-  function handleMatchFound(gameId: string, opponentName: string, opponentElo: number, playerRole: 0 | 1) {
+  function handleMatchFound(
+    gameId: string,
+    opponentName: string,
+    opponentElo: number,
+    playerRole: 0 | 1,
+  ) {
     setShowMatchmaking(false);
     navigate(
       `/game/online/${gameId}?role=${playerRole}&opponent=${encodeURIComponent(opponentName)}&opponentElo=${opponentElo}&tc=${timeControl}`,
@@ -81,7 +85,7 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
             {/* Online — locked for guests */}
             <button
               className={`play-mode-option play-mode-online${mode === 'online' ? ' play-mode-active' : ''}${isGuest ? ' play-mode-locked' : ''}`}
-              onClick={() => isGuest ? navigate('/login') : setMode('online')}
+              onClick={() => (isGuest ? navigate('/login') : setMode('online'))}
             >
               {isGuest ? (
                 <span className="play-mode-lock-label">

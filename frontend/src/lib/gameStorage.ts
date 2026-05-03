@@ -36,5 +36,10 @@ export function loadGame(id: string): SavedGame | null {
 }
 
 export function listGames(): Omit<SavedGame, 'moves'>[] {
-  return loadAll().map(({ id, date, winner, opponentLabel }) => ({ id, date, winner, opponentLabel }));
+  return loadAll().map(({ id, date, winner, opponentLabel }) => ({
+    id,
+    date,
+    winner,
+    opponentLabel,
+  }));
 }

@@ -12,9 +12,18 @@ export function UsernameSetupPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = username.trim();
-    if (trimmed.length < 3) { setError('At least 3 characters required.'); return; }
-    if (trimmed.length > 24) { setError('24 characters max.'); return; }
-    if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) { setError('Letters, numbers, and underscores only.'); return; }
+    if (trimmed.length < 3) {
+      setError('At least 3 characters required.');
+      return;
+    }
+    if (trimmed.length > 24) {
+      setError('24 characters max.');
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) {
+      setError('Letters, numbers, and underscores only.');
+      return;
+    }
 
     setSaving(true);
     setError('');
@@ -22,7 +31,11 @@ export function UsernameSetupPage() {
       await updateUsername(trimmed);
       navigate('/', { replace: true });
     } catch (err) {
-      setError(err instanceof Error && err.message.includes('409') ? 'Username already taken.' : 'Something went wrong.');
+      setError(
+        err instanceof Error && err.message.includes('409')
+          ? 'Username already taken.'
+          : 'Something went wrong.',
+      );
     } finally {
       setSaving(false);
     }
@@ -44,14 +57,21 @@ export function UsernameSetupPage() {
             type="text"
             placeholder="e.g. quoridor_king"
             value={username}
-            onChange={(e) => { setUsername(e.target.value); setError(''); }}
+            onChange={(e) => {
+              setUsername(e.target.value);
+              setError('');
+            }}
             maxLength={24}
             autoFocus
             spellCheck={false}
           />
           {error && <p className="setup-error">{error}</p>}
           <p className="setup-hint">3–24 characters. Letters, numbers, underscores.</p>
-          <button className="btn btn-primary setup-submit" type="submit" disabled={saving || username.trim().length < 3}>
+          <button
+            className="btn btn-primary setup-submit"
+            type="submit"
+            disabled={saving || username.trim().length < 3}
+          >
             {saving ? 'Saving…' : 'Set username'}
           </button>
         </form>

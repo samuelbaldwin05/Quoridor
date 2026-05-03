@@ -16,9 +16,9 @@ from app.schemas.user import UserRead
 
 router = APIRouter(prefix="/matchmaking", tags=["matchmaking"])
 
-ELO_BAND_BASE = 100     # band at t=0
-ELO_BAND_SCALE = 0.5   # coefficient for quadratic growth (50 ELO after 10s)
-ELO_BAND_MAX = 2500    # hard cap (~70s to reach)
+ELO_BAND_BASE = 100  # band at t=0
+ELO_BAND_SCALE = 0.5  # coefficient for quadratic growth (50 ELO after 10s)
+ELO_BAND_MAX = 2500  # hard cap (~70s to reach)
 
 
 def _compute_elo_band(joined_at_iso: str) -> int:
@@ -29,15 +29,15 @@ def _compute_elo_band(joined_at_iso: str) -> int:
         elapsed = max(0, (datetime.now(UTC) - joined_at).total_seconds())
     except ValueError:
         elapsed = 0
-    return min(ELO_BAND_MAX, ELO_BAND_BASE + int(ELO_BAND_SCALE * elapsed ** 2))
+    return min(ELO_BAND_MAX, ELO_BAND_BASE + int(ELO_BAND_SCALE * elapsed**2))
 
 
 class JoinQueueRequest(BaseModel):
-    time_control: int   # 180 | 300 | 600 seconds
+    time_control: int  # 180 | 300 | 600 seconds
 
 
 class QueueStatus(BaseModel):
-    status: str                    # "waiting" | "matched" | "not_in_queue"
+    status: str  # "waiting" | "matched" | "not_in_queue"
     matched_game_id: str | None = None
     opponent_name: str | None = None
     opponent_elo: int | None = None
@@ -45,7 +45,10 @@ class QueueStatus(BaseModel):
 
 
 def _try_match(
-    client: Client, user: UserRead, time_control: int, elo_band: int,
+    client: Client,
+    user: UserRead,
+    time_control: int,
+    elo_band: int,
 ) -> QueueStatus | None:
     """Atomically claim a waiting opponent and create a game.
 
@@ -54,13 +57,16 @@ def _try_match(
     same opponent (FOR UPDATE SKIP LOCKED inside the function).
     """
     try:
-        resp = client.rpc("match_in_queue", {
-            "p_user_id": str(user.id),
-            "p_time_control": time_control,
-            "p_user_elo": user.elo,
-            "p_elo_band": elo_band,
-            "p_display_name": user.display_name,
-        }).execute()
+        resp = client.rpc(
+            "match_in_queue",
+            {
+                "p_user_id": str(user.id),
+                "p_time_control": time_control,
+                "p_user_elo": user.elo,
+                "p_elo_band": elo_band,
+                "p_display_name": user.display_name,
+            },
+        ).execute()
     except Exception as exc:
         raise DatabaseError("matchmaking rpc failed") from exc
 

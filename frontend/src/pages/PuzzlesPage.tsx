@@ -14,7 +14,7 @@ interface Puzzle {
   difficulty: 'easy' | 'medium' | 'hard';
   objective: string;
   initialState: GameState;
-  solutions: Move[];  // any of these is correct
+  solutions: Move[]; // any of these is correct
 }
 
 // ── Wall helper ───────────────────────────────────────────────────────────────
@@ -37,10 +37,7 @@ const PUZZLES: Puzzle[] = [
         { position: { row: 2, col: 4 }, wallsRemaining: 6, goalRow: 0 },
         { position: { row: 1, col: 4 }, wallsRemaining: 6, goalRow: 8 },
       ],
-      walls: [
-        w(3, 2, 'h'), w(3, 5, 'h'),
-        w(5, 3, 'v'), w(5, 5, 'v'),
-      ],
+      walls: [w(3, 2, 'h'), w(3, 5, 'h'), w(5, 3, 'v'), w(5, 5, 'v')],
       currentPlayerIndex: 0,
       status: 'playing',
       winner: null,
@@ -61,9 +58,9 @@ const PUZZLES: Puzzle[] = [
         { position: { row: 0, col: 4 }, wallsRemaining: 7, goalRow: 8 },
       ],
       walls: [
-        w(0, 3, 'v'),   // blocks left diagonal (0,4)→(0,3)
-        w(2, 3, 'h'),   // visual complexity
-        w(2, 5, 'h'),   // visual complexity
+        w(0, 3, 'v'), // blocks left diagonal (0,4)→(0,3)
+        w(2, 3, 'h'), // visual complexity
+        w(2, 5, 'h'), // visual complexity
         w(4, 2, 'v'),
       ],
       currentPlayerIndex: 0,
@@ -86,7 +83,7 @@ const PUZZLES: Puzzle[] = [
         { position: { row: 0, col: 7 }, wallsRemaining: 5, goalRow: 8 },
       ],
       walls: [
-        w(0, 7, 'v'),   // blocks right diagonal (0,7)→(0,8)
+        w(0, 7, 'v'), // blocks right diagonal (0,7)→(0,8)
         w(2, 5, 'h'),
         w(3, 6, 'v'),
         w(4, 5, 'h'),
@@ -115,8 +112,8 @@ const PUZZLES: Puzzle[] = [
         { position: { row: 0, col: 1 }, wallsRemaining: 4, goalRow: 8 },
       ],
       walls: [
-        w(0, 1, 'v'),   // blocks right diagonal jump (0,1)→(0,2)
-        w(1, 0, 'v'),   // red herring: blocks lateral step left but NOT the jump landing
+        w(0, 1, 'v'), // blocks right diagonal jump (0,1)→(0,2)
+        w(1, 0, 'v'), // red herring: blocks lateral step left but NOT the jump landing
         w(2, 1, 'h'),
         w(3, 2, 'v'),
         w(4, 0, 'h'),
@@ -145,12 +142,12 @@ const PUZZLES: Puzzle[] = [
         { position: { row: 0, col: 4 }, wallsRemaining: 4, goalRow: 8 },
       ],
       walls: [
-        w(0, 3, 'v'),   // blocks left diagonal jump (0,4)→(0,3)
-        w(1, 3, 'v'),   // red herring: blocks lateral step (1,4)→(1,3)
-        w(2, 3, 'h'),   // visual noise
-        w(1, 5, 'h'),   // blocks (2,5)→(1,5) — visual noise
-        w(3, 4, 'v'),   // visual noise
-        w(4, 3, 'v'),   // visual noise
+        w(0, 3, 'v'), // blocks left diagonal jump (0,4)→(0,3)
+        w(1, 3, 'v'), // red herring: blocks lateral step (1,4)→(1,3)
+        w(2, 3, 'h'), // visual noise
+        w(1, 5, 'h'), // blocks (2,5)→(1,5) — visual noise
+        w(3, 4, 'v'), // visual noise
+        w(4, 3, 'v'), // visual noise
       ],
       currentPlayerIndex: 0,
       status: 'playing',
@@ -250,10 +247,7 @@ export function PuzzlesPage() {
 
       <div className="main-content">
         <div className="board-section">
-          <GameCard
-            opponentLabel="Puzzle"
-            gameStatus={puzzleState.status}
-          >
+          <GameCard opponentLabel="Puzzle" gameStatus={puzzleState.status}>
             <div className="board-wrapper">
               <GameBoard
                 gameState={puzzleState}
@@ -298,7 +292,10 @@ export function PuzzlesPage() {
                 </button>
               </div>
 
-              <div className="puzzle-difficulty-badge" style={{ color: diffColor, borderColor: diffColor }}>
+              <div
+                className="puzzle-difficulty-badge"
+                style={{ color: diffColor, borderColor: diffColor }}
+              >
                 {currentPuzzle.difficulty.toUpperCase()}
               </div>
 
@@ -307,15 +304,12 @@ export function PuzzlesPage() {
               <p className="puzzle-description">{currentPuzzle.description}</p>
 
               <div className="puzzle-hint">
-                <span className="puzzle-hint-label">Objective:</span>{' '}
-                {currentPuzzle.objective}
+                <span className="puzzle-hint-label">Objective:</span> {currentPuzzle.objective}
               </div>
             </div>
 
             <div className="puzzle-panel-footer">
-              {status === 'idle' && (
-                <p className="puzzle-waiting">Make your move on the board.</p>
-              )}
+              {status === 'idle' && <p className="puzzle-waiting">Make your move on the board.</p>}
               {status === 'correct' && (
                 <div className="puzzle-result puzzle-correct">
                   <span className="puzzle-result-icon">✓</span>

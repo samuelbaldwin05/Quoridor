@@ -13,7 +13,8 @@ endif
 .PHONY: help init dev up down restart rebuild logs clean \
         backend-shell frontend-shell db-shell db-reset \
         lint-backend format-backend test-backend \
-        lint-frontend migrate seed
+        lint-frontend format-frontend test-frontend \
+        ci migrate seed
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 help: ## Show this help message
@@ -43,7 +44,12 @@ help: ## Show this help message
 	@echo "    make test-backend   Run pytest"
 	@echo ""
 	@echo "  Frontend"
-	@echo "    make lint-frontend  ESLint + tsc check"
+	@echo "    make lint-frontend  tsc + ESLint + Prettier check"
+	@echo "    make format-frontend Auto-format (Prettier)"
+	@echo "    make test-frontend  Run Vitest"
+	@echo ""
+	@echo "  CI"
+	@echo "    make ci             Run linting and testing for frontend and backend"
 	@echo ""
 	@echo "  Database"
 	@echo "    make db-reset       Wipe DB, rerun migrations + seed (supabase db reset)"
@@ -118,8 +124,21 @@ test-backend: ## Run pytest
 	cd backend && uv run pytest
 
 # ── Frontend ─────────────────────────────────────────────────────────────────
-lint-frontend: ## ESLint + tsc check
-	cd frontend && bun run tsc --noEmit && bun run lint
+lint-frontend: ## tsc + ESLint + Prettier check
+	cd frontend && bun run tsc --noEmit && bun run lint && bun run format:check
+
+format-frontend: ## Auto-format with Prettier
+	cd frontend && bun run format
+
+test-frontend: ## Run Vitest
+	cd frontend && bun run test:run
+
+# ── CI ───────────────────────────────────────────────────────────────────────
+ci: ## Run linting and testing checks
+	@$(MAKE) lint-backend
+	@$(MAKE) lint-frontend
+	@$(MAKE) test-backend
+	@$(MAKE) test-frontend
 
 # ── Database ─────────────────────────────────────────────────────────────────
 db-reset: ## Wipe DB and rerun all migrations + seed.sql

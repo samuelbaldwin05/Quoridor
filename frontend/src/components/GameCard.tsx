@@ -50,9 +50,7 @@ export function GameCard({
         {topRight && <span className="game-card-header-right">{topRight}</span>}
       </div>
 
-      <div className="game-card-body">
-        {children}
-      </div>
+      <div className="game-card-body">{children}</div>
 
       <div className="game-card-footer">
         <span>{bottomLabel}</span>

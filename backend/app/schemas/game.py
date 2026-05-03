@@ -27,7 +27,9 @@ class GameStatus(StrEnum):
 # (engine row 0..7) but matching it here makes invalid notation fail at the
 # request boundary instead of inside the engine.
 _NOTATION_RE = re.compile(r"^[a-i][1-9][hv]?$")
-MoveNotation = Annotated[str, StringConstraints(pattern=r"^[a-i][1-9][hv]?$", strip_whitespace=True)]
+MoveNotation = Annotated[
+    str, StringConstraints(pattern=r"^[a-i][1-9][hv]?$", strip_whitespace=True)
+]
 
 
 class GameCreate(BaseModel):

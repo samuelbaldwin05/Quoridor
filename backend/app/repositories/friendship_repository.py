@@ -87,13 +87,7 @@ def accept_friendship(client: Client, friendship_id: UUID, user_id: UUID) -> Fri
     uid = str(user_id)
 
     try:
-        fetch_resp = (
-            client.table("friendships")
-            .select("*")
-            .eq("id", fid)
-            .maybe_single()
-            .execute()
-        )
+        fetch_resp = client.table("friendships").select("*").eq("id", fid).maybe_single().execute()
     except Exception as exc:
         raise DatabaseError("friendship fetch failed") from exc
 
