@@ -12,6 +12,7 @@ from app.core.dependencies import get_supabase
 from app.core.exceptions import DatabaseError
 from app.core.rate_limit import limiter
 from app.repositories import challenge_repository
+from app.repositories._pg_errors import is_unique_violation
 from app.schemas.user import UserRead
 
 router = APIRouter(prefix="/matchmaking", tags=["matchmaking"])
@@ -121,7 +122,11 @@ def join_queue(
     try:
         client.table("matchmaking_queue").insert(entry).execute()
     except Exception as exc:
-        raise DatabaseError("queue insert failed") from exc
+        # React strict-mode dev double-mounts and other client retries can race
+        # two /join calls past the existence check. The DB unique constraint on
+        # player_key catches it; treat that as idempotent and fall through.
+        if not is_unique_violation(exc):
+            raise DatabaseError("queue insert failed") from exc
 
     challenge_repository.cancel_challenges_for_user(client, user.id)
 
