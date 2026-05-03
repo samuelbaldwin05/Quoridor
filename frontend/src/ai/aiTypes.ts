@@ -1,6 +1,6 @@
 import type { Move, Position } from '@/engine/gameTypes';
 
-export type BotDifficulty = 'bot0' | 'bot1' | 'bot2';
+export type BotDifficulty = 'bot0' | 'bot1' | 'bot2' | 'extreme';
 
 export interface AiDecision {
   move: Move;
@@ -21,17 +21,19 @@ export interface Bot2Context {
 export type AiContext =
   | { difficulty: 'bot0' }
   | { difficulty: 'bot1'; bot1: Bot1Context }
-  | { difficulty: 'bot2'; bot2: Bot2Context };
+  | { difficulty: 'bot2'; bot2: Bot2Context }
+  | { difficulty: 'extreme' };
 
 export function createAiContext(difficulty: BotDifficulty): AiContext {
   if (difficulty === 'bot0') {
     return { difficulty: 'bot0' };
   } else if (difficulty === 'bot1') {
     return { difficulty: 'bot1', bot1: { moveCount: 0, previousPosition: null } };
-  } else {
+  } else if (difficulty === 'bot2') {
     return {
       difficulty: 'bot2',
       bot2: { moveCount: 0, openingPattern: null, openingStep: 0 },
     };
   }
+  return { difficulty: 'extreme' };
 }
