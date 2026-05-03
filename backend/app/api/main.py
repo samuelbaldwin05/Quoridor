@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.api import auth, challenges, friends, games, matchmaking, users
+from app.api import ai, auth, challenges, friends, games, matchmaking, users
 from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
@@ -66,6 +66,7 @@ app.include_router(friends.router)
 app.include_router(challenges.router)
 app.include_router(matchmaking.router)
 app.include_router(games.router)
+app.include_router(ai.router)
 
 
 @app.get("/health")
