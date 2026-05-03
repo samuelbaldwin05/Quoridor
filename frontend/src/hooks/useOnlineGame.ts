@@ -33,6 +33,8 @@ interface UseOnlineGameOptions {
   onMoveReceived: (move: Move, opponentIndex: PlayerIndex) => void;
   /** Called when the opponent resigns */
   onOpponentResigned: () => void;
+  /** Called when the opponent's clock hits 0 — caller should record a win for myRole */
+  onOpponentTimeout: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -45,6 +47,7 @@ export function useOnlineGame({
   myUserId,
   onMoveReceived,
   onOpponentResigned,
+  onOpponentTimeout,
 }: UseOnlineGameOptions) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [opponentConnected, setOpponentConnected] = useState(false);
@@ -58,9 +61,11 @@ export function useOnlineGame({
   // ref.current at fire time, so a one-frame lag here is fine.
   const onMoveReceivedRef = useRef(onMoveReceived);
   const onOpponentResignedRef = useRef(onOpponentResigned);
+  const onOpponentTimeoutRef = useRef(onOpponentTimeout);
   useEffect(() => {
     onMoveReceivedRef.current = onMoveReceived;
     onOpponentResignedRef.current = onOpponentResigned;
+    onOpponentTimeoutRef.current = onOpponentTimeout;
   });
 
   useEffect(() => {
@@ -78,6 +83,9 @@ export function useOnlineGame({
       })
       .on('broadcast', { event: 'resign' }, () => {
         onOpponentResignedRef.current();
+      })
+      .on('broadcast', { event: 'timeout' }, () => {
+        onOpponentTimeoutRef.current();
       })
       .on('presence', { event: 'sync' }, () => {
         const presenceState = channel.presenceState<{ userId: string }>();
@@ -114,6 +122,14 @@ export function useOnlineGame({
     });
   }
 
+  function broadcastTimeout() {
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'timeout',
+      payload: { playerIndex: myRole },
+    });
+  }
+
   async function submitResult(winner: 0 | 1, finalTimes?: [number, number], savedGameId?: string) {
     if (resultSubmittedRef.current) return;
     resultSubmittedRef.current = true;
@@ -140,6 +156,7 @@ export function useOnlineGame({
     result,
     broadcastMove,
     broadcastResign,
+    broadcastTimeout,
     submitResult,
   };
 }

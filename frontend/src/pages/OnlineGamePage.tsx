@@ -82,7 +82,7 @@ export function OnlineGamePage() {
   useTheme(state.settings.theme);
   const audio = useAudio(state.settings.soundEnabled, state.settings.volume);
 
-  const { result, broadcastMove, broadcastResign, submitResult } = useOnlineGame({
+  const { result, broadcastMove, broadcastResign, broadcastTimeout, submitResult } = useOnlineGame({
     gameId: gameId ?? '',
     myRole,
     myUserId,
@@ -101,6 +101,9 @@ export function OnlineGamePage() {
       [dispatch, audio, myRole],
     ),
     onOpponentResigned: useCallback(() => {
+      dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
+    }, [dispatch, myRole]),
+    onOpponentTimeout: useCallback(() => {
       dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
     }, [dispatch, myRole]),
   });
@@ -139,6 +142,17 @@ export function OnlineGamePage() {
     }, 1000);
     return () => clearInterval(t);
   }, [state.game.status, state.game.currentPlayerIndex]);
+
+  // Detect MY clock hitting 0 → broadcast timeout to the opponent + record loss locally.
+  // Only the player whose clock ran out fires this; the opponent receives via the
+  // 'timeout' realtime event and dispatches the win for themselves.
+  useEffect(() => {
+    if (state.game.status !== 'playing') return;
+    if (times[myRole] > 0) return;
+    broadcastTimeout();
+    const opponent: 0 | 1 = myRole === 0 ? 1 : 0;
+    dispatch({ type: 'RESIGN_ONLINE', winner: opponent });
+  }, [times, myRole, state.game.status, broadcastTimeout, dispatch]);
 
   // Auto-scroll move list to bottom when live
   useEffect(() => {

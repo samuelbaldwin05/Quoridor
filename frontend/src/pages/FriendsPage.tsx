@@ -86,33 +86,40 @@ export function FriendsPage() {
 
   // ── Data loading ─────────────────────────────────────────────────────────
 
-  const loadFriends = useCallback(async () => {
-    if (!myId) return;
-    setLoadingFriends(true);
-    try {
-      const [friendData, challengeData] = await Promise.all([
-        apiFetch<ApiFriend[]>('/api/friends/'),
-        apiFetch<ChallengeEntry[]>('/api/challenges/'),
-      ]);
-      setFriends(
-        friendData.map((f) => {
-          let status: FriendEntry['status'];
-          if (f.status === 'accepted') status = 'accepted';
-          else if (f.requester_id === myId) status = 'pending_sent';
-          else status = 'pending_received';
-          return { ...f, status };
-        }),
-      );
-      setChallenges(challengeData);
-    } catch {
-      // silently handle
-    } finally {
-      setLoadingFriends(false);
-    }
-  }, [myId]);
+  const loadFriends = useCallback(
+    async (silent = false) => {
+      if (!myId) return;
+      if (!silent) setLoadingFriends(true);
+      try {
+        const [friendData, challengeData] = await Promise.all([
+          apiFetch<ApiFriend[]>('/api/friends/'),
+          apiFetch<ChallengeEntry[]>('/api/challenges/'),
+        ]);
+        setFriends(
+          friendData.map((f) => {
+            let status: FriendEntry['status'];
+            if (f.status === 'accepted') status = 'accepted';
+            else if (f.requester_id === myId) status = 'pending_sent';
+            else status = 'pending_received';
+            return { ...f, status };
+          }),
+        );
+        setChallenges(challengeData);
+      } catch {
+        // silently handle
+      } finally {
+        if (!silent) setLoadingFriends(false);
+      }
+    },
+    [myId],
+  );
 
+  // Initial load + 5s background poll so incoming requests/challenges show up
+  // without needing a page interaction.
   useEffect(() => {
-    void loadFriends();
+    void loadFriends(false);
+    const interval = setInterval(() => void loadFriends(true), 5000);
+    return () => clearInterval(interval);
   }, [loadFriends]);
 
   // ── Debounced search ─────────────────────────────────────────────────────
