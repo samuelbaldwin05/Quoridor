@@ -44,10 +44,10 @@ export function UsernameSetupPage() {
   return (
     <div className="setup-page flex-center">
       <div className="setup-card">
-        <div className="setup-avatar">{(profile?.display_name ?? '?')[0].toUpperCase()}</div>
+        <div className="setup-avatar">?</div>
         <h2 className="setup-title">Choose a username</h2>
         <p className="setup-sub">
-          Welcome, <strong>{profile?.display_name ?? 'Player'}</strong>!<br />
+          Welcome!<br />
           Pick a unique username — this is how others will find you.
         </p>
 

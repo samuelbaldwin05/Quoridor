@@ -66,25 +66,53 @@ def _get_or_create_user(
     email: str,
     display_name: str,
 ) -> UserRead:
+    """SELECT-then-INSERT/UPDATE — avoids `upsert`'s email-conflict footgun.
+
+    Upsert with `on_conflict=id` issues an UPDATE on every existing-user hit,
+    which tries to overwrite `email`; PostgREST then rejects with 409 if
+    *any* unrelated row holds that email. We never need to change a user's
+    email after first creation, so the cleaner path is:
+      - exists by id  → UPDATE display_name only (skip email entirely)
+      - missing       → INSERT new row
+    """
+    uid = str(user_id)
+
     try:
-        # Only upsert google-owned fields — never overwrite username (user-set).
-        # last_seen_at gets bumped on every authed request, doubling as a
-        # cheap presence heartbeat for cleanup_stale_challenges().
-        supabase.table("users").upsert(
-            {
-                "id": str(user_id),
-                "email": email,
-                "display_name": display_name,
-                "last_seen_at": datetime.now(UTC).isoformat(),
-            },
-            on_conflict="id",
-            ignore_duplicates=False,
+        existing = (
+            supabase.table("users").select("*").eq("id", uid).maybe_single().execute()
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to fetch user") from exc
+
+    if existing.data:
+        # Refresh display name in case Google changed it; never touch email or username.
+        try:
+            supabase.table("users").update({"display_name": display_name}).eq(
+                "id", uid
+            ).execute()
+        except Exception:
+            pass
+        # Heartbeat for cleanup_stale_challenges(). Best-effort.
+        try:
+            supabase.table("users").update(
+                {"last_seen_at": datetime.now(UTC).isoformat()}
+            ).eq("id", uid).execute()
+        except Exception:
+            pass
+
+        refreshed = (
+            supabase.table("users").select("*").eq("id", uid).maybe_single().execute()
+        )
+        return UserRead(**(refreshed.data or existing.data))
+
+    try:
+        supabase.table("users").insert(
+            {"id": uid, "email": email, "display_name": display_name}
         ).execute()
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Failed to sync user") from exc
+        raise HTTPException(status_code=500, detail="Failed to create user") from exc
 
-    result = supabase.table("users").select("*").eq("id", str(user_id)).maybe_single().execute()
+    result = supabase.table("users").select("*").eq("id", uid).maybe_single().execute()
     if not result.data:
-        raise HTTPException(status_code=500, detail="User not found after upsert")
-
+        raise HTTPException(status_code=500, detail="User not found after insert")
     return UserRead(**result.data)

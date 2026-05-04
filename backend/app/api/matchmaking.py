@@ -57,6 +57,8 @@ def _try_match(
     Backed by public.match_in_queue() — concurrent callers cannot pair with the
     same opponent (FOR UPDATE SKIP LOCKED inside the function).
     """
+    # Show the username to the opponent rather than the Google display name.
+    visible_name = user.username or user.display_name
     try:
         resp = client.rpc(
             "match_in_queue",
@@ -65,7 +67,7 @@ def _try_match(
                 "p_time_control": time_control,
                 "p_user_elo": user.elo,
                 "p_elo_band": elo_band,
-                "p_display_name": user.display_name,
+                "p_display_name": visible_name,
             },
         ).execute()
     except Exception as exc:
@@ -113,7 +115,10 @@ def join_queue(
         "id": str(uuid.uuid4()),
         "player_key": player_key,
         "user_id": str(user.id),
-        "display_name": user.display_name,
+        # Stored as the queue row's `display_name`, but the value is the
+        # username when set. The queue table column was named before
+        # usernames existed; renaming would be churn for no value.
+        "display_name": user.username or user.display_name,
         "time_control": body.time_control,
         "elo": user.elo,
         "status": "waiting",

@@ -164,9 +164,6 @@ export function ProfilePage() {
                 <div className="profile-avatar-lg">{displayName[0]?.toUpperCase()}</div>
                 <div className="profile-header-info">
                   <h2 className="profile-username">{displayName}</h2>
-                  {profile.username && (
-                    <p className="profile-google-name">{profile.display_name}</p>
-                  )}
                   <p className="profile-elo" style={{ color: eloColor(profile.elo) }}>
                     {profile.elo} ELO
                   </p>

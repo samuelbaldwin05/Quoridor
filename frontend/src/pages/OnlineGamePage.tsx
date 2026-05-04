@@ -257,9 +257,14 @@ export function OnlineGamePage() {
   // Keep resign ref current so the away-timer can call it without stale closures
   handleResignRef.current = handleResign;
 
-  // Auto-resign when the player hides the tab for 10 seconds
+  // Auto-resign when the player hides the tab for 10 seconds.
+  // Skipped during the 20s grace window (no moves yet) and after abort, so
+  // backgrounding a tab while waiting on the first move can't snipe the
+  // grace timer and turn an abort into a loss.
   useEffect(() => {
     if (state.game.status !== 'playing') return;
+    if (state.moveHistory.length === 0) return;
+    if (aborted) return;
 
     let intervalId: ReturnType<typeof setInterval> | null = null;
     let secsLeft = 10;
@@ -300,7 +305,7 @@ export function OnlineGamePage() {
       if (intervalId) clearInterval(intervalId);
       setAwayCountdown(null);
     };
-  }, [state.game.status]);
+  }, [state.game.status, state.moveHistory.length, aborted]);
 
   function handleBack() {
     if (effectiveIndex <= 0) return;
@@ -317,7 +322,7 @@ export function OnlineGamePage() {
   }
 
   const opponentIndex: 0 | 1 = myRole === 0 ? 1 : 0;
-  const myName = profile?.display_name ?? 'You';
+  const myName = profile?.username ?? profile?.display_name ?? 'You';
   const myElo = profile?.elo ?? 500;
 
   const topLabel = `${opponentName} · ${opponentElo}`;

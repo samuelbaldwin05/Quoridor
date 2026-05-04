@@ -12,6 +12,7 @@ interface TimeStats {
 interface UserProfile {
   id: string;
   display_name: string;
+  username: string | null;
   elo: number;
   games_played: number;
   time_stats: TimeStats[];
@@ -57,7 +58,7 @@ export function ProfileModal({ userId, onClose }: ProfileModalProps) {
         const [userRes, statsRes] = await Promise.all([
           supabase
             .from('users')
-            .select('id, display_name, elo, games_played')
+            .select('id, display_name, username, elo, games_played')
             .eq('id', userId)
             .single(),
           supabase
@@ -73,6 +74,7 @@ export function ProfileModal({ userId, onClose }: ProfileModalProps) {
         setProfile({
           id: userRes.data.id,
           display_name: userRes.data.display_name,
+          username: userRes.data.username,
           elo: userRes.data.elo,
           games_played: userRes.data.games_played,
           time_stats: (statsRes.data ?? []) as TimeStats[],
@@ -104,10 +106,12 @@ export function ProfileModal({ userId, onClose }: ProfileModalProps) {
             {/* Header */}
             <div className="profile-modal-header">
               <div className="profile-modal-avatar">
-                {profile.display_name.charAt(0).toUpperCase()}
+                {(profile.username ?? profile.display_name).charAt(0).toUpperCase()}
               </div>
               <div className="profile-modal-info">
-                <h2 className="profile-modal-name">{profile.display_name}</h2>
+                <h2 className="profile-modal-name">
+                  {profile.username ?? profile.display_name}
+                </h2>
                 <span className="profile-modal-elo" style={{ color: eloColor(profile.elo) }}>
                   {profile.elo} ELO
                 </span>
