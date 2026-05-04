@@ -654,12 +654,6 @@ body {
   margin: 0;
 }
 
-.profile-google-name {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
-  margin: 0;
-}
-
 .profile-elo {
   font-size: 14px;
   font-weight: 600;
@@ -669,6 +663,21 @@ body {
 .profile-add-btn {
   margin-left: auto;
   flex-shrink: 0;
+  min-width: 140px;
+  padding: 10px 18px;
+  white-space: nowrap;
+}
+
+.profile-friend-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(46, 204, 113, 0.12);
+  color: #2ecc71;
+  border-radius: var(--border-radius);
+  white-space: nowrap;
 }
 
 .profile-stats-grid {

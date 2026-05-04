@@ -82,28 +82,37 @@ export function OnlineGamePage() {
   useTheme(state.settings.theme);
   const audio = useAudio(state.settings.soundEnabled, state.settings.volume);
 
-  const { result, broadcastMove, broadcastResign, submitResult } = useOnlineGame({
-    gameId: gameId ?? '',
-    myRole,
-    myUserId,
-    onMoveReceived: useCallback(
-      (move: Move, playerIndex: PlayerIndex) => {
-        // Validate against current state — illegal move means the sender cheated
-        const validation = applyMove(gameStateRef.current, move);
-        if (!validation.valid) {
-          dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
-          return;
-        }
-        dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex });
-        audio.playMove();
-        setViewIndex(null);
-      },
-      [dispatch, audio, myRole],
-    ),
-    onOpponentResigned: useCallback(() => {
-      dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
-    }, [dispatch, myRole]),
-  });
+  const [aborted, setAborted] = useState(false);
+
+  const { result, broadcastMove, broadcastResign, broadcastTimeout, broadcastAbort, submitResult } =
+    useOnlineGame({
+      gameId: gameId ?? '',
+      myRole,
+      myUserId,
+      onMoveReceived: useCallback(
+        (move: Move, playerIndex: PlayerIndex) => {
+          // Validate against current state — illegal move means the sender cheated
+          const validation = applyMove(gameStateRef.current, move);
+          if (!validation.valid) {
+            dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
+            return;
+          }
+          dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex });
+          audio.playMove();
+          setViewIndex(null);
+        },
+        [dispatch, audio, myRole],
+      ),
+      onOpponentResigned: useCallback(() => {
+        dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
+      }, [dispatch, myRole]),
+      onOpponentTimeout: useCallback(() => {
+        dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
+      }, [dispatch, myRole]),
+      onOpponentAborted: useCallback(() => {
+        setAborted(true);
+      }, []),
+    });
 
   // Start the game, clean up matchmaking queue, play start sound
   useEffect(() => {
@@ -113,8 +122,9 @@ export function OnlineGamePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Submit result when game finishes
+  // Submit result when game finishes (skipped if aborted — no ELO change either way).
   useEffect(() => {
+    if (aborted) return;
     if (state.game.status === 'finished' && result === null) {
       const winner = state.game.winner as 0 | 1;
       const savedId = saveGame(state.moveHistory, winner, opponentName);
@@ -123,11 +133,14 @@ export function OnlineGamePage() {
       else audio.playLose();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.game.status, state.game.winner]);
+  }, [state.game.status, state.game.winner, aborted]);
 
-  // Per-player countdown timer
+  // Per-player countdown timer. Paused until the first move is made — gives
+  // the starting player a 20s grace window (handled by the abort effect below).
   useEffect(() => {
     if (state.game.status !== 'playing') return;
+    if (state.moveHistory.length === 0) return;
+    if (aborted) return;
     const current = state.game.currentPlayerIndex as 0 | 1;
     const t = setInterval(() => {
       setTimes((prev) => {
@@ -138,7 +151,32 @@ export function OnlineGamePage() {
       });
     }, 1000);
     return () => clearInterval(t);
-  }, [state.game.status, state.game.currentPlayerIndex]);
+  }, [state.game.status, state.game.currentPlayerIndex, state.moveHistory.length, aborted]);
+
+  // 20s grace window: if the starter doesn't make the first move in time, abort
+  // the game on both clients. Neither side submits a result, so no ELO moves.
+  useEffect(() => {
+    if (state.game.status !== 'playing') return;
+    if (state.moveHistory.length > 0) return;
+    if (aborted) return;
+    const t = setTimeout(() => {
+      setAborted(true);
+      broadcastAbort();
+    }, 20000);
+    return () => clearTimeout(t);
+  }, [state.game.status, state.moveHistory.length, aborted, broadcastAbort]);
+
+  // Detect MY clock hitting 0 → broadcast timeout to the opponent + record loss locally.
+  // Only the player whose clock ran out fires this; the opponent receives via the
+  // 'timeout' realtime event and dispatches the win for themselves.
+  useEffect(() => {
+    if (state.game.status !== 'playing') return;
+    if (times[myRole] > 0) return;
+    if (aborted) return;
+    broadcastTimeout();
+    const opponent: 0 | 1 = myRole === 0 ? 1 : 0;
+    dispatch({ type: 'RESIGN_ONLINE', winner: opponent });
+  }, [times, myRole, state.game.status, aborted, broadcastTimeout, dispatch]);
 
   // Auto-scroll move list to bottom when live
   useEffect(() => {
@@ -219,9 +257,14 @@ export function OnlineGamePage() {
   // Keep resign ref current so the away-timer can call it without stale closures
   handleResignRef.current = handleResign;
 
-  // Auto-resign when the player hides the tab for 10 seconds
+  // Auto-resign when the player hides the tab for 10 seconds.
+  // Skipped during the 20s grace window (no moves yet) and after abort, so
+  // backgrounding a tab while waiting on the first move can't snipe the
+  // grace timer and turn an abort into a loss.
   useEffect(() => {
     if (state.game.status !== 'playing') return;
+    if (state.moveHistory.length === 0) return;
+    if (aborted) return;
 
     let intervalId: ReturnType<typeof setInterval> | null = null;
     let secsLeft = 10;
@@ -262,7 +305,7 @@ export function OnlineGamePage() {
       if (intervalId) clearInterval(intervalId);
       setAwayCountdown(null);
     };
-  }, [state.game.status]);
+  }, [state.game.status, state.moveHistory.length, aborted]);
 
   function handleBack() {
     if (effectiveIndex <= 0) return;
@@ -279,7 +322,7 @@ export function OnlineGamePage() {
   }
 
   const opponentIndex: 0 | 1 = myRole === 0 ? 1 : 0;
-  const myName = profile?.display_name ?? 'You';
+  const myName = profile?.username ?? 'You';
   const myElo = profile?.elo ?? 500;
 
   const topLabel = `${opponentName} · ${opponentElo}`;
@@ -415,6 +458,27 @@ export function OnlineGamePage() {
           </div>
         </div>
       </div>
+
+      {/* Aborted overlay — shown when the starter didn't move in 20s. No ELO change. */}
+      {aborted && result === null && (
+        <div className="win-lose-overlay flex-center">
+          <div className="win-lose-modal">
+            <h1 className="win-lose-title">Game Aborted</h1>
+            <p className="online-elo-change">No move within 20 seconds. ELO unchanged.</p>
+            <div className="win-lose-buttons">
+              <button
+                className="btn action-btn"
+                onClick={() => {
+                  dispatch({ type: 'RESET_TO_IDLE' });
+                  navigate('/');
+                }}
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Result overlay */}
       {result !== null && (

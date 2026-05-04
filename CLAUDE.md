@@ -143,33 +143,6 @@ Use Supabase Row Level Security (RLS) policies. Users can only read their own da
 - If inference is slow (tree search), use FastAPI background tasks or an async job queue.
 - Difficulty levels map to different models, search depths, or temperature settings.
 
-## Development
-
-### Frontend
-```bash
-cd frontend
-bun install
-bun run dev
-```
-
-### Backend
-```bash
-cd backend
-uv venv
-source .venv/bin/activate  # or `activate` with Samuel's PowerShell alias
-uv sync
-uvicorn app.api.main:app --reload
-```
-
-### Linting
-```bash
-# Frontend
-cd frontend && bun run lint
-
-# Backend
-cd backend && ruff check . && ruff format --check .
-```
-
 ## Implementation Phases
 
 1. **React refactor** — Port vanilla JS/HTML to React/TypeScript. Board rendering, wall placement, pawn movement. Frontend engine module. No backend.

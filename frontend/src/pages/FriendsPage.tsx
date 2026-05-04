@@ -8,16 +8,14 @@ import { apiFetch } from '@/lib/api';
 
 interface UserResult {
   id: string;
-  display_name: string;
-  username: string | null;
+  username: string;
   elo: number;
 }
 
 interface FriendEntry {
   friendship_id: string;
   friend_id: string;
-  display_name: string;
-  username: string | null;
+  username: string;
   elo: number;
   status: 'accepted' | 'pending_sent' | 'pending_received';
 }
@@ -36,8 +34,7 @@ interface ChallengeEntry {
 interface ApiFriend {
   friendship_id: string;
   friend_id: string;
-  display_name: string;
-  username: string | null;
+  username: string;
   elo: number;
   status: string;
   requester_id?: string;
@@ -54,8 +51,8 @@ function eloColor(elo: number): string {
   return 'rgba(255,255,255,0.5)';
 }
 
-function displayFor(u: { display_name: string; username: string | null }): string {
-  return u.username ?? u.display_name;
+function displayFor(u: { username: string }): string {
+  return u.username;
 }
 
 function tcLabel(tc: number): string {
@@ -86,33 +83,41 @@ export function FriendsPage() {
 
   // ── Data loading ─────────────────────────────────────────────────────────
 
-  const loadFriends = useCallback(async () => {
-    if (!myId) return;
-    setLoadingFriends(true);
-    try {
-      const [friendData, challengeData] = await Promise.all([
-        apiFetch<ApiFriend[]>('/api/friends/'),
-        apiFetch<ChallengeEntry[]>('/api/challenges/'),
-      ]);
-      setFriends(
-        friendData.map((f) => {
-          let status: FriendEntry['status'];
-          if (f.status === 'accepted') status = 'accepted';
-          else if (f.requester_id === myId) status = 'pending_sent';
-          else status = 'pending_received';
-          return { ...f, status };
-        }),
-      );
-      setChallenges(challengeData);
-    } catch {
-      // silently handle
-    } finally {
-      setLoadingFriends(false);
-    }
-  }, [myId]);
+  const loadFriends = useCallback(
+    async (silent = false) => {
+      if (!myId) return;
+      if (!silent) setLoadingFriends(true);
+      try {
+        const [friendData, challengeData] = await Promise.all([
+          apiFetch<ApiFriend[]>('/api/friends/'),
+          apiFetch<ChallengeEntry[]>('/api/challenges/'),
+        ]);
+        setFriends(
+          friendData.map((f) => {
+            let status: FriendEntry['status'];
+            if (f.status === 'accepted') status = 'accepted';
+            else if (f.requester_id === myId) status = 'pending_sent';
+            else status = 'pending_received';
+            return { ...f, status };
+          }),
+        );
+        setChallenges(challengeData);
+      } catch {
+        // silently handle
+      } finally {
+        if (!silent) setLoadingFriends(false);
+      }
+    },
+    [myId],
+  );
 
+  // Initial load + 5s background poll so incoming requests/challenges show up
+  // without needing a page interaction. The "challenger gets redirected on
+  // accept" half lives in <ChallengeRedirector /> so it works app-wide.
   useEffect(() => {
-    void loadFriends();
+    void loadFriends(false);
+    const interval = setInterval(() => void loadFriends(true), 5000);
+    return () => clearInterval(interval);
   }, [loadFriends]);
 
   // ── Debounced search ─────────────────────────────────────────────────────
@@ -235,9 +240,13 @@ export function FriendsPage() {
   const acceptedFriends = friends.filter((f) => f.status === 'accepted');
   const pendingReceived = friends.filter((f) => f.status === 'pending_received');
   const pendingSent = friends.filter((f) => f.status === 'pending_sent');
-  const incomingChallenges = challenges.filter((c) => c.challenged_id === myId);
-  const outgoingChallenges = challenges.filter((c) => c.challenger_id === myId);
-  const alreadyFriendIds = new Set(friends.map((f) => f.friend_id));
+  const incomingChallenges = challenges.filter(
+    (c) => c.challenged_id === myId && c.status === 'pending',
+  );
+  const outgoingChallenges = challenges.filter(
+    (c) => c.challenger_id === myId && c.status === 'pending',
+  );
+  const friendByUserId = new Map(friends.map((f) => [f.friend_id, f]));
 
   const filteredAccepted = friendSearch.trim()
     ? acceptedFriends.filter((f) =>
@@ -307,8 +316,9 @@ export function FriendsPage() {
                     )}
                   {searchResults.map((user) => {
                     const name = displayFor(user);
-                    const isFriend = alreadyFriendIds.has(user.id);
+                    const existing = friendByUserId.get(user.id);
                     const isMe = user.id === myId;
+                    const pendingKey = existing?.friendship_id ?? user.id;
                     return (
                       <div key={user.id} className="friend-item">
                         <Avatar name={name} />
@@ -326,8 +336,18 @@ export function FriendsPage() {
                         <div className="friend-item-actions">
                           {isMe ? (
                             <span className="friend-added-badge">You</span>
-                          ) : isFriend ? (
+                          ) : existing?.status === 'accepted' ? (
                             <span className="friend-added-badge">Friends ✓</span>
+                          ) : existing?.status === 'pending_sent' ? (
+                            <span className="friend-added-badge">Sent</span>
+                          ) : existing?.status === 'pending_received' ? (
+                            <button
+                              className="btn friend-add-btn"
+                              onClick={() => handleAccept(existing.friendship_id)}
+                              disabled={pendingActions.has(pendingKey)}
+                            >
+                              {pendingActions.has(pendingKey) ? '…' : 'Accept'}
+                            </button>
                           ) : (
                             <button
                               className="btn friend-add-btn"

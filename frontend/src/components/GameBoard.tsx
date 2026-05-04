@@ -77,6 +77,7 @@ export function GameBoard({
           <WallSlot
             key={`${orientation}-${row}-${col}`}
             wall={wall}
+            flipped={flipped}
             isPlaced={isPlaced}
             previewState={previewState}
             onMouseEnter={() => onWallHover(wall)}

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { ChallengeRedirector } from './components/ChallengeRedirector';
 import { GamePage } from './pages/GamePage';
 import { RulesPage } from './pages/RulesPage';
 import { GameHistoryPage } from './pages/GameHistoryPage';
@@ -27,6 +28,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
+          <ChallengeRedirector />
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/setup" element={<UsernameSetupPage />} />

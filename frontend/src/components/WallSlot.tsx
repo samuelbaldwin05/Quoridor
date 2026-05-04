@@ -2,6 +2,7 @@ import type { Wall } from '@/engine/gameTypes';
 
 interface WallSlotProps {
   wall: Wall;
+  flipped: boolean;
   isPlaced: boolean;
   previewState: 'valid' | 'invalid' | null;
   onMouseEnter: () => void;
@@ -11,6 +12,7 @@ interface WallSlotProps {
 
 export function WallSlot({
   wall,
+  flipped,
   isPlaced,
   previewState,
   onMouseEnter,
@@ -29,15 +31,26 @@ export function WallSlot({
   // Vertical wall at (row, col):
   //   - sits in the gap COLUMN right of board col `col` → grid-column: col*2+2
   //   - spans board row `row` through row `row+1`       → grid-row: row*2+1 / span 3
+  //
+  // Adjacent same-orientation slots overlap on the cell column they share.
+  // z-index decides which one wins on hover. Higher-axis-coord wins by default
+  // so P0 perceives walls extending east+south from the hovered cell. For
+  // P1 (rotated 180°), invert so lower-axis-coord wins → P1 also perceives
+  // walls extending visually east+south from their hovered cell.
+  const stackKey = wall.orientation === 'h' ? wall.col : wall.row;
+  const zIndex = flipped ? 7 - stackKey : stackKey;
+
   const style: React.CSSProperties =
     wall.orientation === 'h'
       ? {
           gridRow: `${wall.row * 2 + 2}`,
           gridColumn: `${wall.col * 2 + 1} / span 3`,
+          zIndex,
         }
       : {
           gridRow: `${wall.row * 2 + 1} / span 3`,
           gridColumn: `${wall.col * 2 + 2}`,
+          zIndex,
         };
 
   const classes = [

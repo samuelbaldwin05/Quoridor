@@ -34,10 +34,7 @@ def get_friends(client: Client, user_id: UUID) -> list[FriendWithProfile]:
 
     try:
         profiles_resp = (
-            client.table("users")
-            .select("id, display_name, username, elo")
-            .in_("id", friend_ids)
-            .execute()
+            client.table("users").select("id, username, elo").in_("id", friend_ids).execute()
         )
     except Exception as exc:
         raise DatabaseError("friend profiles fetch failed") from exc
@@ -54,8 +51,7 @@ def get_friends(client: Client, user_id: UUID) -> list[FriendWithProfile]:
                 friendship_id=row["id"],
                 friend_id=row["friend_id"],
                 requester_id=row["requester_id"],
-                display_name=profile["display_name"],
-                username=profile.get("username"),
+                username=profile["username"],
                 elo=profile["elo"],
                 status=FriendshipStatus(row["status"]),
             )

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
 export function UsernameSetupPage() {
-  const { profile, updateUsername } = useAuth();
+  const { updateUsername } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
@@ -44,11 +44,12 @@ export function UsernameSetupPage() {
   return (
     <div className="setup-page flex-center">
       <div className="setup-card">
-        <div className="setup-avatar">{(profile?.display_name ?? '?')[0].toUpperCase()}</div>
+        <div className="setup-avatar">?</div>
         <h2 className="setup-title">Choose a username</h2>
         <p className="setup-sub">
-          Welcome, <strong>{profile?.display_name ?? 'Player'}</strong>!<br />
-          Pick a unique username — this is how others will find you.
+          Welcome!
+          <br />
+          Enter a unique username
         </p>
 
         <form className="setup-form" onSubmit={handleSubmit}>

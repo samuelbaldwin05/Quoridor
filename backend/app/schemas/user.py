@@ -25,8 +25,8 @@ class UserTimeStats(BaseModel):
 class UserRead(BaseModel):
     id: UUID
     email: str
-    display_name: str  # google name (auto-populated from OAuth, never overwritten)
-    username: str | None = None
+    username: str
+    username_chosen: bool = False
     elo: int
     games_played: int
     created_at: datetime
@@ -35,8 +35,7 @@ class UserRead(BaseModel):
 class UserProfile(BaseModel):
     id: UUID
     email: str
-    display_name: str
-    username: str | None = None
+    username: str
     elo: int
     games_played: int
     created_at: datetime
@@ -49,6 +48,5 @@ class UserUpdate(BaseModel):
 
 class UserSearchResult(BaseModel):
     id: UUID
-    display_name: str
-    username: str | None = None
+    username: str
     elo: int

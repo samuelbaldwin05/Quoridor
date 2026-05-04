@@ -10,13 +10,17 @@ from app.schemas.user import UserRead, UserSearchResult, UserTimeStats
 
 
 def search_users(client: Client, query: str, limit: int = 20) -> list[UserSearchResult]:
-    """Search users by username (case-insensitive substring match)."""
+    """Search users by username (case-insensitive substring match).
+
+    Excludes users who haven't picked a username yet (username_chosen=false)
+    so auto-generated placeholders don't pollute search results.
+    """
     try:
         response = (
             client.table("users")
-            .select("id, display_name, username, elo")
+            .select("id, username, elo")
             .ilike("username", f"%{query}%")
-            .not_.is_("username", "null")
+            .eq("username_chosen", True)
             .limit(limit)
             .execute()
         )
@@ -39,9 +43,14 @@ def get_user(client: Client, user_id: UUID) -> UserRead | None:
 
 
 def update_username(client: Client, user_id: UUID, username: str) -> UserRead:
-    """Set or update a user's chosen username."""
+    """Set or update a user's chosen username; flips username_chosen to true."""
     try:
-        resp = client.table("users").update({"username": username}).eq("id", str(user_id)).execute()
+        resp = (
+            client.table("users")
+            .update({"username": username, "username_chosen": True})
+            .eq("id", str(user_id))
+            .execute()
+        )
     except Exception as exc:
         if is_unique_violation(exc):
             raise ConflictError("username already taken") from exc
@@ -63,11 +72,12 @@ def get_user_time_stats(client: Client, user_id: UUID) -> list[UserTimeStats]:
 
 
 def get_leaderboard(client: Client, limit: int = 50) -> list[UserSearchResult]:
-    """Return the top users ordered by ELO descending."""
+    """Return the top users by ELO. Hides users who haven't picked a username."""
     try:
         response = (
             client.table("users")
-            .select("id, display_name, username, elo")
+            .select("id, username, elo")
+            .eq("username_chosen", True)
             .order("elo", desc=True)
             .limit(limit)
             .execute()

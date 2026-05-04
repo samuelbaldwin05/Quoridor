@@ -24,8 +24,8 @@ def _enrich(rows: list[dict], user_profiles: dict[str, dict]) -> list[ChallengeR
                 id=row["id"],
                 challenger_id=row["challenger_id"],
                 challenged_id=row["challenged_id"],
-                challenger_name=challenger.get("username") or challenger.get("display_name"),
-                challenged_name=challenged.get("username") or challenged.get("display_name"),
+                challenger_name=challenger.get("username"),
+                challenged_name=challenged.get("username"),
                 time_control=row["time_control"],
                 status=row["status"],
                 game_id=row.get("game_id"),
@@ -38,16 +38,22 @@ def _enrich(rows: list[dict], user_profiles: dict[str, dict]) -> list[ChallengeR
 def _fetch_profiles(client: Client, user_ids: list[str]) -> dict[str, dict]:
     if not user_ids:
         return {}
-    resp = client.table("users").select("id, display_name, username").in_("id", user_ids).execute()
+    resp = client.table("users").select("id, username").in_("id", user_ids).execute()
     return {p["id"]: p for p in resp.data}
 
 
 def get_my_challenges(client: Client, user_id: UUID) -> list[ChallengeRead]:
+    """Return challenges the caller still needs to act on.
+
+    Includes pending challenges (either side) and accepted challenges I sent —
+    the latter so the challenger's client can detect the acceptance, navigate
+    to the game, then delete the row. Accepted challenges I received are
+    excluded; that side already navigated when they hit Accept.
+    """
     uid = str(user_id)
-    # Best-effort sweep of expired pending challenges. The function is cheap
-    # (partial index on expires_at) and silently no-ops if none are due.
     try:
         client.rpc("expire_old_challenges", {}).execute()
+        client.rpc("cleanup_stale_challenges", {}).execute()
     except Exception:
         pass
 
@@ -56,21 +62,24 @@ def get_my_challenges(client: Client, user_id: UUID) -> list[ChallengeRead]:
             client.table("challenges")
             .select("*")
             .or_(f"challenger_id.eq.{uid},challenged_id.eq.{uid}")
-            .eq("status", "pending")
+            .in_("status", ["pending", "accepted"])
             .order("created_at", desc=True)
             .execute()
         )
     except Exception as exc:
         raise DatabaseError("challenges fetch failed") from exc
 
-    if not resp.data:
+    rows = [
+        row
+        for row in (resp.data or [])
+        if row["status"] == "pending" or row["challenger_id"] == uid
+    ]
+    if not rows:
         return []
 
-    ids = list(
-        {row["challenger_id"] for row in resp.data} | {row["challenged_id"] for row in resp.data}
-    )
+    ids = list({row["challenger_id"] for row in rows} | {row["challenged_id"] for row in rows})
     profiles = _fetch_profiles(client, ids)
-    return _enrich(resp.data, profiles)
+    return _enrich(rows, profiles)
 
 
 def create_challenge(
@@ -167,11 +176,15 @@ def cancel_or_decline_challenge(client: Client, challenge_id: UUID, user_id: UUI
 
 
 def cancel_challenges_for_user(client: Client, user_id: UUID) -> None:
-    """Cancel all outgoing pending challenges when a user joins a game."""
+    """Cancel all pending challenges involving a user (either direction).
+
+    Called when the user enters a game (matchmaking match or challenge accept).
+    Both their outgoing invites and any incoming invites become irrelevant.
+    """
     uid = str(user_id)
     try:
-        client.table("challenges").delete().eq("challenger_id", uid).eq(
-            "status", "pending"
-        ).execute()
+        client.table("challenges").delete().or_(
+            f"challenger_id.eq.{uid},challenged_id.eq.{uid}"
+        ).eq("status", "pending").execute()
     except Exception:
         pass  # best-effort cleanup

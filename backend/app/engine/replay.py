@@ -1,5 +1,3 @@
-"""Replay a move-history list against a fresh game and validate the outcome."""
-
 from __future__ import annotations
 
 from collections.abc import Sequence

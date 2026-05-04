@@ -23,6 +23,7 @@ interface QueueStatus {
 }
 
 const TC_LABELS: Record<number, string> = { 180: '3 min', 300: '5 min', 600: '10 min' };
+const MIN_LOADING_MS = 2000;
 
 export function MatchmakingModal({
   timeControl,
@@ -42,6 +43,8 @@ export function MatchmakingModal({
     playerRole: 0 | 1;
   } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const joinedRef = useRef(false);
+  const mountedAt = useRef(Date.now());
 
   useEffect(() => {
     if (phase !== 'searching') return;
@@ -49,30 +52,37 @@ export function MatchmakingModal({
     return () => clearInterval(t);
   }, [phase]);
 
-  // Auto-redirect countdown when match is found
+  // Tick the countdown down once per second when match is found.
   useEffect(() => {
-    if (phase !== 'found' || !matchInfo) return;
+    if (phase !== 'found') return;
     setCountdown(3);
     const t = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) {
-          clearInterval(t);
-          onMatchFound(
-            matchInfo.gameId,
-            matchInfo.opponentName,
-            matchInfo.opponentElo,
-            matchInfo.playerRole,
-          );
-          return 0;
-        }
-        return c - 1;
-      });
+      setCountdown((c) => Math.max(0, c - 1));
     }, 1000);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
+  // Fire onMatchFound once countdown reaches 0 — separated from the state
+  // updater above so React strict-mode's purity check can't double-trigger
+  // a parent setState during render.
   useEffect(() => {
+    if (phase === 'found' && countdown === 0 && matchInfo) {
+      onMatchFound(
+        matchInfo.gameId,
+        matchInfo.opponentName,
+        matchInfo.opponentElo,
+        matchInfo.playerRole,
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, countdown, matchInfo]);
+
+  useEffect(() => {
+    // React 19 dev strict-mode double-invokes effects. Skip the second fire so
+    // we don't race two POST /matchmaking/join calls into a unique-key 500.
+    if (joinedRef.current) return;
+    joinedRef.current = true;
+
     async function joinQueue() {
       try {
         const data = await apiFetch<QueueStatus>('/matchmaking/join', {
@@ -92,12 +102,18 @@ export function MatchmakingModal({
           startPolling();
         }
       } catch (e) {
-        setErrorMsg(e instanceof Error ? e.message : 'Could not connect to matchmaking server.');
-        setPhase('error');
+        // Hold the loading state for at least MIN_LOADING_MS so a fast-failing
+        // first request doesn't flash the error UI before settling.
+        const elapsed = Date.now() - mountedAt.current;
+        const wait = Math.max(0, MIN_LOADING_MS - elapsed);
+        setTimeout(() => {
+          setErrorMsg(e instanceof Error ? e.message : 'Could not connect to matchmaking server.');
+          setPhase('error');
+        }, wait);
       }
     }
 
-    joinQueue();
+    void joinQueue();
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };

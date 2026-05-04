@@ -71,7 +71,6 @@ def get_user(
     return UserProfile(
         id=user.id,
         email=user.email,
-        display_name=user.display_name,
         username=user.username,
         elo=user.elo,
         games_played=user.games_played,

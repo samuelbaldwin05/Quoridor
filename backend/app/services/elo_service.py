@@ -1,5 +1,3 @@
-"""ELO rating calculation for Quoridor matches."""
-
 ELO_MIN = 100
 ELO_MAX = 2500
 LOSS_MULTIPLIER = 1.1  # losses are 10% larger than the opponent's gain

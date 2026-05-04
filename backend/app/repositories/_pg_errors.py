@@ -1,8 +1,6 @@
-"""Helpers for inspecting supabase-py / postgrest exceptions."""
-
 from __future__ import annotations
 
-# Postgres SQLSTATE codes we care about. See: https://www.postgresql.org/docs/current/errcodes-appendix.html
+# Postgres SQLSTATE codes — https://www.postgresql.org/docs/current/errcodes-appendix.html
 UNIQUE_VIOLATION = "23505"
 FOREIGN_KEY_VIOLATION = "23503"
 CHECK_VIOLATION = "23514"

@@ -44,12 +44,24 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
       setPendingCount(0);
       return;
     }
-    void supabase
-      .from('friendships')
-      .select('id', { count: 'exact', head: true })
-      .eq('receiver_id', user.id)
-      .eq('status', 'pending')
-      .then(({ count }) => setPendingCount(count ?? 0));
+    const fetchPending = async () => {
+      const [friends, challenges] = await Promise.all([
+        supabase
+          .from('friendships')
+          .select('id', { count: 'exact', head: true })
+          .eq('receiver_id', user.id)
+          .eq('status', 'pending'),
+        supabase
+          .from('challenges')
+          .select('id', { count: 'exact', head: true })
+          .eq('challenged_id', user.id)
+          .eq('status', 'pending'),
+      ]);
+      setPendingCount((friends.count ?? 0) + (challenges.count ?? 0));
+    };
+    void fetchPending();
+    const interval = setInterval(() => void fetchPending(), 5000);
+    return () => clearInterval(interval);
     // user.id is the stable identifier; full user object reference changes on every auth refresh
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -67,8 +79,7 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
     return () => document.removeEventListener('mousedown', onDown);
   }, []);
 
-  const displayName =
-    profile?.username ?? profile?.display_name ?? user?.email?.split('@')[0] ?? 'Guest';
+  const displayName = profile?.username ?? 'Guest';
   const avatarLetter = displayName[0]?.toUpperCase() ?? 'G';
   const eloLabel = profile ? `ELO ${profile.elo}` : isGuest ? 'Guest' : '…';
 

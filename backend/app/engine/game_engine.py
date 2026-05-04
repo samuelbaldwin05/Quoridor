@@ -1,5 +1,3 @@
-"""Core engine ops — mirrors frontend/src/engine/gameEngine.ts."""
-
 from __future__ import annotations
 
 from dataclasses import replace

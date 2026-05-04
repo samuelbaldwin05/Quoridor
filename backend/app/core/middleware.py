@@ -1,5 +1,3 @@
-"""HTTP middleware — request id propagation + access log."""
-
 from __future__ import annotations
 
 import logging

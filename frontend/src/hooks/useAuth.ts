@@ -9,8 +9,8 @@ import { apiFetch } from '@/lib/api';
 export interface UserProfile {
   id: string;
   email: string;
-  display_name: string; // google name, never overwritten
-  username: string | null;
+  username: string;
+  username_chosen: boolean;
   elo: number;
   games_played: number;
 }
@@ -126,7 +126,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   // True if logged in but has never set a username
-  const needsUsername = authMode !== 'none' && profile !== null && !profile.username;
+  // username is always set on the row (placeholder on insert), so the trigger
+  // for the setup page is the explicit username_chosen flag, not nullness.
+  const needsUsername = authMode !== 'none' && profile !== null && !profile.username_chosen;
 
   return createElement(AuthContext.Provider, {
     value: {

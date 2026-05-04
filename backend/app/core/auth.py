@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import Depends, HTTPException
@@ -65,18 +66,64 @@ def _get_or_create_user(
     email: str,
     display_name: str,
 ) -> UserRead:
+    """SELECT-then-INSERT/UPDATE — avoids `upsert`'s email-conflict footgun.
+
+    Upsert with `on_conflict=id` issues an UPDATE on every existing-user hit,
+    which tries to overwrite `email`; PostgREST then rejects with 409 if
+    *any* unrelated row holds that email. We never need to change a user's
+    email after first creation, so the cleaner path is:
+      - exists by id  → UPDATE display_name only (skip email entirely)
+      - missing       → INSERT new row
+    """
+    uid = str(user_id)
+
+    # supabase-py's maybe_single() returns None (not a response object) when
+    # the row doesn't exist, so handle that explicitly before touching .data.
     try:
-        # Only upsert google-owned fields — never overwrite username (user-set)
-        supabase.table("users").upsert(
-            {"id": str(user_id), "email": email, "display_name": display_name},
-            on_conflict="id",
-            ignore_duplicates=False,
+        existing = supabase.table("users").select("*").eq("id", uid).maybe_single().execute()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to fetch user") from exc
+
+    existing_data = existing.data if existing is not None else None
+
+    if existing_data:
+        # Refresh display name in case Google changed it; never touch email or username.
+        try:
+            supabase.table("users").update({"display_name": display_name}).eq("id", uid).execute()
+        except Exception:
+            pass
+        # Heartbeat for cleanup_stale_challenges(). Best-effort.
+        try:
+            supabase.table("users").update({"last_seen_at": datetime.now(UTC).isoformat()}).eq(
+                "id", uid
+            ).execute()
+        except Exception:
+            pass
+
+        refreshed = supabase.table("users").select("*").eq("id", uid).maybe_single().execute()
+        refreshed_data = refreshed.data if refreshed is not None else None
+        return UserRead(**(refreshed_data or existing_data))
+
+    # username is NOT NULL on the table, but we don't know what the user
+    # wants yet. Insert a deterministic placeholder; the frontend's
+    # UsernameGuard sees username_chosen=false and routes them through /setup
+    # to pick a real one.
+    placeholder_username = f"player_{uid[:8]}"
+    try:
+        supabase.table("users").insert(
+            {
+                "id": uid,
+                "email": email,
+                "display_name": display_name,
+                "username": placeholder_username,
+                "username_chosen": False,
+            }
         ).execute()
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Failed to sync user") from exc
+        raise HTTPException(status_code=500, detail="Failed to create user") from exc
 
-    result = supabase.table("users").select("*").eq("id", str(user_id)).maybe_single().execute()
-    if not result.data:
-        raise HTTPException(status_code=500, detail="User not found after upsert")
-
-    return UserRead(**result.data)
+    result = supabase.table("users").select("*").eq("id", uid).maybe_single().execute()
+    result_data = result.data if result is not None else None
+    if not result_data:
+        raise HTTPException(status_code=500, detail="User not found after insert")
+    return UserRead(**result_data)
