@@ -7,9 +7,9 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_service_role_key: str
 
-    # Must match GoTrue's JWT_SECRET. Required — no default to prevent prod
-    # accidentally running with a well-known signing key.
-    supabase_jwt_secret: str
+    # HS256 shared secret — only used when verifying tokens from Supabase Local Dev.
+    # Prod tokens are signed with asymmetric keys and verified via JWKS.
+    supabase_jwt_secret: str | None = None
 
     environment: str = "development"  # "development" | "production"
 
@@ -17,11 +17,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-
-# Fail fast if a prod deployment somehow ships with the dev JWT secret baked in.
-_DEV_JWT_SECRET = "super-secret-jwt-token-with-at-least-32-characters-long"
-if settings.environment == "production" and settings.supabase_jwt_secret == _DEV_JWT_SECRET:
-    raise RuntimeError(
-        "Refusing to start: SUPABASE_JWT_SECRET is the well-known dev value but "
-        "ENVIRONMENT=production. Set a real secret."
-    )

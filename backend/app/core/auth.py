@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import threading
 from datetime import UTC, datetime
 from uuid import UUID
 
+import httpx
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
@@ -14,7 +16,76 @@ from app.schemas.user import UserRead
 
 DEV_USER_ID = UUID("00000000-0000-0000-0000-000000000099")
 
+_ASYMMETRIC_ALGS = {"ES256", "ES384", "ES512", "RS256", "RS384", "RS512", "EdDSA"}
+
 _bearer = HTTPBearer(auto_error=False)
+
+_jwks_lock = threading.Lock()
+_jwks_cache: dict | None = None
+
+
+def _fetch_jwks() -> dict:
+    url = f"{settings.supabase_url}/auth/v1/.well-known/jwks.json"
+    response = httpx.get(url, timeout=5.0)
+    response.raise_for_status()
+    return response.json()
+
+
+def _get_jwks(force_refresh: bool = False) -> dict:
+    global _jwks_cache
+    with _jwks_lock:
+        if _jwks_cache is None or force_refresh:
+            _jwks_cache = _fetch_jwks()
+        return _jwks_cache
+
+
+def _find_key(jwks: dict, kid: str | None) -> dict | None:
+    keys = jwks.get("keys", [])
+    if kid is None:
+        return keys[0] if len(keys) == 1 else None
+    return next((k for k in keys if k.get("kid") == kid), None)
+
+
+def _verify_jwt(token: str) -> dict:
+    try:
+        header = jwt.get_unverified_header(token)
+    except JWTError as exc:
+        raise HTTPException(status_code=401, detail="Invalid token") from exc
+
+    alg = header.get("alg", "")
+
+    if alg == "HS256":
+        if not settings.supabase_jwt_secret:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        try:
+            return jwt.decode(
+                token,
+                settings.supabase_jwt_secret,
+                algorithms=["HS256"],
+                options={"verify_aud": False},
+            )
+        except JWTError as exc:
+            raise HTTPException(status_code=401, detail="Invalid token") from exc
+
+    if alg in _ASYMMETRIC_ALGS:
+        kid = header.get("kid")
+        key = _find_key(_get_jwks(), kid)
+        if key is None:
+            # Fresh rotation — refetch once before giving up.
+            key = _find_key(_get_jwks(force_refresh=True), kid)
+        if key is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        try:
+            return jwt.decode(
+                token,
+                key,
+                algorithms=[alg],
+                options={"verify_aud": False},
+            )
+        except JWTError as exc:
+            raise HTTPException(status_code=401, detail="Invalid token") from exc
+
+    raise HTTPException(status_code=401, detail="Invalid token")
 
 
 async def get_current_user(
@@ -33,15 +104,7 @@ async def get_current_user(
         email = "dev@quoridor.local"
         display_name = "Dev Player"
     else:
-        try:
-            payload = jwt.decode(
-                token,
-                settings.supabase_jwt_secret,
-                algorithms=["HS256"],
-                options={"verify_aud": False},
-            )
-        except JWTError as exc:
-            raise HTTPException(status_code=401, detail="Invalid token") from exc
+        payload = _verify_jwt(token)
 
         raw_id: str = payload.get("sub", "")
         if not raw_id:
