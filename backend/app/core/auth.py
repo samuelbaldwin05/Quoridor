@@ -80,9 +80,7 @@ def _get_or_create_user(
     # supabase-py's maybe_single() returns None (not a response object) when
     # the row doesn't exist, so handle that explicitly before touching .data.
     try:
-        existing = (
-            supabase.table("users").select("*").eq("id", uid).maybe_single().execute()
-        )
+        existing = supabase.table("users").select("*").eq("id", uid).maybe_single().execute()
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Failed to fetch user") from exc
 
@@ -91,22 +89,18 @@ def _get_or_create_user(
     if existing_data:
         # Refresh display name in case Google changed it; never touch email or username.
         try:
-            supabase.table("users").update({"display_name": display_name}).eq(
-                "id", uid
-            ).execute()
+            supabase.table("users").update({"display_name": display_name}).eq("id", uid).execute()
         except Exception:
             pass
         # Heartbeat for cleanup_stale_challenges(). Best-effort.
         try:
-            supabase.table("users").update(
-                {"last_seen_at": datetime.now(UTC).isoformat()}
-            ).eq("id", uid).execute()
+            supabase.table("users").update({"last_seen_at": datetime.now(UTC).isoformat()}).eq(
+                "id", uid
+            ).execute()
         except Exception:
             pass
 
-        refreshed = (
-            supabase.table("users").select("*").eq("id", uid).maybe_single().execute()
-        )
+        refreshed = supabase.table("users").select("*").eq("id", uid).maybe_single().execute()
         refreshed_data = refreshed.data if refreshed is not None else None
         return UserRead(**(refreshed_data or existing_data))
 

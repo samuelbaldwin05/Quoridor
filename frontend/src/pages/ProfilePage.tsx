@@ -59,7 +59,6 @@ export function ProfilePage() {
 
   useEffect(() => {
     if (!userId) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     apiFetch<ProfileData>(`/api/users/${userId}`)
       .then(setProfile)
@@ -134,11 +133,7 @@ export function ProfilePage() {
     }
     if (status === 'pending_received') {
       return (
-        <button
-          className="btn profile-add-btn"
-          onClick={handleAcceptRequest}
-          disabled={acting}
-        >
+        <button className="btn profile-add-btn" onClick={handleAcceptRequest} disabled={acting}>
           {acting ? '…' : 'Accept Request'}
         </button>
       );

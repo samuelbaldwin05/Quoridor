@@ -107,9 +107,7 @@ export function MatchmakingModal({
         const elapsed = Date.now() - mountedAt.current;
         const wait = Math.max(0, MIN_LOADING_MS - elapsed);
         setTimeout(() => {
-          setErrorMsg(
-            e instanceof Error ? e.message : 'Could not connect to matchmaking server.',
-          );
+          setErrorMsg(e instanceof Error ? e.message : 'Could not connect to matchmaking server.');
           setPhase('error');
         }, wait);
       }

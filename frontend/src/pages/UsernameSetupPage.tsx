@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 
 export function UsernameSetupPage() {
-  const { profile, updateUsername } = useAuth();
+  const { updateUsername } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
@@ -47,7 +47,8 @@ export function UsernameSetupPage() {
         <div className="setup-avatar">?</div>
         <h2 className="setup-title">Choose a username</h2>
         <p className="setup-sub">
-          Welcome!<br />
+          Welcome!
+          <br />
           Enter a unique username
         </p>
 

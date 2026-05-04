@@ -7,9 +7,9 @@ import type { Settings } from '@/lib/schemas/settingsSchemas';
 type PlayMode = Settings['gameMode'] | 'online';
 
 const BOT_OPTIONS: { id: Settings['difficulty']; label: string; desc: string }[] = [
-  { id: 'bot0',    label: 'Easy',    desc: 'Random moves' },
-  { id: 'bot1',    label: 'Medium',  desc: 'Basic strategy' },
-  { id: 'bot2',    label: 'Hard',    desc: 'Advanced AI' },
+  { id: 'bot0', label: 'Easy', desc: 'Random moves' },
+  { id: 'bot1', label: 'Medium', desc: 'Basic strategy' },
+  { id: 'bot2', label: 'Hard', desc: 'Advanced AI' },
   { id: 'extreme', label: 'Extreme', desc: 'Trained neural net' },
 ];
 

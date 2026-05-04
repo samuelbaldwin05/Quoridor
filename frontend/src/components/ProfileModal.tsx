@@ -103,9 +103,7 @@ export function ProfileModal({ userId, onClose }: ProfileModalProps) {
           <>
             {/* Header */}
             <div className="profile-modal-header">
-              <div className="profile-modal-avatar">
-                {profile.username.charAt(0).toUpperCase()}
-              </div>
+              <div className="profile-modal-avatar">{profile.username.charAt(0).toUpperCase()}</div>
               <div className="profile-modal-info">
                 <h2 className="profile-modal-name">{profile.username}</h2>
                 <span className="profile-modal-elo" style={{ color: eloColor(profile.elo) }}>

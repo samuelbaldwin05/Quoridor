@@ -10,10 +10,14 @@ interface DevStatsProps {
 
 function getDifficultyName(ctx: AiContext): string {
   switch (ctx.difficulty) {
-    case 'bot0': return 'Bot 0 - Movement Only';
-    case 'bot1': return 'Bot 1 - Basic Strategic';
-    case 'bot2': return 'Bot 2 - Advantage Focused';
-    case 'extreme': return 'Extreme - PPO Neural Net';
+    case 'bot0':
+      return 'Bot 0 - Movement Only';
+    case 'bot1':
+      return 'Bot 1 - Basic Strategic';
+    case 'bot2':
+      return 'Bot 2 - Advantage Focused';
+    case 'extreme':
+      return 'Extreme - PPO Neural Net';
   }
 }
 
