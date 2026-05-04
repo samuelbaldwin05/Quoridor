@@ -1,0 +1,9 @@
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+
+# Don't bake secrets into the image — env vars are injected at runtime
+.env
+.env.*
+!.env.example

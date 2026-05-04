@@ -1,1 +1,57 @@
-/Unused Sounds/*
+# ── Secrets ──────────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Claude ────────────────────────────────────────────────────────────────────
+.claude/
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+*.so
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.bun/
+frontend/coverage/
+
+# ── AI model weights (fetched from storage at runtime, never committed) ───────
+backend/models/*.pt
+backend/models/*.pth
+backend/models/*.bin
+backend/models/*.onnx
+backend/models/*.safetensors
+backend/models/*.pkl
+backend/models/*.h5
+
+# ── OS / IDE ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+docker-compose.override.yml

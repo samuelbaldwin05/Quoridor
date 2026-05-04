@@ -1,0 +1,51 @@
+[project]
+name = "quoridor-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.115.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "supabase>=2.9",
+    "python-jose[cryptography]>=3.3",
+    "httpx>=0.27",
+    "slowapi>=0.1.9",
+    "numpy>=2.0",
+    "torch>=2.4",
+]
+
+# CPU-only torch wheel — Container Apps doesn't have GPUs and the CUDA wheel
+# is ~2 GB. uv reads this index for matching package names only.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
