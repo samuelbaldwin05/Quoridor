@@ -77,6 +77,8 @@ def _get_or_create_user(
     """
     uid = str(user_id)
 
+    # supabase-py's maybe_single() returns None (not a response object) when
+    # the row doesn't exist, so handle that explicitly before touching .data.
     try:
         existing = (
             supabase.table("users").select("*").eq("id", uid).maybe_single().execute()
@@ -84,7 +86,9 @@ def _get_or_create_user(
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Failed to fetch user") from exc
 
-    if existing.data:
+    existing_data = existing.data if existing is not None else None
+
+    if existing_data:
         # Refresh display name in case Google changed it; never touch email or username.
         try:
             supabase.table("users").update({"display_name": display_name}).eq(
@@ -103,7 +107,8 @@ def _get_or_create_user(
         refreshed = (
             supabase.table("users").select("*").eq("id", uid).maybe_single().execute()
         )
-        return UserRead(**(refreshed.data or existing.data))
+        refreshed_data = refreshed.data if refreshed is not None else None
+        return UserRead(**(refreshed_data or existing_data))
 
     # username is NOT NULL on the table, but we don't know what the user
     # wants yet. Insert a deterministic placeholder; the frontend's
@@ -124,6 +129,7 @@ def _get_or_create_user(
         raise HTTPException(status_code=500, detail="Failed to create user") from exc
 
     result = supabase.table("users").select("*").eq("id", uid).maybe_single().execute()
-    if not result.data:
+    result_data = result.data if result is not None else None
+    if not result_data:
         raise HTTPException(status_code=500, detail="User not found after insert")
-    return UserRead(**result.data)
+    return UserRead(**result_data)

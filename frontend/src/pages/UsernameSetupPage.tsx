@@ -48,7 +48,7 @@ export function UsernameSetupPage() {
         <h2 className="setup-title">Choose a username</h2>
         <p className="setup-sub">
           Welcome!<br />
-          Pick a unique username — this is how others will find you.
+          Enter a unique username
         </p>
 
         <form className="setup-form" onSubmit={handleSubmit}>
