@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { config } from '@/lib/config';
 import { supabase } from '@/lib/supabase';
 
 type PageId = 'play' | 'rules' | 'puzzles' | 'friends' | 'history' | 'leaderboard';
 
-const NAV_ITEMS: { id: PageId; label: string; path: string; emoji: string }[] = [
+const ALL_NAV_ITEMS: { id: PageId; label: string; path: string; emoji: string }[] = [
   { id: 'play', label: 'Play', path: '/', emoji: '♟️' },
   { id: 'puzzles', label: 'Puzzles', path: '/puzzles', emoji: '🧩' },
   { id: 'friends', label: 'Friends', path: '/friends', emoji: '👥' },
@@ -13,6 +14,9 @@ const NAV_ITEMS: { id: PageId; label: string; path: string; emoji: string }[] = 
   { id: 'leaderboard', label: 'Leaderboard', path: '/leaderboard', emoji: '🏆' },
   { id: 'rules', label: 'Rules', path: '/rules', emoji: '📖' },
 ];
+
+const featureFlags: Record<string, boolean | undefined> = config.features;
+const NAV_ITEMS = ALL_NAV_ITEMS.filter((item) => featureFlags[item.id] ?? true);
 
 interface NavSidebarProps {
   activePage?: PageId;
