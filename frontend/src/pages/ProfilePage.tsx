@@ -15,8 +15,7 @@ interface TimeStats {
 
 interface ProfileData {
   id: string;
-  display_name: string;
-  username: string | null;
+  username: string;
   elo: number;
   games_played: number;
   created_at: string;
@@ -117,7 +116,7 @@ export function ProfilePage() {
   }
 
   const status: FriendStatus = isMe ? 'self' : friendStatus;
-  const displayName = profile?.username ?? profile?.display_name ?? '…';
+  const displayName = profile?.username ?? '…';
   const winPct =
     profile && profile.games_played > 0
       ? Math.round(

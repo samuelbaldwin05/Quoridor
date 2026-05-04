@@ -8,16 +8,14 @@ import { apiFetch } from '@/lib/api';
 
 interface UserResult {
   id: string;
-  display_name: string;
-  username: string | null;
+  username: string;
   elo: number;
 }
 
 interface FriendEntry {
   friendship_id: string;
   friend_id: string;
-  display_name: string;
-  username: string | null;
+  username: string;
   elo: number;
   status: 'accepted' | 'pending_sent' | 'pending_received';
 }
@@ -36,8 +34,7 @@ interface ChallengeEntry {
 interface ApiFriend {
   friendship_id: string;
   friend_id: string;
-  display_name: string;
-  username: string | null;
+  username: string;
   elo: number;
   status: string;
   requester_id?: string;
@@ -54,8 +51,8 @@ function eloColor(elo: number): string {
   return 'rgba(255,255,255,0.5)';
 }
 
-function displayFor(u: { display_name: string; username: string | null }): string {
-  return u.username ?? u.display_name;
+function displayFor(u: { username: string }): string {
+  return u.username;
 }
 
 function tcLabel(tc: number): string {

@@ -7,8 +7,7 @@ type SortMode = 'elo' | 'games_played';
 
 interface LeaderEntry {
   id: string;
-  display_name: string;
-  username: string | null;
+  username: string;
   elo: number;
   games_played: number;
 }
@@ -36,7 +35,8 @@ export function LeaderboardPage() {
     setLoading(true);
     void supabase
       .from('users')
-      .select('id, display_name, username, elo, games_played')
+      .select('id, username, elo, games_played')
+      .eq('username_chosen', true)
       .order(sort, { ascending: false })
       .limit(50)
       .then(({ data }) => {
@@ -82,9 +82,7 @@ export function LeaderboardPage() {
                 <span className="leaderboard-page-rank">
                   {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
                 </span>
-                <span className="leaderboard-page-name">
-                  {entry.username ?? entry.display_name}
-                </span>
+                <span className="leaderboard-page-name">{entry.username}</span>
                 <span className="leaderboard-page-games">{entry.games_played} games</span>
                 <span className="leaderboard-page-elo" style={{ color: eloColor(entry.elo) }}>
                   {entry.elo} ELO

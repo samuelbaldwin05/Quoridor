@@ -322,7 +322,7 @@ export function OnlineGamePage() {
   }
 
   const opponentIndex: 0 | 1 = myRole === 0 ? 1 : 0;
-  const myName = profile?.username ?? profile?.display_name ?? 'You';
+  const myName = profile?.username ?? 'You';
   const myElo = profile?.elo ?? 500;
 
   const topLabel = `${opponentName} · ${opponentElo}`;

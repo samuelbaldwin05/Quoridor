@@ -24,8 +24,8 @@ def _enrich(rows: list[dict], user_profiles: dict[str, dict]) -> list[ChallengeR
                 id=row["id"],
                 challenger_id=row["challenger_id"],
                 challenged_id=row["challenged_id"],
-                challenger_name=challenger.get("username") or challenger.get("display_name"),
-                challenged_name=challenged.get("username") or challenged.get("display_name"),
+                challenger_name=challenger.get("username"),
+                challenged_name=challenged.get("username"),
                 time_control=row["time_control"],
                 status=row["status"],
                 game_id=row.get("game_id"),
@@ -38,7 +38,7 @@ def _enrich(rows: list[dict], user_profiles: dict[str, dict]) -> list[ChallengeR
 def _fetch_profiles(client: Client, user_ids: list[str]) -> dict[str, dict]:
     if not user_ids:
         return {}
-    resp = client.table("users").select("id, display_name, username").in_("id", user_ids).execute()
+    resp = client.table("users").select("id, username").in_("id", user_ids).execute()
     return {p["id"]: p for p in resp.data}
 
 

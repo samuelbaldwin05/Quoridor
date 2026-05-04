@@ -79,8 +79,7 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
     return () => document.removeEventListener('mousedown', onDown);
   }, []);
 
-  const displayName =
-    profile?.username ?? profile?.display_name ?? user?.email?.split('@')[0] ?? 'Guest';
+  const displayName = profile?.username ?? 'Guest';
   const avatarLetter = displayName[0]?.toUpperCase() ?? 'G';
   const eloLabel = profile ? `ELO ${profile.elo}` : isGuest ? 'Guest' : '…';
 

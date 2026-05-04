@@ -105,9 +105,20 @@ def _get_or_create_user(
         )
         return UserRead(**(refreshed.data or existing.data))
 
+    # username is NOT NULL on the table, but we don't know what the user
+    # wants yet. Insert a deterministic placeholder; the frontend's
+    # UsernameGuard sees username_chosen=false and routes them through /setup
+    # to pick a real one.
+    placeholder_username = f"player_{uid[:8]}"
     try:
         supabase.table("users").insert(
-            {"id": uid, "email": email, "display_name": display_name}
+            {
+                "id": uid,
+                "email": email,
+                "display_name": display_name,
+                "username": placeholder_username,
+                "username_chosen": False,
+            }
         ).execute()
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Failed to create user") from exc

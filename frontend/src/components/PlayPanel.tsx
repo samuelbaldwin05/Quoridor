@@ -33,7 +33,7 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
   const [showMatchmaking, setShowMatchmaking] = useState(false);
 
   const userElo = profile?.elo ?? 500;
-  const displayName = profile?.username ?? profile?.display_name ?? 'You';
+  const displayName = profile?.username ?? 'You';
 
   function handlePlay() {
     if (mode === 'online') {

@@ -28,8 +28,8 @@ INSERT INTO auth.users (
     false, '', '', '', '', '', ''
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.users (id, email, display_name, elo, games_played) VALUES
-    ('00000000-0000-0000-0000-000000000099', 'dev@quoridor.local', 'Dev Player', 500, 0)
+INSERT INTO public.users (id, email, display_name, username, username_chosen, elo, games_played) VALUES
+    ('00000000-0000-0000-0000-000000000099', 'dev@quoridor.local', 'Dev Player', 'devplayer', true, 500, 0)
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────
@@ -148,15 +148,15 @@ ON CONFLICT (id) DO NOTHING;
 -- ─────────────────────────────────────────────
 -- Public users profile table
 -- ─────────────────────────────────────────────
-INSERT INTO public.users (id, email, display_name, elo, games_played) VALUES
-    ('aaaaaaaa-0000-0000-0000-000000000001', 'alice@example.com',  'AliceQ',      1847, 156),
-    ('aaaaaaaa-0000-0000-0000-000000000002', 'bob@example.com',    'BobTheGreat', 1623,  89),
-    ('aaaaaaaa-0000-0000-0000-000000000003', 'carol@example.com',  'CarolStrike', 1521, 234),
-    ('aaaaaaaa-0000-0000-0000-000000000004', 'daniel@example.com', 'DanielWall',  1412,  67),
-    ('aaaaaaaa-0000-0000-0000-000000000005', 'eva@example.com',    'EvaQuoridor', 1398,  45),
-    ('aaaaaaaa-0000-0000-0000-000000000006', 'finn@example.com',   'FinnMaster',  1289, 112),
-    ('aaaaaaaa-0000-0000-0000-000000000007', 'grace@example.com',  'GraceBoard',  1205,  28),
-    ('aaaaaaaa-0000-0000-0000-000000000008', 'henry@example.com',  'HenryRook',   1156,  19)
+INSERT INTO public.users (id, email, display_name, username, username_chosen, elo, games_played) VALUES
+    ('aaaaaaaa-0000-0000-0000-000000000001', 'alice@example.com',  'AliceQ',      'aliceq',      true, 1847, 156),
+    ('aaaaaaaa-0000-0000-0000-000000000002', 'bob@example.com',    'BobTheGreat', 'bobthegreat', true, 1623,  89),
+    ('aaaaaaaa-0000-0000-0000-000000000003', 'carol@example.com',  'CarolStrike', 'carolstrike', true, 1521, 234),
+    ('aaaaaaaa-0000-0000-0000-000000000004', 'daniel@example.com', 'DanielWall',  'danielwall',  true, 1412,  67),
+    ('aaaaaaaa-0000-0000-0000-000000000005', 'eva@example.com',    'EvaQuoridor', 'evaquoridor', true, 1398,  45),
+    ('aaaaaaaa-0000-0000-0000-000000000006', 'finn@example.com',   'FinnMaster',  'finnmaster',  true, 1289, 112),
+    ('aaaaaaaa-0000-0000-0000-000000000007', 'grace@example.com',  'GraceBoard',  'graceboard',  true, 1205,  28),
+    ('aaaaaaaa-0000-0000-0000-000000000008', 'henry@example.com',  'HenryRook',   'henryrook',   true, 1156,  19)
 ON CONFLICT (id) DO UPDATE SET
     elo          = EXCLUDED.elo,
     games_played = EXCLUDED.games_played;
