@@ -10,9 +10,19 @@ interface SettingsModalProps {
   settings: Settings;
   onUpdateSettings: (patch: Partial<Settings>) => void;
   onResetScore: () => void;
+  /** Session-scoped: when true, placing a wall requires a second click to confirm. */
+  confirmWallPlacement?: boolean;
+  onConfirmWallPlacementChange?: (value: boolean) => void;
 }
 
-export function SettingsModal({ isOpen, onClose, settings, onUpdateSettings }: SettingsModalProps) {
+export function SettingsModal({
+  isOpen,
+  onClose,
+  settings,
+  onUpdateSettings,
+  confirmWallPlacement,
+  onConfirmWallPlacementChange,
+}: SettingsModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -52,6 +62,17 @@ export function SettingsModal({ isOpen, onClose, settings, onUpdateSettings }: S
             />
             <span>Sound Effects</span>
           </label>
+
+          {onConfirmWallPlacementChange && (
+            <label className="settings-row">
+              <input
+                type="checkbox"
+                checked={!!confirmWallPlacement}
+                onChange={(e) => onConfirmWallPlacementChange(e.target.checked)}
+              />
+              <span>Double-tap to Place Fence</span>
+            </label>
+          )}
 
           <label className="settings-row settings-row-volume">
             <span className="settings-volume-label">Volume</span>
