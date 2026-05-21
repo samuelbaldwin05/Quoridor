@@ -42,6 +42,7 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
   const [usernameError, setUsernameError] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -123,32 +124,122 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
     }
   }
 
+  const navItemsList = (
+    <div className="nav-items">
+      {NAV_ITEMS.map((item) => (
+        <button
+          key={item.id}
+          className={`nav-item${activePage === item.id ? ' nav-item-active' : ''}`}
+          onClick={() => {
+            navigate(item.path);
+            setMobileNavOpen(false);
+          }}
+        >
+          <span className="nav-item-emoji">{item.emoji}</span>
+          {item.label}
+          {item.id === 'friends' && pendingCount > 0 && (
+            <span className="nav-badge" aria-label={`${pendingCount} pending`}>
+              {pendingCount}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <nav className="nav-sidebar">
-      {/* Logo */}
-      <div className="nav-logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
-        <PawnIcon />
-        <span className="nav-logo-text">Quoridor</span>
+    <>
+      {/* Mobile top bar — visible only at phone widths via CSS */}
+      <div className="nav-topbar">
+        <div
+          className="nav-logo nav-topbar-logo"
+          onClick={() => navigate('/')}
+          style={{ cursor: 'pointer' }}
+        >
+          <PawnIcon />
+          <span className="nav-logo-text">Quoridor</span>
+        </div>
+        <button
+          className="nav-topbar-toggle"
+          onClick={() => setMobileNavOpen((v) => !v)}
+          aria-label="Menu"
+          aria-expanded={mobileNavOpen}
+        >
+          <span className={`nav-hamburger${mobileNavOpen ? ' nav-hamburger-open' : ''}`}>
+            <span />
+            <span />
+            <span />
+          </span>
+        </button>
       </div>
 
-      {/* Main navigation */}
-      <div className="nav-items">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            className={`nav-item${activePage === item.id ? ' nav-item-active' : ''}`}
-            onClick={() => navigate(item.path)}
-          >
-            <span className="nav-item-emoji">{item.emoji}</span>
-            {item.label}
-            {item.id === 'friends' && pendingCount > 0 && (
-              <span className="nav-badge" aria-label={`${pendingCount} pending`}>
-                {pendingCount}
-              </span>
+      {mobileNavOpen && (
+        <div className="nav-mobile-dropdown">
+          {navItemsList}
+          <div className="nav-mobile-bottom">
+            {isGuest ? (
+              <button
+                className="nav-item nav-item-login"
+                onClick={() => {
+                  navigate('/login');
+                  setMobileNavOpen(false);
+                }}
+              >
+                Log in
+              </button>
+            ) : (
+              <>
+                <button
+                  className="nav-item"
+                  onClick={() => {
+                    navigate(`/profile/${profile?.id}`);
+                    setMobileNavOpen(false);
+                  }}
+                >
+                  <div className="nav-avatar">{avatarLetter}</div>
+                  <div className="nav-profile-info">
+                    <span className="nav-profile-name">{displayName}</span>
+                    <span className="nav-profile-id">{eloLabel}</span>
+                  </div>
+                </button>
+                <button
+                  className="nav-item nav-item-logout"
+                  onClick={() => {
+                    void handleLogout();
+                    setMobileNavOpen(false);
+                  }}
+                >
+                  <svg
+                    className="nav-logout-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h8" />
+                    <polyline points="17 8 21 12 17 16" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                  Log out
+                </button>
+              </>
             )}
-          </button>
-        ))}
-      </div>
+          </div>
+        </div>
+      )}
+
+      <nav className="nav-sidebar">
+        {/* Logo */}
+        <div className="nav-logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+          <PawnIcon />
+          <span className="nav-logo-text">Quoridor</span>
+        </div>
+
+        {/* Main navigation */}
+        {navItemsList}
 
       {/* Profile + auth pinned to bottom */}
       <div className="nav-bottom">
@@ -261,7 +352,8 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
             </button>
           </div>
         )}
-      </div>
-    </nav>
+        </div>
+      </nav>
+    </>
   );
 }

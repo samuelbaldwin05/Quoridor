@@ -3388,3 +3388,222 @@ body {
   color: var(--modal-accent);
   margin: 0;
 }
+
+/* ── Mobile top bar (phones only) ───────────────────────────────────────────── */
+.nav-topbar {
+  display: none; /* shown only at phone widths via media query */
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  padding: 0 14px;
+  background: var(--secondary-bg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 250;
+}
+
+.nav-topbar-logo {
+  padding: 0;
+}
+
+.nav-topbar-toggle {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: var(--border-radius-small);
+}
+.nav-topbar-toggle:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.nav-hamburger {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 22px;
+  height: 16px;
+}
+.nav-hamburger span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: #ffffff;
+  border-radius: 2px;
+  transition: transform 0.2s, opacity 0.2s;
+  transform-origin: center;
+}
+.nav-hamburger-open span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+.nav-hamburger-open span:nth-child(2) {
+  opacity: 0;
+}
+.nav-hamburger-open span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+.nav-mobile-dropdown {
+  display: none; /* shown only at phone widths via media query */
+  position: fixed;
+  top: 52px;
+  left: 0;
+  right: 0;
+  background: var(--secondary-bg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  z-index: 240;
+  padding: 12px 12px 16px;
+  flex-direction: column;
+  gap: 4px;
+  max-height: calc(100vh - 52px);
+  overflow-y: auto;
+}
+
+.nav-mobile-dropdown .nav-item {
+  font-size: 18px;
+  padding: 14px 16px;
+  gap: 14px;
+}
+
+.nav-mobile-bottom {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Phone-width overrides (≤640px) ─────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Hide desktop sidebar, show top bar */
+  .nav-sidebar {
+    display: none;
+  }
+  .nav-topbar {
+    display: flex;
+  }
+  .nav-mobile-dropdown {
+    display: flex;
+  }
+
+  /* Kill legacy body padding from the 768px block — it eats 20px of width */
+  body {
+    padding: 0;
+  }
+
+  /* Stack layout vertically: top bar already absorbs nav width */
+  .game-layout {
+    flex-direction: column;
+    height: 100dvh;
+  }
+
+  .main-content {
+    padding: 4px;
+    align-items: stretch;
+    justify-content: flex-start;
+    overflow: hidden;
+    height: calc(100dvh - 52px);
+    min-height: 0;
+  }
+
+  /* Board section: stack board over right panel; fill remaining viewport */
+  .board-section {
+    flex-direction: column;
+    height: 100%;
+    max-height: 100%;
+    width: 100%;
+    gap: 6px;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* Tighter cell sizing — account for ALL fixed widths in horizontal stack:
+     main-content padding (8) + card right padding (8) + board-wrapper padding (8)
+     + axis-y column (~19) + 4px safety = 47. FencePanel is hidden on mobile.
+     Vertical budget reserves room for top bar (52), right-panel min (~150), and gaps. */
+  :root {
+    --cell-size: min(
+      calc((100vw - 47px - 8 * 8px) / 9),
+      calc((100dvh - 260px - 8 * 8px) / 9)
+    );
+    --gap-size: 8px;
+  }
+
+  .board-wrapper {
+    padding: 4px;
+    flex-shrink: 0;
+  }
+
+  /* Centre the board inside the full-width card body */
+  .game-card-body {
+    justify-content: center;
+  }
+
+  /* FencePanel hidden on mobile — count is shown in the player/opponent rows instead */
+  .fence-panel {
+    display: none;
+  }
+
+  /* Right panel (PlayPanel / move history) stretches full width below board */
+  .right-panel {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  /* GameCard becomes full-width */
+  .game-card {
+    width: 100%;
+    flex-shrink: 0;
+    padding: 8px 8px 8px 0;
+  }
+
+  /* Move history fills the remaining viewport below the board */
+  .game-history-panel {
+    max-height: none;
+    height: 100%;
+  }
+
+  /* Larger tap targets for wall slots on touch */
+  .wall-slot {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Hide preview board on play/idle screens */
+  .mobile-hide-board {
+    display: none !important;
+  }
+
+  .mobile-fence-chip {
+    display: inline-flex !important;
+  }
+}
+
+/* Fence chip — hidden on desktop, shown on mobile inside header/footer rows.
+   Styled to match the online timer bubble (.online-timer-card) so they sit
+   together on the same row visually. */
+.mobile-fence-chip {
+  display: none;
+  align-items: center;
+  background: var(--secondary-bg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  padding: 3px 10px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.04em;
+  margin-right: 6px;
+  white-space: nowrap;
+  opacity: 1;
+}

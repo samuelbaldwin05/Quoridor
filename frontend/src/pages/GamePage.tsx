@@ -37,6 +37,12 @@ export function GamePage() {
   /** null = live; number = viewing state after N moves */
   const [viewIndex, setViewIndex] = useState<number | null>(null);
 
+  // Session-scoped: default ON for coarse pointers (phones/tablets), OFF for mice.
+  const [confirmWallPlacement, setConfirmWallPlacement] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia?.('(pointer: coarse)').matches ?? false;
+  });
+
   const audio = useAudio(state.settings.soundEnabled, state.settings.volume);
 
   const {
@@ -45,7 +51,7 @@ export function GamePage() {
     handleCellClick,
     handleWallHover,
     handleWallClick,
-  } = useBoardInteraction(state, dispatch);
+  } = useBoardInteraction(state, dispatch, confirmWallPlacement);
 
   useAi(state, dispatch);
   useTheme(state.settings.theme);
@@ -181,6 +187,9 @@ export function GamePage() {
             difficulty={state.settings.difficulty}
             gameMode={state.settings.gameMode}
             gameStatus={state.game.status}
+            topFenceCount={displayGameState.players[1].wallsRemaining}
+            bottomFenceCount={displayGameState.players[0].wallsRemaining}
+            wrapperClassName={state.game.status === 'idle' ? 'mobile-hide-board' : undefined}
           >
             <div className="board-wrapper">
               <GameBoard
@@ -220,6 +229,8 @@ export function GamePage() {
         settings={state.settings}
         onUpdateSettings={(patch) => dispatch({ type: 'UPDATE_SETTINGS', patch })}
         onResetScore={() => dispatch({ type: 'RESET_SCORE' })}
+        confirmWallPlacement={confirmWallPlacement}
+        onConfirmWallPlacementChange={setConfirmWallPlacement}
       />
 
       <WinLoseModal

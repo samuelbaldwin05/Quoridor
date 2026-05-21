@@ -1,0 +1,34 @@
+QUORIDOR — OUTSTANDING WORK
+============================
+
+PHASE 2 BUGS (from earlier session)
+-----------------------------------
+[ ] Elo formula: remove the games-played component (keep rating diff, expected
+    score, K-factor).
+[ ] Leaderboard profile modal does not show the clicked player's stats correctly.
+[ ] Leaderboard shows "loading" state even when it is not actually loading.
+
+NEWLY REPORTED BUGS
+-------------------
+[ ] "Play Again" button text is not centered inside the button.
+[ ] "Play Again" vs a bot auto-starts a new game with the same difficulty.
+    Should instead return to the Play page so the user can re-choose mode/bot.
+[ ] Audio is very delayed at game start (the start sound lags noticeably).
+[ ] Fence-placement sound only plays when the home player places a fence —
+    no sound fires when the opponent (AI or online opponent) places one.
+[ ] Game history shows W/L based on who is Player 1, but should be based on
+    whether the logged-in user actually won or lost the game.
+
+POLISH ITEMS (reviewer nits, deferred)
+--------------------------------------
+[ ] Mobile nav dropdown: tapping outside (board, logo, etc.) should dismiss it.
+[ ] "Double-tap to Place Fence" setting toggle is visible on desktop too.
+    Gate the row on `matchMedia('(pointer: coarse)')` so it only appears on
+    touch devices.
+[ ] Cell-size constant (47px) in the mobile @media block is brittle — promote
+    contributing values to CSS custom properties if anyone touches the layout
+    again.
+[ ] Stale 641–768px @media block (`.game-area`, `.board-container`) targets
+    class names that no longer exist. Cleanup pass.
+[ ] `overflow: hidden` on `.main-content` will clip any future panels that
+    don't fit the dvh budget. Note for future layout additions.
