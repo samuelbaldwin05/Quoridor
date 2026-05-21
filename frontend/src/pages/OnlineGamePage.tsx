@@ -347,6 +347,8 @@ export function OnlineGamePage() {
             gameStatus={state.game.status}
             opponentLabel={topLabel}
             playerLabel={bottomLabel}
+            topFenceCount={state.game.players[opponentIndex].wallsRemaining}
+            bottomFenceCount={state.game.players[myRole].wallsRemaining}
             topRight={
               <div
                 className={`online-timer-card${state.game.currentPlayerIndex === topPlayerIndex && state.game.status === 'playing' ? ' online-timer-card-active' : ''}`}
