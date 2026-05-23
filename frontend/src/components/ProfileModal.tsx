@@ -6,7 +6,6 @@ interface TimeStats {
   games_played: number;
   wins: number;
   losses: number;
-  elo: number;
 }
 
 interface UserProfile {
@@ -52,6 +51,9 @@ export function ProfileModal({ userId, onClose }: ProfileModalProps) {
     setError(null);
     setProfile(null);
 
+    // Switching users mid-fetch must not let an older response win the race.
+    let cancelled = false;
+
     async function load() {
       try {
         const [userRes, statsRes] = await Promise.all([
@@ -62,11 +64,12 @@ export function ProfileModal({ userId, onClose }: ProfileModalProps) {
             .single(),
           supabase
             .from('user_time_stats')
-            .select('time_control, games_played, wins, losses, elo')
+            .select('time_control, games_played, wins, losses')
             .eq('user_id', userId)
             .order('time_control'),
         ]);
 
+        if (cancelled) return;
         if (userRes.error) throw userRes.error;
         if (!userRes.data) throw new Error('User not found');
 
@@ -78,13 +81,17 @@ export function ProfileModal({ userId, onClose }: ProfileModalProps) {
           time_stats: (statsRes.data ?? []) as TimeStats[],
         });
       } catch {
+        if (cancelled) return;
         setError('Could not load profile.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     load();
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
   if (!userId) return null;
@@ -142,7 +149,6 @@ export function ProfileModal({ userId, onClose }: ProfileModalProps) {
                 <div className="profile-tc-table">
                   <div className="profile-tc-head">
                     <span>Format</span>
-                    <span>ELO</span>
                     <span>W / L</span>
                     <span>Win %</span>
                   </div>
@@ -150,9 +156,6 @@ export function ProfileModal({ userId, onClose }: ProfileModalProps) {
                     <div key={ts.time_control} className="profile-tc-row">
                       <span className="profile-tc-format">
                         {TC_LABELS[ts.time_control] ?? `${ts.time_control}s`}
-                      </span>
-                      <span className="profile-tc-elo" style={{ color: eloColor(ts.elo) }}>
-                        {ts.elo}
                       </span>
                       <span className="profile-tc-wl">
                         {ts.wins} / {ts.losses}
