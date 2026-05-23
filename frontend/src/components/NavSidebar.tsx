@@ -84,6 +84,19 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
     return () => document.removeEventListener('mousedown', onDown);
   }, []);
 
+  // Close mobile dropdown on tap outside the topbar or the dropdown itself.
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    function onPointerDown(e: PointerEvent) {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest('.nav-topbar') || target.closest('.nav-mobile-dropdown')) return;
+      setMobileNavOpen(false);
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [mobileNavOpen]);
+
   const displayName = profile?.username ?? 'Guest';
   const avatarLetter = displayName[0]?.toUpperCase() ?? 'G';
   const eloLabel = profile ? `ELO ${profile.elo}` : isGuest ? 'Guest' : '…';

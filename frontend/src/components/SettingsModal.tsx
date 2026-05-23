@@ -1,4 +1,10 @@
+import { useState } from 'react';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
+
+function isTouchDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia?.('(pointer: coarse)').matches ?? false;
+}
 
 // Note: devMode (game stats overlay) is kept in Settings but has no UI toggle here.
 // To enable: open browser console and run:
@@ -23,6 +29,7 @@ export function SettingsModal({
   confirmWallPlacement,
   onConfirmWallPlacementChange,
 }: SettingsModalProps) {
+  const [touch] = useState(isTouchDevice);
   if (!isOpen) return null;
 
   return (
@@ -63,7 +70,7 @@ export function SettingsModal({
             <span>Sound Effects</span>
           </label>
 
-          {onConfirmWallPlacementChange && (
+          {onConfirmWallPlacementChange && touch && (
             <label className="settings-row">
               <input
                 type="checkbox"
