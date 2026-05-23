@@ -1,17 +1,12 @@
 -- Presence tracking + tighter challenge cleanup.
 
--- ─────────────────────────────────────────────────────────────────────────────
--- last_seen_at on users — bumped by every authed request via core/auth.py
--- ─────────────────────────────────────────────────────────────────────────────
 ALTER TABLE public.users
     ADD COLUMN IF NOT EXISTS last_seen_at timestamptz NOT NULL DEFAULT now();
 
 CREATE INDEX IF NOT EXISTS idx_users_last_seen ON public.users (last_seen_at);
 
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- cleanup_stale_challenges
--- ─────────────────────────────────────────────────────────────────────────────
 -- Deletes pending challenges where either party hasn't pinged in 30 seconds.
 -- "Pinged" = made any authed API call. Frontend polls (NavSidebar, FriendsPage,
 -- ChallengeRedirector) act as implicit heartbeats every ~5s, so a 30s threshold
@@ -43,11 +38,9 @@ $$;
 GRANT EXECUTE ON FUNCTION public.cleanup_stale_challenges() TO authenticated, service_role;
 
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- accept_challenge — replace 003's version. Now also deletes other pending
 -- challenges involving either player at the moment they enter a game,
 -- so neither side can accept two challenges concurrently.
--- ─────────────────────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.accept_challenge(
     p_challenge_id uuid,
     p_user_id      uuid

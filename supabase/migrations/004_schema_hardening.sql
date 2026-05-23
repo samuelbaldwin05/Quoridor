@@ -1,8 +1,6 @@
 -- Schema hardening: challenge expiry, bidirectional dedupe, useful indexes.
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- challenges: expiry + bidirectional pending dedupe
--- ─────────────────────────────────────────────────────────────────────────────
 ALTER TABLE public.challenges
     ADD COLUMN IF NOT EXISTS expires_at timestamptz NOT NULL DEFAULT (now() + interval '24 hours');
 
@@ -47,17 +45,13 @@ $$;
 GRANT EXECUTE ON FUNCTION public.expire_old_challenges() TO service_role;
 
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- games: index for "active games for a player" lookups
--- ─────────────────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_games_player1_status
     ON public.games (player1_id, status);
 CREATE INDEX IF NOT EXISTS idx_games_player2_status
     ON public.games (player2_id, status);
 
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- user_time_stats: covering index for the per-user-per-tc fetch path
--- ─────────────────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_user_time_stats_user_tc
     ON public.user_time_stats (user_id, time_control);
