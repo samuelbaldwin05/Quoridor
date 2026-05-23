@@ -32,7 +32,6 @@ export function LeaderboardPage() {
 
   useEffect(() => {
     let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
 
     async function load() {
@@ -80,9 +79,7 @@ export function LeaderboardPage() {
           </div>
 
           <div className="leaderboard-page-list">
-            {loading && entries.length === 0 && (
-              <p className="leaderboard-page-empty">Loading…</p>
-            )}
+            {loading && entries.length === 0 && <p className="leaderboard-page-empty">Loading…</p>}
 
             {!loading && entries.length === 0 && (
               <p className="leaderboard-page-empty">No data yet.</p>

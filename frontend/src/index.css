@@ -3440,7 +3440,9 @@ body {
   width: 100%;
   background: #ffffff;
   border-radius: 2px;
-  transition: transform 0.2s, opacity 0.2s;
+  transition:
+    transform 0.2s,
+    opacity 0.2s;
   transform-origin: center;
 }
 .nav-hamburger-open span:nth-child(1) {
@@ -3531,10 +3533,7 @@ body {
   /* Cell-size budget: main-content (8) + card right (8) + board-wrapper (8)
      + axis-y (19) + 4 safety = 47. Vertical leaves room for topbar + history. */
   :root {
-    --cell-size: min(
-      calc((100vw - 47px - 8 * 8px) / 9),
-      calc((100dvh - 260px - 8 * 8px) / 9)
-    );
+    --cell-size: min(calc((100vw - 47px - 8 * 8px) / 9), calc((100dvh - 260px - 8 * 8px) / 9));
     --gap-size: 8px;
   }
 

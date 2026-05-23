@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { getValidPawnMoves, isValidWallPlacement } from '@/engine/moveValidation';
 import { wallsEqual } from '@/engine/wallUtils';
 import type { Position, Wall } from '@/engine/gameTypes';
@@ -17,10 +17,8 @@ export function useBoardInteraction(
   // Human controls: player 0 always; player 1 only in pass-and-play
   const isHumanTurn = state.game.status === 'playing' && (currentIdx === 0 || isPassAndPlay);
 
-  // Clear preview on turn change so a stale one doesn't reappear next turn.
-  useEffect(() => {
-    if (!isHumanTurn) setWallPreview(null);
-  }, [isHumanTurn]);
+  // Derived so a stale preview never bleeds into the opponent's turn.
+  const visibleWallPreview = isHumanTurn ? wallPreview : null;
 
   const validPawnMoves: Position[] = isHumanTurn ? getValidPawnMoves(state.game, currentIdx) : [];
 
@@ -57,7 +55,7 @@ export function useBoardInteraction(
   };
 
   return {
-    wallPreview,
+    wallPreview: visibleWallPreview,
     validPawnMoves,
     handleCellClick,
     handleWallHover,
