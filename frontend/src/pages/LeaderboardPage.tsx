@@ -31,18 +31,31 @@ export function LeaderboardPage() {
   const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
-    void supabase
-      .from('users')
-      .select('id, username, elo, games_played')
-      .eq('username_chosen', true)
-      .order(sort, { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
+
+    async function load() {
+      try {
+        const { data } = await supabase
+          .from('users')
+          .select('id, username, elo, games_played')
+          .eq('username_chosen', true)
+          .order(sort, { ascending: false })
+          .limit(50);
+        if (cancelled) return;
         setEntries((data as LeaderEntry[]) ?? []);
-        setLoading(false);
-      });
+      } catch {
+        // swallow; finally still flips loading off
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
   }, [sort]);
 
   return (
@@ -67,7 +80,9 @@ export function LeaderboardPage() {
           </div>
 
           <div className="leaderboard-page-list">
-            {loading && <p className="leaderboard-page-empty">Loading…</p>}
+            {loading && entries.length === 0 && (
+              <p className="leaderboard-page-empty">Loading…</p>
+            )}
 
             {!loading && entries.length === 0 && (
               <p className="leaderboard-page-empty">No data yet.</p>
