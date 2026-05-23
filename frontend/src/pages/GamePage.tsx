@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DevStats } from '@/components/DevStats';
 import { FencePanel } from '@/components/FencePanel';
@@ -37,6 +37,12 @@ export function GamePage() {
   /** null = live; number = viewing state after N moves */
   const [viewIndex, setViewIndex] = useState<number | null>(null);
 
+  // Session-scoped: default ON for coarse pointers (phones/tablets), OFF for mice.
+  const [confirmWallPlacement, setConfirmWallPlacement] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia?.('(pointer: coarse)').matches ?? false;
+  });
+
   const audio = useAudio(state.settings.soundEnabled, state.settings.volume);
 
   const {
@@ -45,7 +51,7 @@ export function GamePage() {
     handleCellClick,
     handleWallHover,
     handleWallClick,
-  } = useBoardInteraction(state, dispatch);
+  } = useBoardInteraction(state, dispatch, confirmWallPlacement);
 
   useAi(state, dispatch);
   useTheme(state.settings.theme);
@@ -76,12 +82,19 @@ export function GamePage() {
     return () => clearTimeout(timer);
   }, [state.message, dispatch]);
 
+  // Play the appropriate sound on every appended move (any player, any kind).
+  const prevMoveCountRef = useRef(state.moveHistory.length);
   useEffect(() => {
-    if (state.game.status === 'playing' && state.game.currentPlayerIndex === 1 && !isPassAndPlay) {
-      audio.playMove();
-    }
+    const prev = prevMoveCountRef.current;
+    const next = state.moveHistory.length;
+    prevMoveCountRef.current = next;
+    if (next <= prev) return;
+    const last = state.moveHistory[next - 1];
+    if (!last) return;
+    if (last.move.kind === 'wall') audio.playWall();
+    else audio.playMove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.game.currentPlayerIndex, state.game.status]);
+  }, [state.moveHistory.length]);
 
   useEffect(() => {
     if (state.game.status === 'finished') {
@@ -165,8 +178,7 @@ export function GamePage() {
   const handleNewGame = () => {
     setShowWinLose(false);
     setViewIndex(null);
-    dispatch({ type: 'NEW_GAME' });
-    audio.playStart();
+    dispatch({ type: 'RESET_TO_IDLE' });
   };
 
   const handleAnalyze = (gameId: string) => navigate(`/history/${gameId}`);
@@ -181,6 +193,9 @@ export function GamePage() {
             difficulty={state.settings.difficulty}
             gameMode={state.settings.gameMode}
             gameStatus={state.game.status}
+            topFenceCount={displayGameState.players[1].wallsRemaining}
+            bottomFenceCount={displayGameState.players[0].wallsRemaining}
+            wrapperClassName={state.game.status === 'idle' ? 'mobile-hide-board' : undefined}
           >
             <div className="board-wrapper">
               <GameBoard
@@ -220,6 +235,8 @@ export function GamePage() {
         settings={state.settings}
         onUpdateSettings={(patch) => dispatch({ type: 'UPDATE_SETTINGS', patch })}
         onResetScore={() => dispatch({ type: 'RESET_SCORE' })}
+        confirmWallPlacement={confirmWallPlacement}
+        onConfirmWallPlacementChange={setConfirmWallPlacement}
       />
 
       <WinLoseModal

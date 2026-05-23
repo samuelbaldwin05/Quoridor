@@ -43,6 +43,7 @@ export function GameRightPanel({
   onShowSettings,
 }: GameRightPanelProps) {
   const listRef = useRef<HTMLDivElement>(null);
+  const activeEntryRef = useRef<HTMLButtonElement>(null);
   const isPassAndPlay = gameMode === 'pass-and-play';
 
   const effectiveIndex = viewIndex ?? moveHistory.length;
@@ -55,6 +56,12 @@ export function GameRightPanel({
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
   }, [moveHistory.length, isLive]);
+
+  // When navigating history (arrows / clicks), keep the active entry visible
+  useEffect(() => {
+    if (isLive) return;
+    activeEntryRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [effectiveIndex, isLive]);
 
   function handleBack() {
     if (effectiveIndex <= 0) return;
@@ -96,6 +103,7 @@ export function GameRightPanel({
 
       <div className="ghp-list" ref={listRef}>
         <button
+          ref={effectiveIndex === 0 ? activeEntryRef : null}
           className={`ghp-entry ghp-initial${effectiveIndex === 0 ? ' ghp-entry-active' : ''}`}
           onClick={() => onViewIndex(0)}
         >
@@ -107,6 +115,7 @@ export function GameRightPanel({
           return (
             <button
               key={i}
+              ref={isActive ? activeEntryRef : null}
               className={`ghp-entry${isActive ? ' ghp-entry-active' : ''}`}
               onClick={() => onViewIndex(i + 1)}
             >

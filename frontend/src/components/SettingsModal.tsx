@@ -1,4 +1,10 @@
+import { useState } from 'react';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
+
+function isTouchDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia?.('(pointer: coarse)').matches ?? false;
+}
 
 // Note: devMode (game stats overlay) is kept in Settings but has no UI toggle here.
 // To enable: open browser console and run:
@@ -10,9 +16,20 @@ interface SettingsModalProps {
   settings: Settings;
   onUpdateSettings: (patch: Partial<Settings>) => void;
   onResetScore: () => void;
+  /** Session-scoped: when true, placing a wall requires a second click to confirm. */
+  confirmWallPlacement?: boolean;
+  onConfirmWallPlacementChange?: (value: boolean) => void;
 }
 
-export function SettingsModal({ isOpen, onClose, settings, onUpdateSettings }: SettingsModalProps) {
+export function SettingsModal({
+  isOpen,
+  onClose,
+  settings,
+  onUpdateSettings,
+  confirmWallPlacement,
+  onConfirmWallPlacementChange,
+}: SettingsModalProps) {
+  const [touch] = useState(isTouchDevice);
   if (!isOpen) return null;
 
   return (
@@ -52,6 +69,17 @@ export function SettingsModal({ isOpen, onClose, settings, onUpdateSettings }: S
             />
             <span>Sound Effects</span>
           </label>
+
+          {onConfirmWallPlacementChange && touch && (
+            <label className="settings-row">
+              <input
+                type="checkbox"
+                checked={!!confirmWallPlacement}
+                onChange={(e) => onConfirmWallPlacementChange(e.target.checked)}
+              />
+              <span>Double-tap to Place Fence</span>
+            </label>
+          )}
 
           <label className="settings-row settings-row-volume">
             <span className="settings-volume-label">Volume</span>

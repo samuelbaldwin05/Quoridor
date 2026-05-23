@@ -18,6 +18,12 @@ interface GameCardProps {
   topRight?: ReactNode;
   /** Optional content rendered inline on the right side of the bottom label row */
   bottomRight?: ReactNode;
+  /** Opponent's remaining fence count — shown as a chip on mobile only */
+  topFenceCount?: number;
+  /** Player's remaining fence count — shown as a chip on mobile only */
+  bottomFenceCount?: number;
+  /** Optional extra class on the outermost wrapper (e.g. to hide on mobile) */
+  wrapperClassName?: string;
   children: ReactNode;
 }
 
@@ -29,6 +35,9 @@ export function GameCard({
   playerLabel,
   topRight,
   bottomRight,
+  topFenceCount,
+  bottomFenceCount,
+  wrapperClassName,
   children,
 }: GameCardProps) {
   const isPassAndPlay = gameMode === 'pass-and-play';
@@ -44,17 +53,27 @@ export function GameCard({
   const bottomLabel = playerLabel ?? (isPassAndPlay ? 'Player 1' : 'You');
 
   return (
-    <div className="game-card">
+    <div className={`game-card${wrapperClassName ? ` ${wrapperClassName}` : ''}`}>
       <div className="game-card-header">
         <span>{topLabel}</span>
-        {topRight && <span className="game-card-header-right">{topRight}</span>}
+        <span className="game-card-header-right">
+          {topFenceCount !== undefined && (
+            <span className="mobile-fence-chip">Fences: {topFenceCount}</span>
+          )}
+          {topRight}
+        </span>
       </div>
 
       <div className="game-card-body">{children}</div>
 
       <div className="game-card-footer">
         <span>{bottomLabel}</span>
-        {bottomRight && <span className="game-card-header-right">{bottomRight}</span>}
+        <span className="game-card-header-right">
+          {bottomFenceCount !== undefined && (
+            <span className="mobile-fence-chip">Fences: {bottomFenceCount}</span>
+          )}
+          {bottomRight}
+        </span>
       </div>
     </div>
   );

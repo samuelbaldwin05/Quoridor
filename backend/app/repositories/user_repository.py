@@ -64,7 +64,12 @@ def update_username(client: Client, user_id: UUID, username: str) -> UserRead:
 def get_user_time_stats(client: Client, user_id: UUID) -> list[UserTimeStats]:
     """Fetch per-time-control stats for a user."""
     try:
-        response = client.table("user_time_stats").select("*").eq("user_id", str(user_id)).execute()
+        response = (
+            client.table("user_time_stats")
+            .select("user_id, time_control, games_played, wins, losses")
+            .eq("user_id", str(user_id))
+            .execute()
+        )
     except Exception as exc:
         raise DatabaseError("time stats fetch failed") from exc
 

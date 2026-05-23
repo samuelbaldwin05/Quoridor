@@ -2,9 +2,7 @@
 -- closing race windows in challenge accept, game result submission, and
 -- matchmaking queue pairing.
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- accept_challenge
--- ─────────────────────────────────────────────────────────────────────────────
 -- Locks the challenge row, validates state + caller, creates the game, and
 -- updates the challenge in one transaction. Returns the new game_id.
 CREATE OR REPLACE FUNCTION public.accept_challenge(
@@ -53,9 +51,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.accept_challenge(uuid, uuid) TO authenticated, service_role;
 
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- submit_game_result
--- ─────────────────────────────────────────────────────────────────────────────
 -- Locks the game row, finishes it only if still in 'playing', and updates
 -- both player ELOs in one transaction. Returns true if this caller was the
 -- one to finalize, false if the game was already finished.
@@ -120,9 +116,7 @@ GRANT EXECUTE ON FUNCTION public.submit_game_result(
 ) TO authenticated, service_role;
 
 
--- ─────────────────────────────────────────────────────────────────────────────
 -- match_in_queue
--- ─────────────────────────────────────────────────────────────────────────────
 -- Atomic "pair me with a waiting opponent and create the game". Uses
 -- SELECT ... FOR UPDATE SKIP LOCKED so two concurrent callers cannot claim
 -- the same opponent. Caller must already have a 'waiting' row in the queue.

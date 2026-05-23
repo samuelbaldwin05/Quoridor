@@ -2,12 +2,6 @@
 -- display_name (Google OAuth name) stays on the row but is no longer surfaced
 -- in any public response.
 
--- ─────────────────────────────────────────────────────────────────────────────
--- username_chosen flag — distinguishes auto-generated placeholders from
--- user-picked usernames. UsernameGuard on the frontend redirects to /setup
--- whenever this is false, so new users still go through the setup flow even
--- though the column itself is now NOT NULL.
--- ─────────────────────────────────────────────────────────────────────────────
 ALTER TABLE public.users
     ADD COLUMN IF NOT EXISTS username_chosen boolean NOT NULL DEFAULT false;
 
