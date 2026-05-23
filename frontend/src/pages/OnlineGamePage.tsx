@@ -98,10 +98,9 @@ export function OnlineGamePage() {
             return;
           }
           dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex });
-          audio.playMove();
           setViewIndex(null);
         },
-        [dispatch, audio, myRole],
+        [dispatch, myRole],
       ),
       onOpponentResigned: useCallback(() => {
         dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
@@ -122,12 +121,26 @@ export function OnlineGamePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Play the appropriate sound on every appended move (any player, any kind).
+  const prevMoveCountRef = useRef(state.moveHistory.length);
+  useEffect(() => {
+    const prev = prevMoveCountRef.current;
+    const next = state.moveHistory.length;
+    prevMoveCountRef.current = next;
+    if (next <= prev) return;
+    const last = state.moveHistory[next - 1];
+    if (!last) return;
+    if (last.move.kind === 'wall') audio.playWall();
+    else audio.playMove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.moveHistory.length]);
+
   // Submit result when game finishes (skipped if aborted — no ELO change either way).
   useEffect(() => {
     if (aborted) return;
     if (state.game.status === 'finished' && result === null) {
       const winner = state.game.winner as 0 | 1;
-      const savedId = saveGame(state.moveHistory, winner, opponentName);
+      const savedId = saveGame(state.moveHistory, winner, opponentName, myRole);
       void submitResult(winner, timesRef.current, savedId).then(() => refreshProfile());
       if (winner === myRole) audio.playWin();
       else audio.playLose();
@@ -214,7 +227,6 @@ export function OnlineGamePage() {
       if (!res.valid) return;
       dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex: myRole });
       broadcastMove(move);
-      audio.playMove();
     },
     [
       isMyTurn,
@@ -224,7 +236,6 @@ export function OnlineGamePage() {
       myRole,
       dispatch,
       broadcastMove,
-      audio,
     ],
   );
 
@@ -244,9 +255,8 @@ export function OnlineGamePage() {
       dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex: myRole });
       broadcastMove(move);
       setWallPreview(null);
-      audio.playMove();
     },
-    [isMyTurn, isLive, state.game, myRole, dispatch, broadcastMove, audio],
+    [isMyTurn, isLive, state.game, myRole, dispatch, broadcastMove],
   );
 
   function handleResign() {

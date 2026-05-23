@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DevStats } from '@/components/DevStats';
 import { FencePanel } from '@/components/FencePanel';
@@ -82,12 +82,19 @@ export function GamePage() {
     return () => clearTimeout(timer);
   }, [state.message, dispatch]);
 
+  // Play the appropriate sound on every appended move (any player, any kind).
+  const prevMoveCountRef = useRef(state.moveHistory.length);
   useEffect(() => {
-    if (state.game.status === 'playing' && state.game.currentPlayerIndex === 1 && !isPassAndPlay) {
-      audio.playMove();
-    }
+    const prev = prevMoveCountRef.current;
+    const next = state.moveHistory.length;
+    prevMoveCountRef.current = next;
+    if (next <= prev) return;
+    const last = state.moveHistory[next - 1];
+    if (!last) return;
+    if (last.move.kind === 'wall') audio.playWall();
+    else audio.playMove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.game.currentPlayerIndex, state.game.status]);
+  }, [state.moveHistory.length]);
 
   useEffect(() => {
     if (state.game.status === 'finished') {
@@ -171,8 +178,7 @@ export function GamePage() {
   const handleNewGame = () => {
     setShowWinLose(false);
     setViewIndex(null);
-    dispatch({ type: 'NEW_GAME' });
-    audio.playStart();
+    dispatch({ type: 'RESET_TO_IDLE' });
   };
 
   const handleAnalyze = (gameId: string) => navigate(`/history/${gameId}`);
