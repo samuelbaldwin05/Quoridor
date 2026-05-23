@@ -12,7 +12,6 @@ class UserTimeStats(BaseModel):
     games_played: int
     wins: int
     losses: int
-    elo: int
 
     @computed_field
     @property

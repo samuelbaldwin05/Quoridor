@@ -6,7 +6,6 @@ from supabase import Client
 
 from app.core.exceptions import ConflictError
 from app.repositories import friendship_repository
-from app.repositories._pg_errors import is_unique_violation
 from app.schemas.friendship import FriendshipRead, FriendWithProfile
 
 
@@ -17,12 +16,7 @@ def list_friends(client: Client, user_id: UUID) -> list[FriendWithProfile]:
 def send_request(client: Client, requester_id: UUID, receiver_id: UUID) -> FriendshipRead:
     if requester_id == receiver_id:
         raise ConflictError("cannot send a friend request to yourself")
-    try:
-        return friendship_repository.create_friendship(client, requester_id, receiver_id)
-    except Exception as exc:
-        if is_unique_violation(exc):
-            raise ConflictError("friend request already exists") from exc
-        raise
+    return friendship_repository.create_friendship(client, requester_id, receiver_id)
 
 
 def accept_request(client: Client, friendship_id: UUID, user_id: UUID) -> FriendshipRead:

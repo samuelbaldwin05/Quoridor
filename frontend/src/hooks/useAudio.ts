@@ -1,44 +1,49 @@
-import { useRef, useCallback } from 'react';
+import { useCallback } from 'react';
+
+const SOUND_SOURCES = {
+  move: '/sounds/click.mp3',
+  wall: '/sounds/clack.mp3',
+  win: '/sounds/win.mp3',
+  lose: '/sounds/lose.mp3',
+  start: '/sounds/start.mp3',
+} as const;
+
+type SoundKey = keyof typeof SOUND_SOURCES;
+
+let cache: Partial<Record<SoundKey, HTMLAudioElement>> | null = null;
+
+function getCache(): Partial<Record<SoundKey, HTMLAudioElement>> {
+  if (cache) return cache;
+  if (typeof window === 'undefined') return {};
+  const c: Partial<Record<SoundKey, HTMLAudioElement>> = {};
+  (Object.keys(SOUND_SOURCES) as SoundKey[]).forEach((key) => {
+    const audio = new Audio(SOUND_SOURCES[key]);
+    audio.preload = 'auto';
+    audio.load();
+    c[key] = audio;
+  });
+  cache = c;
+  return c;
+}
 
 export function useAudio(enabled: boolean, volume: number) {
-  const moveAudio = useRef<HTMLAudioElement | null>(null);
-  const wallAudio = useRef<HTMLAudioElement | null>(null);
-  const winAudio = useRef<HTMLAudioElement | null>(null);
-  const loseAudio = useRef<HTMLAudioElement | null>(null);
-  const startAudio = useRef<HTMLAudioElement | null>(null);
-
-  const getOrCreate = (
-    ref: React.MutableRefObject<HTMLAudioElement | null>,
-    src: string,
-  ): HTMLAudioElement => {
-    if (!ref.current) {
-      ref.current = new Audio(src);
-    }
-    return ref.current;
-  };
-
   const playSound = useCallback(
-    (ref: React.MutableRefObject<HTMLAudioElement | null>, src: string) => {
+    (key: SoundKey) => {
       if (!enabled) return;
-      const audio = getOrCreate(ref, src);
+      const audio = getCache()[key];
+      if (!audio) return;
       audio.volume = Math.max(0, Math.min(1, volume));
       audio.currentTime = 0;
-      audio.play().catch(() => {
-        // Ignore autoplay errors
-      });
+      audio.play().catch(() => {});
     },
     [enabled, volume],
   );
 
-  const playMove = useCallback(() => playSound(moveAudio, '/sounds/click.mp3'), [playSound]);
-
-  const playWall = useCallback(() => playSound(wallAudio, '/sounds/clack.mp3'), [playSound]);
-
-  const playWin = useCallback(() => playSound(winAudio, '/sounds/win.mp3'), [playSound]);
-
-  const playLose = useCallback(() => playSound(loseAudio, '/sounds/lose.mp3'), [playSound]);
-
-  const playStart = useCallback(() => playSound(startAudio, '/sounds/start.mp3'), [playSound]);
+  const playMove = useCallback(() => playSound('move'), [playSound]);
+  const playWall = useCallback(() => playSound('wall'), [playSound]);
+  const playWin = useCallback(() => playSound('win'), [playSound]);
+  const playLose = useCallback(() => playSound('lose'), [playSound]);
+  const playStart = useCallback(() => playSound('start'), [playSound]);
 
   return { playMove, playWall, playWin, playLose, playStart };
 }

@@ -4,7 +4,8 @@ from uuid import UUID
 
 from supabase import Client
 
-from app.core.exceptions import AuthorizationError, DatabaseError, NotFoundError
+from app.core.exceptions import AuthorizationError, ConflictError, DatabaseError, NotFoundError
+from app.repositories._pg_errors import is_unique_violation
 from app.schemas.friendship import FriendshipRead, FriendshipStatus, FriendWithProfile
 
 
@@ -69,6 +70,8 @@ def create_friendship(client: Client, requester_id: UUID, receiver_id: UUID) -> 
     try:
         resp = client.table("friendships").insert(payload).execute()
     except Exception as exc:
+        if is_unique_violation(exc):
+            raise ConflictError("friend request already exists") from exc
         raise DatabaseError("friendship create failed") from exc
 
     if not resp.data:

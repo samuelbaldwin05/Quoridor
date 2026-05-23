@@ -42,6 +42,7 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
   const [usernameError, setUsernameError] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -83,6 +84,19 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
     return () => document.removeEventListener('mousedown', onDown);
   }, []);
 
+  // Close mobile dropdown on tap outside the topbar or the dropdown itself.
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    function onPointerDown(e: PointerEvent) {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest('.nav-topbar') || target.closest('.nav-mobile-dropdown')) return;
+      setMobileNavOpen(false);
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [mobileNavOpen]);
+
   const displayName = profile?.username ?? 'Guest';
   const avatarLetter = displayName[0]?.toUpperCase() ?? 'G';
   const eloLabel = profile ? `ELO ${profile.elo}` : isGuest ? 'Guest' : '…';
@@ -123,145 +137,236 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
     }
   }
 
+  const navItemsList = (
+    <div className="nav-items">
+      {NAV_ITEMS.map((item) => (
+        <button
+          key={item.id}
+          className={`nav-item${activePage === item.id ? ' nav-item-active' : ''}`}
+          onClick={() => {
+            navigate(item.path);
+            setMobileNavOpen(false);
+          }}
+        >
+          <span className="nav-item-emoji">{item.emoji}</span>
+          {item.label}
+          {item.id === 'friends' && pendingCount > 0 && (
+            <span className="nav-badge" aria-label={`${pendingCount} pending`}>
+              {pendingCount}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <nav className="nav-sidebar">
-      {/* Logo */}
-      <div className="nav-logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
-        <PawnIcon />
-        <span className="nav-logo-text">Quoridor</span>
+    <>
+      {/* Mobile top bar — visible only at phone widths via CSS */}
+      <div className="nav-topbar">
+        <div
+          className="nav-logo nav-topbar-logo"
+          onClick={() => navigate('/')}
+          style={{ cursor: 'pointer' }}
+        >
+          <PawnIcon />
+          <span className="nav-logo-text">Quoridor</span>
+        </div>
+        <button
+          className="nav-topbar-toggle"
+          onClick={() => setMobileNavOpen((v) => !v)}
+          aria-label="Menu"
+          aria-expanded={mobileNavOpen}
+        >
+          <span className={`nav-hamburger${mobileNavOpen ? ' nav-hamburger-open' : ''}`}>
+            <span />
+            <span />
+            <span />
+          </span>
+        </button>
       </div>
 
-      {/* Main navigation */}
-      <div className="nav-items">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            className={`nav-item${activePage === item.id ? ' nav-item-active' : ''}`}
-            onClick={() => navigate(item.path)}
-          >
-            <span className="nav-item-emoji">{item.emoji}</span>
-            {item.label}
-            {item.id === 'friends' && pendingCount > 0 && (
-              <span className="nav-badge" aria-label={`${pendingCount} pending`}>
-                {pendingCount}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Profile + auth pinned to bottom */}
-      <div className="nav-bottom">
-        {isGuest ? (
-          <>
-            <div className="nav-item nav-profile">
-              <div className="nav-avatar nav-avatar-guest">G</div>
-              <div className="nav-profile-info">
-                <span className="nav-profile-name">Playing as Guest</span>
-              </div>
-            </div>
-            <button className="nav-item nav-item-login" onClick={() => navigate('/login')}>
-              Log in
-            </button>
-          </>
-        ) : (
-          <div className="nav-profile-wrap" ref={menuRef}>
-            {/* Profile button → opens mini menu */}
-            <button
-              className="nav-item nav-profile nav-profile-btn"
-              onClick={() => setMenuOpen((v) => !v)}
-            >
-              <div className="nav-avatar">{avatarLetter}</div>
-              <div className="nav-profile-info">
-                <span className="nav-profile-name">{displayName}</span>
-                <span className="nav-profile-id">{eloLabel}</span>
-              </div>
-              <svg
-                className="nav-chevron"
-                viewBox="0 0 10 6"
-                fill="currentColor"
-                width="10"
-                height="6"
+      {mobileNavOpen && (
+        <div className="nav-mobile-dropdown">
+          {navItemsList}
+          <div className="nav-mobile-bottom">
+            {isGuest ? (
+              <button
+                className="nav-item nav-item-login"
+                onClick={() => {
+                  navigate('/login');
+                  setMobileNavOpen(false);
+                }}
               >
-                <path d={menuOpen ? 'M0 6L5 0L10 6' : 'M0 0L5 6L10 0'} />
-              </svg>
-            </button>
-
-            {/* Mini menu */}
-            {menuOpen && (
-              <div className="nav-profile-menu">
+                Log in
+              </button>
+            ) : (
+              <>
                 <button
-                  className="nav-profile-menu-item"
+                  className="nav-item"
                   onClick={() => {
-                    setMenuOpen(false);
                     navigate(`/profile/${profile?.id}`);
+                    setMobileNavOpen(false);
                   }}
                 >
-                  <span>👤</span> View Profile
-                </button>
-
-                {!editingUsername ? (
-                  <button className="nav-profile-menu-item" onClick={openUsernameEdit}>
-                    <span>✏️</span> Change Username
-                  </button>
-                ) : (
-                  <div className="nav-username-edit">
-                    <input
-                      className={`nav-username-input${usernameError ? ' nav-username-input-error' : ''}`}
-                      value={usernameInput}
-                      onChange={(e) => {
-                        setUsernameInput(e.target.value);
-                        setUsernameError('');
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void saveUsername();
-                        if (e.key === 'Escape') setEditingUsername(false);
-                      }}
-                      placeholder="new username"
-                      maxLength={24}
-                      autoFocus
-                    />
-                    {usernameError && <p className="nav-username-error">{usernameError}</p>}
-                    <div className="nav-username-actions">
-                      <button
-                        className="btn nav-username-save"
-                        onClick={saveUsername}
-                        disabled={savingUsername}
-                      >
-                        {savingUsername ? '…' : 'Save'}
-                      </button>
-                      <button
-                        className="btn nav-username-cancel"
-                        onClick={() => setEditingUsername(false)}
-                      >
-                        Cancel
-                      </button>
-                    </div>
+                  <div className="nav-avatar">{avatarLetter}</div>
+                  <div className="nav-profile-info">
+                    <span className="nav-profile-name">{displayName}</span>
+                    <span className="nav-profile-id">{eloLabel}</span>
                   </div>
-                )}
-              </div>
+                </button>
+                <button
+                  className="nav-item nav-item-logout"
+                  onClick={() => {
+                    void handleLogout();
+                    setMobileNavOpen(false);
+                  }}
+                >
+                  <svg
+                    className="nav-logout-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h8" />
+                    <polyline points="17 8 21 12 17 16" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                  Log out
+                </button>
+              </>
             )}
-
-            <button className="nav-item nav-item-logout" onClick={handleLogout}>
-              <svg
-                className="nav-logout-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h8" />
-                <polyline points="17 8 21 12 17 16" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-              Log out
-            </button>
           </div>
-        )}
-      </div>
-    </nav>
+        </div>
+      )}
+
+      <nav className="nav-sidebar">
+        {/* Logo */}
+        <div className="nav-logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+          <PawnIcon />
+          <span className="nav-logo-text">Quoridor</span>
+        </div>
+
+        {/* Main navigation */}
+        {navItemsList}
+
+        {/* Profile + auth pinned to bottom */}
+        <div className="nav-bottom">
+          {isGuest ? (
+            <>
+              <div className="nav-item nav-profile">
+                <div className="nav-avatar nav-avatar-guest">G</div>
+                <div className="nav-profile-info">
+                  <span className="nav-profile-name">Playing as Guest</span>
+                </div>
+              </div>
+              <button className="nav-item nav-item-login" onClick={() => navigate('/login')}>
+                Log in
+              </button>
+            </>
+          ) : (
+            <div className="nav-profile-wrap" ref={menuRef}>
+              {/* Profile button → opens mini menu */}
+              <button
+                className="nav-item nav-profile nav-profile-btn"
+                onClick={() => setMenuOpen((v) => !v)}
+              >
+                <div className="nav-avatar">{avatarLetter}</div>
+                <div className="nav-profile-info">
+                  <span className="nav-profile-name">{displayName}</span>
+                  <span className="nav-profile-id">{eloLabel}</span>
+                </div>
+                <svg
+                  className="nav-chevron"
+                  viewBox="0 0 10 6"
+                  fill="currentColor"
+                  width="10"
+                  height="6"
+                >
+                  <path d={menuOpen ? 'M0 6L5 0L10 6' : 'M0 0L5 6L10 0'} />
+                </svg>
+              </button>
+
+              {/* Mini menu */}
+              {menuOpen && (
+                <div className="nav-profile-menu">
+                  <button
+                    className="nav-profile-menu-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      navigate(`/profile/${profile?.id}`);
+                    }}
+                  >
+                    <span>👤</span> View Profile
+                  </button>
+
+                  {!editingUsername ? (
+                    <button className="nav-profile-menu-item" onClick={openUsernameEdit}>
+                      <span>✏️</span> Change Username
+                    </button>
+                  ) : (
+                    <div className="nav-username-edit">
+                      <input
+                        className={`nav-username-input${usernameError ? ' nav-username-input-error' : ''}`}
+                        value={usernameInput}
+                        onChange={(e) => {
+                          setUsernameInput(e.target.value);
+                          setUsernameError('');
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void saveUsername();
+                          if (e.key === 'Escape') setEditingUsername(false);
+                        }}
+                        placeholder="new username"
+                        maxLength={24}
+                        autoFocus
+                      />
+                      {usernameError && <p className="nav-username-error">{usernameError}</p>}
+                      <div className="nav-username-actions">
+                        <button
+                          className="btn nav-username-save"
+                          onClick={saveUsername}
+                          disabled={savingUsername}
+                        >
+                          {savingUsername ? '…' : 'Save'}
+                        </button>
+                        <button
+                          className="btn nav-username-cancel"
+                          onClick={() => setEditingUsername(false)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button className="nav-item nav-item-logout" onClick={handleLogout}>
+                <svg
+                  className="nav-logout-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h8" />
+                  <polyline points="17 8 21 12 17 16" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Log out
+              </button>
+            </div>
+          )}
+        </div>
+      </nav>
+    </>
   );
 }

@@ -60,8 +60,8 @@ def record_game_result(
             new_elo_p2=0,
         )
 
-    p1_resp = supabase.table("users").select("elo,games_played").eq("id", p1_id).limit(1).execute()
-    p2_resp = supabase.table("users").select("elo,games_played").eq("id", p2_id).limit(1).execute()
+    p1_resp = supabase.table("users").select("elo").eq("id", p1_id).limit(1).execute()
+    p2_resp = supabase.table("users").select("elo").eq("id", p2_id).limit(1).execute()
     p1 = p1_resp.data[0] if p1_resp.data else None
     p2 = p2_resp.data[0] if p2_resp.data else None
     if not p1 or not p2:
@@ -70,13 +70,11 @@ def record_game_result(
     if body.winner_index == 0:
         winner_id, loser_id = p1_id, p2_id
         winner_elo, loser_elo = p1["elo"], p2["elo"]
-        winner_games, loser_games = p1["games_played"], p2["games_played"]
     else:
         winner_id, loser_id = p2_id, p1_id
         winner_elo, loser_elo = p2["elo"], p1["elo"]
-        winner_games, loser_games = p2["games_played"], p1["games_played"]
 
-    new_winner_elo, new_loser_elo = update_elos(winner_elo, loser_elo, winner_games, loser_games)
+    new_winner_elo, new_loser_elo = update_elos(winner_elo, loser_elo)
 
     is_p1_winner = body.winner_index == 0
     elo_change_p1 = (new_winner_elo - winner_elo) if is_p1_winner else (new_loser_elo - loser_elo)

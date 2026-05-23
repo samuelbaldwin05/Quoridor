@@ -9,7 +9,6 @@ interface TimeStats {
   games_played: number;
   wins: number;
   losses: number;
-  elo: number;
   win_pct: number;
 }
 
@@ -200,9 +199,6 @@ export function ProfilePage() {
                         <span className="profile-tc-label">{tcLabel(t.time_control)}</span>
                         <span className="profile-tc-stat">{t.games_played} games</span>
                         <span className="profile-tc-stat">{Math.round(t.win_pct * 100)}% wins</span>
-                        <span className="profile-tc-elo" style={{ color: eloColor(t.elo) }}>
-                          {t.elo}
-                        </span>
                       </div>
                     ))}
                   </div>

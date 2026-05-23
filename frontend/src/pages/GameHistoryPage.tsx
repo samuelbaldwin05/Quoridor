@@ -6,7 +6,7 @@ import { FencePanel } from '@/components/FencePanel';
 import { GameCard } from '@/components/GameCard';
 import { createInitialState, applyMove } from '@/engine/gameEngine';
 import type { GameState, StoredMove, Move } from '@/engine/gameTypes';
-import { loadGame, listGames } from '@/lib/gameStorage';
+import { loadGame, listGames, didUserWin } from '@/lib/gameStorage';
 
 function replayToIndex(moves: StoredMove[], index: number): GameState {
   let state: GameState = { ...createInitialState(), status: 'playing' };
@@ -57,9 +57,9 @@ export function GameHistoryPage() {
     let list = [...games];
     // Sort
     if (sortOrder === 'oldest') list.sort((a, b) => a.date - b.date);
-    // Filter by result
-    if (filterResult === 'win') list = list.filter((g) => g.winner === 0);
-    else if (filterResult === 'lose') list = list.filter((g) => g.winner !== 0);
+    // Filter by result (relative to the logged-in user, not player 0)
+    if (filterResult === 'win') list = list.filter((g) => didUserWin(g));
+    else if (filterResult === 'lose') list = list.filter((g) => !didUserWin(g));
     // Filter by opponent type
     if (filterOpponent === 'bot')
       list = list.filter((g) => (g.opponentLabel ?? '').includes('Bot'));
@@ -272,9 +272,9 @@ export function GameHistoryPage() {
                         <div className="history-item-row">
                           <span className="history-item-who">{g.opponentLabel ?? 'Bot'}</span>
                           <span
-                            className={`history-item-result ${g.winner === 0 ? 'result-win' : 'result-lose'}`}
+                            className={`history-item-result ${didUserWin(g) ? 'result-win' : 'result-lose'}`}
                           >
-                            {g.winner === 0 ? 'Win' : 'Loss'}
+                            {didUserWin(g) ? 'Win' : 'Loss'}
                           </span>
                         </div>
                         <div className="history-item-row history-item-meta">
@@ -316,8 +316,11 @@ export function GameHistoryPage() {
 
                   {currentGame.moves.map((sm, i) => {
                     const isActive = moveIndex === i + 1;
+                    const userRole = currentGame.userRole ?? 0;
                     const who =
-                      sm.playerIndex === 0 ? 'You' : (selectedGame?.opponentLabel ?? 'Opponent');
+                      sm.playerIndex === userRole
+                        ? 'You'
+                        : (selectedGame?.opponentLabel ?? 'Opponent');
                     return (
                       <button
                         key={i}
