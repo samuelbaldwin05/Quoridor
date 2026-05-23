@@ -17,9 +17,7 @@ export function useBoardInteraction(
   // Human controls: player 0 always; player 1 only in pass-and-play
   const isHumanTurn = state.game.status === 'playing' && (currentIdx === 0 || isPassAndPlay);
 
-  // Wall preview must never persist across turn boundaries: a stale preview from
-  // the previous turn would otherwise reappear as a "ghost fence" the moment it
-  // becomes the player's turn again, before any tap.
+  // Clear preview on turn change so a stale one doesn't reappear next turn.
   useEffect(() => {
     if (!isHumanTurn) setWallPreview(null);
   }, [isHumanTurn]);
@@ -28,12 +26,11 @@ export function useBoardInteraction(
 
   const handleCellClick = (pos: Position) => {
     if (!isHumanTurn || !state.settings.clickMoveEnabled) return;
-    setWallPreview(null); // pawn move clears any pending wall preview
+    setWallPreview(null);
     dispatch({ type: 'APPLY_MOVE', move: { kind: 'pawn', to: pos } });
   };
 
   const handleWallHover = (wall: Wall | null) => {
-    // In confirm mode, hover does not set previews — only explicit clicks do.
     if (confirmWallPlacement) return;
     if (!isHumanTurn) {
       setWallPreview(null);
@@ -47,8 +44,8 @@ export function useBoardInteraction(
     if (state.game.players[currentIdx].wallsRemaining <= 0) return;
     if (!isValidWallPlacement(state.game, wall)) return;
 
+    // In confirm mode, first click previews, second click on same slot commits.
     if (confirmWallPlacement) {
-      // First click on a new slot → preview. Second click on the same slot → commit.
       if (!wallPreview || !wallsEqual(wallPreview, wall)) {
         setWallPreview(wall);
         return;

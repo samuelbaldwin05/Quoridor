@@ -1079,6 +1079,10 @@ body {
   padding: 10px 16px;
   font-size: 14px;
   font-weight: 600;
+  /* Centre label even when mobile min-height stretches the button taller. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .half-width {
@@ -2995,7 +2999,7 @@ body {
 .profile-tc-head,
 .profile-tc-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 4px;
   padding: 6px 8px;
 }
@@ -3389,7 +3393,7 @@ body {
   margin: 0;
 }
 
-/* ── Mobile top bar (phones only) ───────────────────────────────────────────── */
+/* Mobile top bar (phones only) */
 .nav-topbar {
   display: none; /* shown only at phone widths via media query */
   align-items: center;
@@ -3480,7 +3484,7 @@ body {
   gap: 4px;
 }
 
-/* ── Phone-width overrides (≤640px) ─────────────────────────────────────────── */
+/* Phone-width overrides (<=640px) */
 @media (max-width: 640px) {
   /* Hide desktop sidebar, show top bar */
   .nav-sidebar {
@@ -3493,7 +3497,7 @@ body {
     display: flex;
   }
 
-  /* Kill legacy body padding from the 768px block — it eats 20px of width */
+  /* Override the legacy 768px body padding so it doesn't eat 20px of width */
   body {
     padding: 0;
   }
@@ -3524,10 +3528,8 @@ body {
     min-height: 0;
   }
 
-  /* Tighter cell sizing — account for ALL fixed widths in horizontal stack:
-     main-content padding (8) + card right padding (8) + board-wrapper padding (8)
-     + axis-y column (~19) + 4px safety = 47. FencePanel is hidden on mobile.
-     Vertical budget reserves room for top bar (52), right-panel min (~150), and gaps. */
+  /* Cell-size budget: main-content (8) + card right (8) + board-wrapper (8)
+     + axis-y (19) + 4 safety = 47. Vertical leaves room for topbar + history. */
   :root {
     --cell-size: min(
       calc((100vw - 47px - 8 * 8px) / 9),
@@ -3546,7 +3548,7 @@ body {
     justify-content: center;
   }
 
-  /* FencePanel hidden on mobile — count is shown in the player/opponent rows instead */
+  /* Hidden on mobile; count shown via .mobile-fence-chip on the player rows */
   .fence-panel {
     display: none;
   }
@@ -3588,9 +3590,7 @@ body {
   }
 }
 
-/* Fence chip — hidden on desktop, shown on mobile inside header/footer rows.
-   Styled to match the online timer bubble (.online-timer-card) so they sit
-   together on the same row visually. */
+/* Fence chip: hidden on desktop, shown on mobile. Matches .online-timer-card. */
 .mobile-fence-chip {
   display: none;
   align-items: center;
