@@ -87,7 +87,7 @@ def search_users(
 
 @router.get("/leaderboard", response_model=list[UserSearchResult])
 def get_leaderboard(
-    limit: int = Query(5, ge=1, le=200),
+    limit: int = Query(20, ge=1, le=20),
     client: Client = Depends(get_supabase),
 ) -> list[UserSearchResult]:
     """Return the top players ordered by ELO descending."""

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from supabase import Client
@@ -47,7 +48,11 @@ def update_username(client: Client, user_id: UUID, username: str) -> UserRead:
     try:
         resp = (
             client.table("users")
-            .update({"username": username, "username_chosen": True})
+            .update({
+                "username": username,
+                "username_chosen": True,
+                "username_updated_at": datetime.now(UTC).isoformat(),
+            })
             .eq("id", str(user_id))
             .execute()
         )
@@ -76,13 +81,14 @@ def get_user_time_stats(client: Client, user_id: UUID) -> list[UserTimeStats]:
     return [UserTimeStats(**row) for row in response.data]
 
 
-def get_leaderboard(client: Client, limit: int = 50) -> list[UserSearchResult]:
+def get_leaderboard(client: Client, limit: int = 20) -> list[UserSearchResult]:
     """Return the top users by ELO. Hides users who haven't picked a username."""
     try:
         response = (
             client.table("users")
             .select("id, username, elo")
             .eq("username_chosen", True)
+            .gt("games_played", 0)
             .order("elo", desc=True)
             .limit(limit)
             .execute()

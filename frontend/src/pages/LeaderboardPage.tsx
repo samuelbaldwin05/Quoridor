@@ -41,7 +41,7 @@ export function LeaderboardPage() {
           .select('id, username, elo, games_played')
           .eq('username_chosen', true)
           .order(sort, { ascending: false })
-          .limit(50);
+          .limit(20);
         if (cancelled) return;
         setEntries((data as LeaderEntry[]) ?? []);
       } catch {
