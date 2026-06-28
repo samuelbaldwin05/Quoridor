@@ -146,27 +146,32 @@ export function GamePage() {
 
   useKeyboard(state.settings.keyboardEnabled, isHumanTurn, handleKeyboardAction);
 
-  // Arrow-key history navigation (always active, not just when human turn)
+  // Arrow-key history navigation (always active, not just when human turn).
+  // Uses functional setViewIndex so holding a key steps through moves rapidly
+  // without the stale-closure problem (viewIndex excluded from deps).
   useEffect(() => {
+    const totalMoves = state.moveHistory.length;
     function onKeyDown(e: KeyboardEvent) {
       if (state.game.status === 'idle') return;
-      const totalMoves = state.moveHistory.length;
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        const cur = viewIndex ?? totalMoves;
-        if (cur > 0) setViewIndex(cur - 1);
+        setViewIndex((cur) => {
+          const c = cur ?? totalMoves;
+          return c > 0 ? c - 1 : cur;
+        });
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        const cur = viewIndex ?? totalMoves;
-        if (cur < totalMoves) {
-          const next = cur + 1;
-          setViewIndex(next >= totalMoves ? null : next);
-        }
+        setViewIndex((cur) => {
+          const c = cur ?? totalMoves;
+          if (c >= totalMoves) return cur;
+          const next = c + 1;
+          return next >= totalMoves ? null : next;
+        });
       }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [viewIndex, state.moveHistory.length, state.game.status]);
+  }, [state.moveHistory.length, state.game.status]);
 
   function handlePlay(difficulty: Settings['difficulty'], gameMode: Settings['gameMode']) {
     setViewIndex(null); // reset to live

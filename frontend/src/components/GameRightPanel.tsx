@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import type { StoredMove, Move } from '@/engine/gameTypes';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
+import { useHoldRepeat } from '@/hooks/useHoldRepeat';
 import { PlayPanel } from './PlayPanel';
 
 // ── move notation ────────────────────────────────────────────────────────────
@@ -26,7 +27,7 @@ interface GameRightPanelProps {
   /** null = live; number = viewing state after N moves */
   viewIndex: number | null;
   onPlay: (difficulty: Settings['difficulty'], gameMode: Settings['gameMode']) => void;
-  onViewIndex: (index: number | null) => void;
+  onViewIndex: React.Dispatch<React.SetStateAction<number | null>>;
   onResign?: () => void;
   onShowSettings?: () => void;
 }
@@ -64,18 +65,23 @@ export function GameRightPanel({
   }, [effectiveIndex, isLive]);
 
   function handleBack() {
-    if (effectiveIndex <= 0) return;
-    onViewIndex(effectiveIndex - 1);
+    onViewIndex((cur) => {
+      const c = cur ?? moveHistory.length;
+      return c > 0 ? c - 1 : cur;
+    });
   }
 
   function handleForward() {
-    if (effectiveIndex >= moveHistory.length) {
-      onViewIndex(null); // back to live
-      return;
-    }
-    const next = effectiveIndex + 1;
-    onViewIndex(next >= moveHistory.length ? null : next);
+    onViewIndex((cur) => {
+      const c = cur ?? moveHistory.length;
+      if (c >= moveHistory.length) return null;
+      const next = c + 1;
+      return next >= moveHistory.length ? null : next;
+    });
   }
+
+  const backHold = useHoldRepeat(handleBack);
+  const forwardHold = useHoldRepeat(handleForward);
 
   // ── idle: show play panel ────────────────────────────────────────────────
   if (gameStatus === 'idle') {
@@ -131,7 +137,7 @@ export function GameRightPanel({
       <div className="ghp-controls">
         <button
           className="btn ghp-nav-btn"
-          onClick={handleBack}
+          {...backHold}
           disabled={effectiveIndex === 0}
           title="Previous move"
         >
@@ -142,7 +148,7 @@ export function GameRightPanel({
         </span>
         <button
           className="btn ghp-nav-btn"
-          onClick={handleForward}
+          {...forwardHold}
           disabled={isLive}
           title="Next move"
         >
