@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -12,6 +14,33 @@ from app.repositories import user_repository
 from app.schemas.user import UserProfile, UserRead, UserSearchResult, UserUpdate
 
 router = APIRouter(prefix="/api/users", tags=["users"])
+
+_USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]+$")
+_BLOCKED_WORDS = {
+    "fuck", "shit", "cunt", "nigger", "nigga", "faggot", "fag",
+    "bitch", "cock", "pussy", "asshole", "dick", "whore", "slut",
+    "prick", "twat", "wanker", "bastard",
+}
+_RESERVED_NAMES = {
+    "admin", "administrator", "moderator", "mod", "system",
+    "support", "quoridor", "staff", "official",
+}
+_USERNAME_COOLDOWN = timedelta(days=7)
+
+
+def _validate_username_value(username: str) -> None:
+    """Raise HTTPException if the username string fails any content rule."""
+    if len(username) < 3:
+        raise HTTPException(status_code=422, detail="Username must be at least 3 characters")
+    if len(username) > 24:
+        raise HTTPException(status_code=422, detail="Username must be 24 characters or fewer")
+    if not _USERNAME_RE.match(username):
+        raise HTTPException(
+            status_code=422, detail="Only letters, numbers, and underscores allowed"
+        )
+    lower = username.lower()
+    if lower in _RESERVED_NAMES or any(w in lower for w in _BLOCKED_WORDS):
+        raise HTTPException(status_code=422, detail="Username not allowed")
 
 
 @router.post("/sync", response_model=UserRead)
@@ -26,12 +55,21 @@ async def update_me(
     user: UserRead = Depends(get_current_user),
     client: Client = Depends(get_supabase),
 ) -> UserRead:
-    """Set or update the authenticated user's username."""
+    """Set or update the authenticated user's username (7-day cooldown after first change)."""
     username = body.username.strip()
-    if len(username) < 3:
-        raise HTTPException(status_code=422, detail="Username must be at least 3 characters")
-    if len(username) > 24:
-        raise HTTPException(status_code=422, detail="Username must be 24 characters or fewer")
+    _validate_username_value(username)
+
+    # Enforce 7-day cooldown. Initial setup (username_updated_at is None) is always allowed.
+    if user.username_updated_at is not None:
+        now = datetime.now(UTC)
+        eligible_at = user.username_updated_at + _USERNAME_COOLDOWN
+        if now < eligible_at:
+            days_left = (eligible_at - now).days + 1
+            raise HTTPException(
+                status_code=429,
+                detail=f"You can change your username again in {days_left} day(s).",
+            )
+
     return user_repository.update_username(client, user.id, username)
 
 

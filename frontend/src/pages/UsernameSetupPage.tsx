@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { validateUsername } from '@/lib/usernameValidation';
 
 export function UsernameSetupPage() {
   const { updateUsername } = useAuth();
@@ -12,16 +13,9 @@ export function UsernameSetupPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = username.trim();
-    if (trimmed.length < 3) {
-      setError('At least 3 characters required.');
-      return;
-    }
-    if (trimmed.length > 24) {
-      setError('24 characters max.');
-      return;
-    }
-    if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) {
-      setError('Letters, numbers, and underscores only.');
+    const validationError = validateUsername(trimmed);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 

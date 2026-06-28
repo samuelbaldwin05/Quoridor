@@ -29,6 +29,7 @@ class UserRead(BaseModel):
     elo: int
     games_played: int
     created_at: datetime
+    username_updated_at: datetime | None = None
 
 
 class UserProfile(BaseModel):

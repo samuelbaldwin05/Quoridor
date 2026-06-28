@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { config } from '@/lib/config';
 import { supabase } from '@/lib/supabase';
 
-type PageId = 'play' | 'rules' | 'puzzles' | 'friends' | 'history' | 'leaderboard';
+type PageId = 'play' | 'rules' | 'puzzles' | 'friends' | 'history' | 'leaderboard' | 'profile';
 
 const ALL_NAV_ITEMS: { id: PageId; label: string; path: string; emoji: string }[] = [
   { id: 'play', label: 'Play', path: '/', emoji: '♟️' },
@@ -34,14 +34,8 @@ function PawnIcon() {
 
 export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
   const navigate = useNavigate();
-  const { user, profile, isGuest, signOut, updateUsername } = useAuth();
+  const { user, profile, isGuest, signOut } = useAuth();
   const [pendingCount, setPendingCount] = useState(0);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [editingUsername, setEditingUsername] = useState(false);
-  const [usernameInput, setUsernameInput] = useState('');
-  const [usernameError, setUsernameError] = useState('');
-  const [savingUsername, setSavingUsername] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
@@ -71,19 +65,6 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // Close menu on outside click
-  useEffect(() => {
-    function onDown(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-        setEditingUsername(false);
-        setUsernameError('');
-      }
-    }
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, []);
-
   // Close mobile dropdown on tap outside the topbar or the dropdown itself.
   useEffect(() => {
     if (!mobileNavOpen) return;
@@ -104,37 +85,6 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
   async function handleLogout() {
     await signOut();
     navigate('/');
-  }
-
-  function openUsernameEdit() {
-    setUsernameInput(profile?.username ?? '');
-    setUsernameError('');
-    setEditingUsername(true);
-  }
-
-  async function saveUsername() {
-    const trimmed = usernameInput.trim();
-    if (trimmed.length < 3) {
-      setUsernameError('At least 3 characters.');
-      return;
-    }
-    if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) {
-      setUsernameError('Letters, numbers, underscores only.');
-      return;
-    }
-    setSavingUsername(true);
-    setUsernameError('');
-    try {
-      await updateUsername(trimmed);
-      setEditingUsername(false);
-      setMenuOpen(false);
-    } catch (err) {
-      setUsernameError(
-        err instanceof Error && err.message.includes('409') ? 'Username taken.' : 'Error saving.',
-      );
-    } finally {
-      setSavingUsername(false);
-    }
   }
 
   const navItemsList = (
@@ -269,82 +219,17 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
               </button>
             </>
           ) : (
-            <div className="nav-profile-wrap" ref={menuRef}>
-              {/* Profile button → opens mini menu */}
+            <>
               <button
                 className="nav-item nav-profile nav-profile-btn"
-                onClick={() => setMenuOpen((v) => !v)}
+                onClick={() => navigate(`/profile/${profile?.id}`)}
               >
                 <div className="nav-avatar">{avatarLetter}</div>
                 <div className="nav-profile-info">
                   <span className="nav-profile-name">{displayName}</span>
                   <span className="nav-profile-id">{eloLabel}</span>
                 </div>
-                <svg
-                  className="nav-chevron"
-                  viewBox="0 0 10 6"
-                  fill="currentColor"
-                  width="10"
-                  height="6"
-                >
-                  <path d={menuOpen ? 'M0 6L5 0L10 6' : 'M0 0L5 6L10 0'} />
-                </svg>
               </button>
-
-              {/* Mini menu */}
-              {menuOpen && (
-                <div className="nav-profile-menu">
-                  <button
-                    className="nav-profile-menu-item"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      navigate(`/profile/${profile?.id}`);
-                    }}
-                  >
-                    <span>👤</span> View Profile
-                  </button>
-
-                  {!editingUsername ? (
-                    <button className="nav-profile-menu-item" onClick={openUsernameEdit}>
-                      <span>✏️</span> Change Username
-                    </button>
-                  ) : (
-                    <div className="nav-username-edit">
-                      <input
-                        className={`nav-username-input${usernameError ? ' nav-username-input-error' : ''}`}
-                        value={usernameInput}
-                        onChange={(e) => {
-                          setUsernameInput(e.target.value);
-                          setUsernameError('');
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') void saveUsername();
-                          if (e.key === 'Escape') setEditingUsername(false);
-                        }}
-                        placeholder="new username"
-                        maxLength={24}
-                        autoFocus
-                      />
-                      {usernameError && <p className="nav-username-error">{usernameError}</p>}
-                      <div className="nav-username-actions">
-                        <button
-                          className="btn nav-username-save"
-                          onClick={saveUsername}
-                          disabled={savingUsername}
-                        >
-                          {savingUsername ? '…' : 'Save'}
-                        </button>
-                        <button
-                          className="btn nav-username-cancel"
-                          onClick={() => setEditingUsername(false)}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
 
               <button className="nav-item nav-item-logout" onClick={handleLogout}>
                 <svg
@@ -363,7 +248,7 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
                 </svg>
                 Log out
               </button>
-            </div>
+            </>
           )}
         </div>
       </nav>

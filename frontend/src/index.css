@@ -756,6 +756,125 @@ body {
   font-weight: 700;
 }
 
+/* Username row with inline edit button */
+.profile-username-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.45;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: opacity 0.12s;
+  line-height: 1;
+}
+.profile-edit-btn:hover {
+  opacity: 1;
+}
+
+/* Inline username edit form */
+.profile-username-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Input + icon buttons share one bordered row */
+.profile-edit-input-wrap {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--border-radius-small);
+  padding-right: 4px;
+}
+.profile-edit-input-wrap:focus-within {
+  border-color: var(--player1-color);
+}
+.profile-edit-input-wrap-error {
+  border-color: var(--hover-danger) !important;
+}
+
+.profile-edit-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  padding: 6px 10px;
+  min-width: 0;
+}
+
+.profile-edit-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 6px;
+  border-radius: var(--border-radius-small);
+  line-height: 1;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+}
+.profile-edit-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.profile-edit-confirm {
+  color: #2ecc71;
+}
+.profile-edit-confirm:hover:not(:disabled) {
+  background: rgba(46, 204, 113, 0.15);
+}
+.profile-edit-dismiss {
+  color: rgba(255, 255, 255, 0.4);
+}
+.profile-edit-dismiss:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--hover-danger);
+}
+
+.profile-edit-error {
+  font-size: 11px;
+  color: var(--hover-danger);
+  margin: 0;
+  padding-left: 2px;
+}
+
+/* ELO + rank badge row */
+.profile-elo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.profile-rank-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  border: 1px solid;
+  border-radius: 4px;
+  padding: 2px 6px;
+  opacity: 0.8;
+}
+
+/* Member since subtitle */
+.profile-member-since {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+  margin: 2px 0 0;
+}
+
 /* Grey box wrapping the board grid + fence panel */
 .board-wrapper {
   display: flex;
