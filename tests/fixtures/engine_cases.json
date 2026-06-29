@@ -38,6 +38,27 @@
       "expected": false
     },
     {
+      "name": "p0 rightward move from start is legal",
+      "kind": "pawn_legal",
+      "history": [],
+      "candidate": "f1",
+      "expected": true
+    },
+    {
+      "name": "p0 backward move off board is illegal",
+      "kind": "pawn_legal",
+      "history": [],
+      "candidate": "e0",
+      "expected": false
+    },
+    {
+      "name": "p0 cannot move to p1 start square",
+      "kind": "pawn_legal",
+      "history": [],
+      "candidate": "e9",
+      "expected": false
+    },
+    {
       "name": "wall in middle of empty board is legal",
       "kind": "wall_legal",
       "history": [],
@@ -66,11 +87,81 @@
       "expected": false
     },
     {
+      "name": "h-wall and v-wall at same anchor share a post (post overlap)",
+      "kind": "wall_legal",
+      "history": ["e7h"],
+      "candidate": "e7v",
+      "expected": false
+    },
+    {
+      "name": "non-adjacent horizontal walls on same row are legal",
+      "kind": "wall_legal",
+      "history": ["e7h"],
+      "candidate": "c7h",
+      "expected": true
+    },
+    {
+      "name": "vertical wall on empty board is legal",
+      "kind": "wall_legal",
+      "history": [],
+      "candidate": "d5v",
+      "expected": true
+    },
+    {
+      "name": "adjacent vertical walls on same col are illegal",
+      "kind": "wall_legal",
+      "history": ["d5v"],
+      "candidate": "d6v",
+      "expected": false
+    },
+    {
+      "name": "non-adjacent vertical walls on same col are legal",
+      "kind": "wall_legal",
+      "history": ["d5v"],
+      "candidate": "d3v",
+      "expected": true
+    },
+    {
+      "name": "h and v walls at different positions do not conflict",
+      "kind": "wall_legal",
+      "history": ["e7h"],
+      "candidate": "d5v",
+      "expected": true
+    },
+    {
       "name": "p1 can jump straight over p0",
       "kind": "pawn_legal",
       "history": ["e2", "e8", "e3", "e7", "e4", "e6", "e5"],
       "candidate": "e4",
       "expected": true
+    },
+    {
+      "name": "p0 can jump straight over p1",
+      "kind": "pawn_legal",
+      "history": ["e2", "e8", "e3", "e7", "e4", "e6"],
+      "candidate": "e7",
+      "expected": true
+    },
+    {
+      "name": "p0 diagonal jump when straight blocked by wall",
+      "kind": "pawn_legal",
+      "history": ["e2", "e8", "e3", "e7", "e4", "e6", "e5", "e6h"],
+      "candidate": "d6",
+      "expected": true
+    },
+    {
+      "name": "p0 diagonal jump right when straight blocked by wall",
+      "kind": "pawn_legal",
+      "history": ["e2", "e8", "e3", "e7", "e4", "e6", "e5", "e6h"],
+      "candidate": "f6",
+      "expected": true
+    },
+    {
+      "name": "p0 cannot jump two squares without opponent in between",
+      "kind": "pawn_legal",
+      "history": ["e2", "e8"],
+      "candidate": "e4",
+      "expected": false
     },
     {
       "name": "p0 reaches goal row in 15-move straight march",
@@ -79,9 +170,38 @@
       "expected_winner": 0
     },
     {
+      "name": "p1 wins by reaching row 8 (rank 1)",
+      "kind": "history_winner",
+      "history": [
+        "a2h", "e8", "b4h", "e7", "c6h", "e6",
+        "a4h", "e5", "b6h", "e4", "c8h", "e3",
+        "a6h", "e2", "b8h", "e1"
+      ],
+      "expected_winner": 1
+    },
+    {
       "name": "history with non-adjacent jump is rejected",
       "kind": "history_invalid",
       "history": ["e2", "e2"]
+    },
+    {
+      "name": "history with off-board pawn move is rejected",
+      "kind": "history_invalid",
+      "history": ["e3"]
+    },
+    {
+      "name": "history with duplicate wall is rejected",
+      "kind": "history_invalid",
+      "history": ["e7h", "e8", "e7h"]
+    },
+    {
+      "name": "wall placement after 0 walls remaining is rejected",
+      "kind": "history_invalid",
+      "history": [
+        "e7h", "d9", "c7h", "d9", "a7h", "d9", "a5h", "d9",
+        "c5h", "d9", "e5h", "d9", "g5h", "d9", "g7h", "d9",
+        "c3h", "d9", "a3h", "d9", "e3h"
+      ]
     }
   ]
 }
