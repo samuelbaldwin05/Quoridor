@@ -47,7 +47,7 @@ const PUZZLES: Puzzle[] = [
     id: 2,
     title: 'Find the Angle',
     description:
-      "Your opponent sits on the goal line and a wall blocks the obvious diagonal. There's still a way through — look right.",
+      "Your opponent sits on the goal line and a wall blocks the obvious diagonal. There's still a way through. Look right.",
     difficulty: 'easy',
     objective: 'White to move and win in 1',
     // solution: diagonal-right jump from (1,4) over (0,4) → lands at (0,5)
@@ -98,7 +98,7 @@ const PUZZLES: Puzzle[] = [
     id: 4,
     title: 'Red Herring',
     description:
-      "A wall on the left looks like it seals you in — but it only blocks a step, not a jump. Find the move the wall doesn't stop.",
+      "A wall on the left looks like it seals you in, but it only blocks a step, not a jump. Find the move the wall doesn't stop.",
     difficulty: 'medium',
     objective: 'White to move and win in 1',
     // solution: diagonal-left jump from (1,1) over (0,1) → lands at (0,0)
@@ -127,7 +127,7 @@ const PUZZLES: Puzzle[] = [
     id: 5,
     title: 'The Labyrinth',
     description:
-      'Walls on the left block every obvious escape — both the step and the jump. But the right side tells a different story. Search carefully.',
+      'Walls on the left block every obvious escape, both the step and the jump. The right side is open. Search carefully.',
     difficulty: 'hard',
     objective: 'White to move and win in 1',
     // solution: diagonal-right jump from (1,4) over (0,4) → (0,5)
