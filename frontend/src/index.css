@@ -875,6 +875,49 @@ body {
   margin: 2px 0 0;
 }
 
+/* ── Landscape blocker ──────────────────────────────────────────────────────── */
+/* Hidden by default; shown only on phones held sideways (landscape + short viewport). */
+.landscape-blocker {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--primary-bg);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  pointer-events: all;
+}
+
+.landscape-blocker-icon {
+  width: 48px;
+  height: 48px;
+  color: rgba(255, 255, 255, 0.35);
+  animation: landscape-rock 1.8s ease-in-out infinite;
+}
+
+.landscape-blocker-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 0;
+}
+
+@keyframes landscape-rock {
+  0%, 100% { transform: rotate(0deg); }
+  30%       { transform: rotate(-90deg); }
+  70%       { transform: rotate(-90deg); }
+}
+
+/* Activate on phones in landscape: landscape + height under 500px covers all phones,
+   excludes tablets and laptops whose landscape viewport is tall enough to use normally. */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  .landscape-blocker {
+    display: flex;
+  }
+}
+
 /* Grey box wrapping the board grid + fence panel */
 .board-wrapper {
   display: flex;
