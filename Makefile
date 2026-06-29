@@ -14,7 +14,7 @@ endif
         backend-shell frontend-shell db-shell db-reset \
         lint-backend format-backend test-backend \
         lint-frontend format-frontend test-frontend \
-        ci migrate seed
+        test ci migrate seed
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 help: ## Show this help message
@@ -49,6 +49,7 @@ help: ## Show this help message
 	@echo "    make test-frontend  Run Vitest"
 	@echo ""
 	@echo "  CI"
+	@echo "    make test           Run all tests (frontend + backend), no linting"
 	@echo "    make ci             Run linting and testing for frontend and backend"
 	@echo ""
 	@echo "  Database"
@@ -134,6 +135,10 @@ test-frontend: ## Run Vitest
 	cd frontend && bun run test:run
 
 # ── CI ───────────────────────────────────────────────────────────────────────
+test: ## Run all tests (frontend + backend), no linting
+	@$(MAKE) test-backend
+	@$(MAKE) test-frontend
+
 ci: ## Run linting and testing checks
 	@$(MAKE) lint-backend
 	@$(MAKE) lint-frontend
