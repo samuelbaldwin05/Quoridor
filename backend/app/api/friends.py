@@ -46,12 +46,11 @@ def accept_friend_request(
     return friendship_service.accept_request(client, friendship_id, user.id)
 
 
-@router.delete("/{friendship_id}", response_model=dict)
+@router.delete("/{friendship_id}", status_code=204)
 def delete_friendship(
     friendship_id: UUID,
     user: UserRead = Depends(get_current_user),
     client: Client = Depends(get_supabase),
-) -> dict:
+) -> None:
     """Unfriend or cancel a pending friend request."""
     friendship_service.delete(client, friendship_id, user.id)
-    return {"ok": True}

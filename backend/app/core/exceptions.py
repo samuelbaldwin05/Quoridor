@@ -24,3 +24,11 @@ class AuthorizationError(QuoridorError):
 
 class GameAlreadyFinishedError(QuoridorError):
     """Action attempted on a game that has already ended."""
+
+
+class ValidationError(QuoridorError):
+    """Input failed a business validation rule — surfaced as 422."""
+
+
+class CooldownError(QuoridorError):
+    """Action attempted before a required cooldown elapsed — surfaced as 429."""
