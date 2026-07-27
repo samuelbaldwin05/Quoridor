@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     # Prod tokens are signed with asymmetric keys and verified via JWKS.
     supabase_jwt_secret: str | None = None
 
+    # Expected `iss` claim for access tokens (e.g. https://<ref>.supabase.co/auth/v1).
+    # OPT-IN: leave unset to skip issuer verification. Do NOT derive it from
+    # supabase_url — inside Docker that's an internal hostname (kong) that never
+    # matches the token's external issuer, which would 401 every login.
+    supabase_jwt_issuer: str | None = None
+
     environment: str = "development"  # "development" | "production"
 
     cors_origins: list[str] = ["http://localhost:5173"]

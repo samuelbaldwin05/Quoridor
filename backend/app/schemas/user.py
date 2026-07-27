@@ -33,8 +33,8 @@ class UserRead(BaseModel):
 
 
 class UserProfile(BaseModel):
+    # Public profile (GET /api/users/{id} is unauthenticated) — must NOT carry email.
     id: UUID
-    email: str
     username: str
     elo: int
     games_played: int
