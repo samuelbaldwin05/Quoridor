@@ -1,34 +1,502 @@
-QUORIDOR — OUTSTANDING WORK
-============================
+QUORIDOR - OUTSTANDING WORK
+===========================
 
-PHASE 2 BUGS (from earlier session)
------------------------------------
-[ ] Elo formula: remove the games-played component (keep rating diff, expected
-    score, K-factor).
-[ ] Leaderboard profile modal does not show the clicked player's stats correctly.
-[ ] Leaderboard shows "loading" state even when it is not actually loading.
+Last full audit: 2026-06-29 (94 findings verified, 11 false positives discarded).
+Last sweep:      w1: 28. w2: test harness+tests. w3: CRIT Phase A. w4: backend layering.
+                 w5: service tests. w6: route tests. w7: CRIT Phase B (per-move authority).
+                 w8: cleanup (AI tests, opponentElo, JWT aud/iss, mobile-CSS vars).
+                 w9: FEATURE player game history (profiles + online replay).
+                 w10: cleanup (useOnlineGame hook tests, ELO clamp both-asserts).
+                 Both suites green - FE 251, BE 291.
 
-NEWLY REPORTED BUGS
--------------------
-[ ] "Play Again" button text is not centered inside the button.
-[ ] "Play Again" vs a bot auto-starts a new game with the same difficulty.
-    Should instead return to the Play page so the user can re-choose mode/bot.
-[ ] Audio is very delayed at game start (the start sound lags noticeably).
-[ ] Fence-placement sound only plays when the home player places a fence —
-    no sound fires when the opponent (AI or online opponent) places one.
-[ ] Game history shows W/L based on who is Player 1, but should be based on
-    whether the logged-in user actually won or lost the game.
+PROGRESS: 45 / 55 fully complete (82%). The [CRIT] is fully IMPLEMENTED (Phase A + B)
+but the realtime/migration half is UNVERIFIED here - needs a live 2-client + DB smoke
+test (see the [CRIT] checklist). Backend-tests item is partial (repo internals only).
+Private Realtime channel is written-but-not-enabled (see [CRIT]).
 
-POLISH ITEMS (reviewer nits, deferred)
---------------------------------------
-[ ] Mobile nav dropdown: tapping outside (board, logo, etc.) should dismiss it.
-[ ] "Double-tap to Place Fence" setting toggle is visible on desktop too.
-    Gate the row on `matchMedia('(pointer: coarse)')` so it only appears on
-    touch devices.
-[ ] Cell-size constant (47px) in the mobile @media block is brittle — promote
-    contributing values to CSS custom properties if anyone touches the layout
-    again.
-[ ] Stale 641–768px @media block (`.game-area`, `.board-container`) targets
-    class names that no longer exist. Cleanup pass.
-[ ] `overflow: hidden` on `.main-content` will clip any future panels that
-    don't fit the dvh budget. Note for future layout additions.
+NOTE: migrations 009 (security hardening) and 010 (per-move authority) are written but
+NOT yet executed. Run `make db-reset` (or push) to apply them, then run the [CRIT] +
+009 smoke tests. Several fixes are "done in code only" until then (RPC grants/policies,
+append_game_move, ELO-delta locks, friendships unique index).
+
+Done items below are collapsed to a single [x] line. Open items keep full
+location / problem / fix detail so they can be picked up cold.
+Severity tags: [CRIT] [HIGH] [MED] [LOW]. Locations are path:line (re-grep if drifted).
+
+
+================================================================================
+RECOMMENDED NEXT STRATEGY
+================================================================================
+The open items cluster into five workstreams. Suggested order:
+
+1. [DONE - wave 2] Frontend test harness (jsdom + RTL + jest-dom) is up; gameReducer,
+   a GameCard render test, and the lib utils are covered. NEXT here: useOnlineGame
+   hook tests - best written alongside workstream 2 so they cover the new flow.
+
+2. [DONE in code - waves 3+7] MULTIPLAYER AUTHORITY - Phase A (outcome-authoritative
+   results) + Phase B (per-move server authority, reconnect, clock-pause, illegal-move
+   abort, RPC concurrency fixes). REMAINING: a live 2-client + DB smoke test (the whole
+   cluster is unverified here), and optionally enabling the private Realtime channel.
+   -> see the [CRIT] item's LIVE SMOKE TEST CHECKLIST.
+
+3. [DONE - wave 4] BACKEND LAYERING PASS - matchmaking/users/ai routes ->
+   service+repository, core/auth -> repository, domain-exception mapping. api/ is
+   now HTTP-only. NEXT here: add service/route tests (see TESTING) now that the
+   layers are cleanly mockable.
+
+4. SECURITY HARDENING TAIL - JWT aud/iss (needs a live-auth check), and
+   users_owner_update column lock (needs a trigger before any UPDATE grant).
+
+5. FEATURES (product roadmap, independent): player history, MCTS, puzzles, admin.
+
+Opportunistic low-effort wins any time: opponentElo payload, user_time_stats.elo
+drop, mobile-CSS var refactor, MoveListPanel extraction.
+
+
+================================================================================
+SECURITY
+================================================================================
+
+[~] [CRIT] Multiplayer trust chain - IMPLEMENTED (Phase A + B); realtime/migration
+    half UNVERIFIED here. Needs a live 2-client + DB smoke test (checklist below).
+    PHASE A - DONE (outcome-authoritative results): result is server-resolved; a "win"
+      is confirmed by replaying server state; resign/timeout record the CALLER as loser.
+    PHASE B - DONE in code (per-move server authority):
+      - POST /games/{id}/move (game_service.submit_move): replays stored history,
+        confirms it's the caller's turn, validates the move with the Python engine, and
+        appends it via the optimistic-concurrency append_game_move RPC (migration 010).
+        +8 backend tests. The result endpoint now replays game["move_history"] (server's
+        record), so the client no longer supplies the history for a win.
+      - frontend: moves are confirm-then-apply (commitMove awaits the backend before
+        applying locally + broadcasting; submittingRef blocks double-submit).
+      - Realtime reconnect with capped backoff; clock pauses on presence loss; an
+        illegal received move now aborts both clients (broadcast) instead of diverging.
+      - migration 010 also fixes the two RPC concurrency items (ELO-delta-under-lock in
+        submit_game_result; caller-row lock in match_in_queue).
+    NOT enabled: PRIVATE Realtime channel. The channel is still public - the backend is
+      authoritative so this is a grief/desync vector, not a forgery one. To enable: set
+      `private: true` in useOnlineGame's channel config AND add a Realtime authorization
+      policy on realtime.messages restricting topic game:{id} to the two participants,
+      THEN verify live (a wrong policy silently blocks all realtime). See the HIGH item.
+    !! BREAKING: backend + frontend + migrations 009/010 must deploy together.
+    LIVE SMOKE TEST CHECKLIST (two browsers/accounts; run `make db-reset` for 009/010):
+      1. Full game to a board win -> winner ELO up, loser down, both see result; the
+         games row has the full move_history and status=finished.
+      2. Each move is rejected if it's not your turn / illegal (watch the network tab).
+      3. Resign and timeout -> forfeiter loses, opponent gains; overlays correct.
+      4. Kill one client's network mid-game -> other sees "reconnecting", clock pauses,
+         recovers on restore (no phantom timeout loss).
+      5. Retry/double-submit a move or result -> idempotent (no dup move, no double ELO).
+      6. DevTools attack: POST /games/{id}/move a move out of turn / illegal -> 4xx; POST
+         /result {winner_index:self} with a non-winning server history -> rejected.
+
+[x] [HIGH] Privileged finalization RPCs revoked from `authenticated` (service_role
+    only) - migration 009_security_hardening.sql. APPLY THE MIGRATION to activate.
+
+[ ] [HIGH] Realtime game channel is public (non-private) with no authorization.
+    Location: frontend/src/hooks/useOnlineGame.ts (channel config).
+    DOWNGRADED by Phase B: the backend is now authoritative over every move + result,
+    so a forged broadcast can no longer fabricate a ranked outcome - it's a grief/
+    desync vector (fake resign/abort ends the victim's local view; an illegal injected
+    move now aborts both clients cleanly), not a forgery one.
+    Fix (to fully close the grief vector): set `private: true` in useOnlineGame's
+    channel config AND add a Realtime authorization policy on realtime.messages
+    restricting topic game:{id} to auth.uid() in (player1_id, player2_id), THEN verify
+    live that realtime still flows (a wrong policy silently blocks ALL realtime, which
+    is why it's left off in code). useOnlineGame has an inline comment marking the flip.
+
+[x] [HIGH] Public GET /api/users/{id} no longer returns email (removed from the
+    public UserProfile schema).
+
+[x] [MED] Rate limiter now keys on the JWT `sub` (tracks user across token
+    rotation, never stores the raw token); username PATCH is rate-limited.
+
+[x] [LOW] search_users escapes LIKE metacharacters (%, _, backslash).
+
+[x] [LOW] JWT decode now verifies audience ('authenticated') always; issuer is OPT-IN
+    via SUPABASE_JWT_ISSUER (core/auth._decode_options). It must NOT be derived from
+    supabase_url — in Docker that's the internal kong hostname, which never matches the
+    token's external issuer and 401'd every login (caught in live test, fixed). To scope
+    tokens to the project in prod, set SUPABASE_JWT_ISSUER=https://<ref>.supabase.co/auth/v1.
+
+[x] [LOW] games_anyone_insert RLS policy dropped - migration 009. APPLY to activate.
+
+[ ] [LOW] RLS: users_owner_update is column-unrestricted with no WITH CHECK.
+    Location: supabase/migrations/001_schema.sql:116.
+    Problem: a user could UPDATE any column of their own row. Not exploitable today
+    (only SELECT is granted to authenticated at line 149), but adding any future
+    UPDATE grant would silently expose direct elo/games_played tampering via the
+    anon key.
+    Fix: before granting authenticated UPDATE, restrict writable columns (column-
+    scoped policy/trigger or a SECURITY DEFINER function) so elo and games_played can
+    never be set client-side.
+    DEFERRED (w8): inert today (no UPDATE grant exists), and a column-guard trigger is
+    untestable here + only matters if a future UPDATE grant is added. Do it then.
+
+[x] [LOW] CORS hardcoded localhost:8000 origin gated to the development environment.
+
+
+================================================================================
+CORRECTNESS / BUGS
+================================================================================
+
+[x] [HIGH] Idempotent (already-finished) result branch now returns each player's
+    real current ELO (not 0) and guards a null winner_id; test flipped to assert it.
+
+[x] [MED] Illegal received move now aborts both clients (broadcastAbort + setAborted)
+    instead of a silent one-sided local resign — clients converge (Phase B, wave 7).
+    (LIVE-TEST as part of the [CRIT] checklist.)
+
+[x] [MED] Realtime channel reconnects on CHANNEL_ERROR/TIMED_OUT/CLOSED with capped
+    exponential backoff; surfaces a 'reconnecting' status (Phase B, wave 7). (LIVE-TEST.)
+
+[x] [MED] Clock now pauses while the opponent is disconnected (gated on
+    opponentConnected), so it can't tick toward a timeout the player can't act on
+    (Phase B, wave 7). (LIVE-TEST.)
+
+[x] [MED] Leaderboard page now applies the games_played > 0 filter (no more 0-game
+    default-ELO users in the top 20).
+
+[x] [MED] LoginPage uses a declarative <Navigate> instead of navigate() in render.
+
+[x] [LOW] matchmaking _get_player_role logs the failure / empty-result case instead
+    of silently defaulting to role 0.
+
+[x] [LOW] OnlineGamePage mount effect guarded with a startedRef (no StrictMode
+    double DELETE / double start sound in dev).
+
+[x] [LOW] ProfilePage username save button wraps saveUsername in an arrow handler.
+
+[x] [LOW] submit_game_result now applies CLAMPED ELO DELTAS under FOR UPDATE locks on
+    both user rows (migration 010) instead of writing absolute setpoints from an
+    unlocked pre-read, so concurrent finishes for a shared player stack. (SQL review-
+    only; verify with the [CRIT] DB smoke test.)
+
+[x] [LOW] match_in_queue now locks the caller's own waiting row up front (migration
+    010), removing the mutual cross-row UPDATE deadlock window. (SQL review-only.)
+
+[x] [LOW] time_control is now a validated Literal[180,300,600] across GameCreate,
+    ChallengeCreate, and JoinQueueRequest (shared TimeControl in schemas/game.py).
+
+
+================================================================================
+ARCHITECTURE (layering - CLAUDE.md: routes -> services -> repositories) - CLEARED
+================================================================================
+The api/ layer is now HTTP-only: no route touches the DB, raises HTTPException, or
+returns a raw dict. (Verified by grep across app/api.)
+
+[x] [HIGH] Matchmaking extracted to matchmaking_service + matchmaking_repository;
+    the route is a thin pass-through.
+[x] [HIGH] user_service owns username validation, cooldown, and profile/search/
+    leaderboard assembly; users.py route is thin.
+[x] [MED] ai_service owns the payload<->engine conversion + goal-row validation;
+    schemas moved to schemas/ai.py; ai.py route is thin.
+[x] [MED] core/auth no longer touches the DB - user_repository.get_or_create_user
+    holds the SELECT/INSERT/UPDATE and raises DatabaseError (no more raw 500s).
+[x] [LOW] Routes no longer raise FastAPI HTTPException or return raw dicts. New
+    ValidationError->422 and CooldownError->429 domain exceptions added + mapped in
+    main.py; user_service raises them. (204-deletes half was done in wave 1.)
+[x] [LOW] Matchmaking request/response schemas moved to schemas/matchmaking.py.
+
+
+================================================================================
+FRONTEND / UX
+================================================================================
+
+[x] [MED] Start sound no longer lags - the audio cache is warmed on mount.
+
+[ ] [MED] OnlineGamePage re-implements GameRightPanel's move-list/controls inline
+    instead of reusing a shared component.
+    Location: frontend/src/pages/OnlineGamePage.tsx (Moves panel); GameRightPanel.tsx.
+    Fix: extract a shared MoveListPanel (or parametrize GameRightPanel with a
+    playerLabel fn and make the PlayPanel branch optional).
+    PARTIALLY DONE: the duplicated moveNotation/moveIcon/replayToIndex helpers are
+    now shared (serializeMove + engine/moveDisplay.ts); only the panel-component
+    duplication remains.
+    DEFERRED (w8): pure UI refactor with real scroll/behavior regression surface and
+    no visual test here; the two panels intentionally diverged. Do it with a live
+    visual check. Not a bug — cosmetic tech-debt.
+
+[x] [LOW] Challenge opponent ELO is now real, not a hardcoded 500. ChallengeRead +
+    _enrich carry challenger_elo/challenged_elo (users join now selects elo);
+    FriendsPage (accepter -> challenger_elo) and ChallengeRedirector (challenger ->
+    challenged_elo) thread it into the game URL.
+
+[x] [LOW] GameHistoryPage move-nav arrows now use useHoldRepeat (hold-to-step), matching
+    GamePage/OnlineGamePage.
+
+[x] [LOW] Online Waiting overlay now has a Cancel button (broadcastAbort + navigate home).
+
+[x] [LOW] WallSlot got role=button, an aria-label, focus-driven preview, and keyboard
+    activation when placement is allowed.
+
+[x] [LOW] BoardCell keydown handler is gated to actionable cells only.
+
+[x] [LOW] eloColor extracted to one shared util (lib/elo.ts), 0.5/0.6 reconciled to 0.6.
+
+
+================================================================================
+TESTING
+================================================================================
+
+Note: the shared parity corpus tests/fixtures/engine_cases.json IS consumed by both
+runners (frontend/src/engine/__tests__/engine.test.ts and
+backend/tests/test_engine.py). Frontend tests now live under __tests__/ folders.
+`make test` runs backend + frontend; CI also lints.
+
+[x] [MED] Frontend test harness stood up (vite.config test block defaults to node,
+    per-file `// @vitest-environment jsdom` opt-in; setup adds jest-dom + RTL cleanup).
+    gameReducer (all actions, mocked storage) and a GameCard render test added.
+    DONE (w10): useOnlineGame hook tests (+12) - supabase channel + apiFetch mocked;
+    covers subscribe/ready+track, opponent-index derivation (payload never trusted),
+    resign/timeout/abort callbacks, presence sync, socket-error reconnect w/ backoff,
+    outbound broadcasts, and submitResult idempotency / failure fallback / observeResult.
+
+[~] [MED] Backend service + route layers now tested (waves 5-6); repository
+    internals still untested.
+    DONE (service, w5): matchmaking/ai/challenge/friendship services, mocked at the
+    repository boundary. DONE (route, w6): test_api_routes via FastAPI TestClient -
+    auth gating (no token -> 403), domain-exception -> status mapping (404/403/409/
+    422/429), 204 deletes (leave/friend/challenge), request validation (time_control
+    Literal, winner_index range, missing fields), and the public profile omits email.
+    REMAINING: repository-layer tests (the Supabase query-builder chains + enrichment
+    in user/challenge/friendship/matchmaking repos). Lower value (thin wrappers, and
+    the mock-chain tests are brittle) - service+route coverage already exercises them
+    indirectly. Do only if you want the repo logic (e.g. challenge filtering, friend
+    mapping, DatabaseError wrapping) pinned directly.
+
+[x] [MED] Frontend AI module tested (src/ai/__tests__/ai.test.ts, +17): pathfinder
+    (dijkstra distance/detour, shortest-path reconstruction, findBestMove steps toward
+    goal, penalty/fence helpers) and bot0/1/2 move legality across opening + mid-game
+    states (looped, since bots are non-deterministic). extreme/aiCoordinator (backend
+    fetch) not covered here.
+
+[x] [LOW] Frontend lib utils tested: usernameValidation (parity with backend rules),
+    settingsStorage (malformed/absent/partial localStorage -> schema defaults), elo.
+
+[x] [LOW] ELO clamp tests now assert BOTH returned values. Rewritten to use equal
+    ratings at the boundary (ELO_MAX,ELO_MAX / ELO_MIN,ELO_MIN) so the clamp genuinely
+    engages (winner overflows / loser underflows) while the other side provably moves -
+    a swapped clamp is now caught. (The extreme-gap inputs rounded both deltas to 0.)
+
+    (The old "document-the-bug" empty-history test under CRIT is already a real assert -
+     test_replay.py TestValidateHistoryWinner uses pytest.raises for both claimed winners,
+     flipped back in wave 3. Nothing left to do there.)
+
+
+================================================================================
+CODE QUALITY
+================================================================================
+
+[x] [MED] replayToIndex / moveNotation / moveIcon de-duplicated into engine/notation.ts
+    (serializeMove) + engine/moveDisplay.ts; all pages import the shared versions.
+
+[x] [LOW] Filler "Port of GameEngine.*/Fence.*" JSDoc removed from engine modules
+    (kept the BFS walls-only WHY note).
+
+[x] [LOW] useHoldRepeat JSDoc trimmed to a WHY line (and its ref-in-render lint error
+    fixed by moving the assignment into an effect).
+
+[x] [LOW] GameCard's unused gameStatus prop removed from the component and all call sites.
+
+
+================================================================================
+DEAD CODE / CLEANUP
+================================================================================
+
+[x] [MED] Orphaned pre-refactor components deleted (Sidebar, Scoreboard,
+    GameActionButtons; StatusMessage never existed).
+
+[x] [LOW] Dead/stale CSS removed (App.css; the .game-area/.board-container @media blocks
+    + unused vars; empty .fence-piece-* and .win-lose-analyze-btn rules; .sidebar rule).
+
+[ ] [LOW] user_time_stats.elo column is dead: seeded but never written, ignored by all
+    readers.
+    Location: supabase/migrations/001_schema.sql:74; 007_populate_user_time_stats.sql;
+    seed.sql:177-223.
+    Problem: the column (NOT NULL DEFAULT 500) gets distinct per-format values from
+    seed.sql, but submit_game_result never updates it (007 documents it as unused), and
+    every reader (get_user_time_stats, UserTimeStats schema, ProfileModal) ignores it.
+    Production rows sit at 500 while seed rows show distinct ratings, so dev and prod
+    diverge.
+    Fix: drop user_time_stats.elo (and stop seeding it) since users.elo is the single
+    source of truth, or actually maintain it in submit_game_result.
+    DEFERRED (w8): dropping the column forces rewriting 24 seeded rows + the ON CONFLICT
+    clause in seed.sql (untestable here, error-prone), for a cosmetic gain. Low value.
+
+
+================================================================================
+SCHEMA / DATABASE
+================================================================================
+
+[x] [MED] friendships unordered-pair unique index added (with a dedupe step) - migration
+    009. APPLY to activate.
+
+[x] [LOW] Stale 000_roles.sql reference in 001_schema.sql corrected.
+
+
+================================================================================
+FEATURES - NOT YET IMPLEMENTED
+================================================================================
+
+[x] Player game history on profile pages (wave 9).
+    Backend: GET /api/users/{id}/games (public, paginated, per-player win/loss + ELO
+    delta via game_service.list_user_games) + GET /games/{id} (public GameDetail for
+    replay) on a new game_repository. +8 tests.
+    Frontend: ProfilePage "Recent Games" section (opponent, W/L, ELO ±, date; rows link
+    to replay); GameHistoryPage now falls back to fetching an online game by id and
+    adapts it into the replay viewer (both sides shown by real name via SavedGame.playerNames).
+    LIVE-VERIFY: needs real online games in the DB to populate (play one via the Phase B
+    smoke test), then open a profile and click a game to replay.
+
+[ ] MCTS Addition.
+    Location: backend/app/api/ai.py:57-58,109 (time_budget_s reserved-but-ignored;
+    dispatches solely to torch_agent.get_move).
+    Status: STILL-VALID. Integrate Monte Carlo Tree Search for stronger AI levels; expose
+    behind a difficulty flag in the ai/ module.
+
+[ ] Puzzles Feature.
+    Location: supabase/migrations/001_schema.sql:48-51 (puzzles table exists, public-read
+    RLS); frontend/src/pages/PuzzlesPage.tsx:26 (static dev-only 5-puzzle bank, gated by
+    config.features.puzzles=isDev). No backend puzzle endpoints; the table is never
+    populated.
+    Status: STILL-VALID. Remaining work: generation pipeline (pull completed online games,
+    find positions with one clearly winning move, estimate ELO, persist) + backend
+    endpoints + daily-puzzle flow, solve tracking, streaks.
+
+[ ] Admin Dashboard.
+    Location: no admin route/role exists (backend/app/api/main.py router set).
+    Status: STILL-VALID. Internal tooling for monitoring games, users, ELO distribution,
+    and flagging abuse. Scope TBD - a route gated behind an admin role or a standalone
+    Supabase dashboard view.
+
+
+================================================================================
+POLISH / TECH DEBT
+================================================================================
+
+[x] [LOW] Mobile --cell-size now derives from a summed --board-h-chrome var (was a
+    hardcoded 47px), and the .main-content overflow:hidden clip constraint is documented
+    inline (index.css).
+
+
+================================================================================
+DONE - WAVE 9 (2026-07) - FEATURE: player game history
+================================================================================
+Backend: game_repository (list_finished_games_for_user + get_game); game_service
+list_user_games (per-player win/loss + ELO delta perspective) + get_game_detail;
+schemas GameSummary + GameDetail; routes GET /api/users/{id}/games (public, paginated)
++ GET /games/{id} (public replay). +8 tests -> BE 291.
+Frontend: ProfilePage "Recent Games" section (clickable rows -> replay); GameHistoryPage
+fetches online games by id and adapts them into the existing replay viewer, labeling
+both sides by real name (new SavedGame.playerNames). Needs live online games to populate.
+
+
+================================================================================
+DONE - WAVE 8 (2026-07) - cleanup sweep of non-feature items
+================================================================================
+- Frontend AI-module tests (pathfinder + bot0/1/2 legality), +17 -> FE 239.
+- Challenge opponent ELO is real end-to-end (ChallengeRead challenger_elo/challenged_elo
+  + _enrich join; FriendsPage + ChallengeRedirector thread it) - no more hardcoded 500.
+- JWT decode verifies audience + issuer (core/auth.py). LIVE-VERIFY (see SECURITY).
+- Mobile --cell-size derives from a summed --board-h-chrome var (was hardcoded 47px);
+  overflow:hidden clip constraint documented inline.
+Deferred with rationale (see items): user_time_stats.elo drop (seed rewrite risk),
+MoveListPanel extraction (UI regression surface, no visual test), repository-internal
+tests (brittle/low-value, covered indirectly), users_owner_update trigger (inert today).
+
+
+================================================================================
+DONE - WAVE 7 (2026-07) - CRITICAL Phase B: per-move server authority
+================================================================================
+Backend: POST /games/{id}/move (game_service.submit_move) - replays stored history,
+turn-checks, engine-validates, appends via the append_game_move optimistic-concurrency
+RPC. Result endpoint now replays server-stored history. +8 tests (275 -> 283).
+migration 010: append_game_move RPC + submit_game_result clamped-delta-under-lock +
+match_in_queue caller-row lock.
+Frontend: confirm-then-apply move submission (commitMove awaits backend before applying
++ broadcasting; double-submit guard); Realtime reconnect w/ backoff + 'reconnecting'
+status; clock pauses on presence loss; illegal received move aborts both clients.
+NOT verified here (needs live 2-client + DB smoke test); private channel written-but-off.
+
+
+================================================================================
+DONE - WAVE 6 (2026-06-29) - backend route tests via TestClient (+14 -> 275)
+================================================================================
+test_api_routes.py: auth gating (403 without token), exception->status mapping
+(CooldownError 429, ValidationError 422, NotFoundError 404, ConflictError 409,
+AuthorizationError 403), 204 deletes (matchmaking/friends/challenges), Pydantic
+request validation (invalid time_control, winner_index, missing username), and the
+public profile omitting email. Auth + supabase deps overridden; services monkeypatched
+(games.py patched at app.api.games.record_game_result since it imports by name).
+
+
+================================================================================
+DONE - WAVE 5 (2026-06-29) - backend service-layer unit tests (+36 -> 261)
+================================================================================
+New test files: test_matchmaking_service, test_ai_service, test_challenge_service,
+test_friendship_service. Services mocked at the repository boundary (monkeypatch);
+ai_service guarded with a torch-availability module skip. Covers compute_elo_band,
+join/status/leave, role resolution, payload<->engine conversion, choose_move
+goal-row guard + success, self/time-control guards, and repo delegation.
+Still open under the backend-tests item: repository-layer + route (TestClient) tests.
+
+
+================================================================================
+DONE - WAVE 4 (2026-06-29) - backend layering pass (5 items), api/ is HTTP-only
+================================================================================
+New: services/user_service, services/matchmaking_service, services/ai_service,
+repositories/matchmaking_repository, schemas/ai.py; user_repository.get_or_create_user.
+Routes (users/matchmaking/ai) are now thin pass-throughs; core/auth delegates DB to
+the repository. Added ValidationError(422)/CooldownError(429) domain exceptions +
+central mapping. username tests retargeted to user_service. 225 backend tests pass.
+
+
+================================================================================
+DONE - WAVE 3 (2026-06-29) - CRITICAL Phase A (outcome-authoritative results)
+================================================================================
+Backend: GameResultRequest gains a `reason` (win|resign|timeout); record_game_result
+resolves the winner server-side (win = replay-verified history; forfeit = caller is
+loser); validate_history_winner rejects empty history; finished-check short-circuits
+before validation for idempotent retries. +7 backend tests (218 -> 225); test_replay
+empty-history tests flipped.
+Frontend: submitResult sends real serialized history + reason; OnlineGamePage tracks
+terminal cause so only the forfeiter submits a forfeit (winner observes).
+NOT done: full per-move authority, private channel, reconnect (Phase B) + LIVE TEST.
+
+
+================================================================================
+DONE - WAVE 2 (2026-06-29) - test harness, 2 items
+================================================================================
+Testing infrastructure: jsdom + @testing-library/react + jest-dom installed;
+vite.config test block (node default, per-file jsdom opt-in) + src/test/setup.ts.
+New tests (60): gameReducer (all actions), GameCard render, usernameValidation
+(backend parity), settingsStorage (default fallback), elo. Frontend suite 162 -> 222.
+
+
+================================================================================
+DONE - WAVE 1 (2026-06-29) - 28 items, summary
+================================================================================
+Security (6): RPC revoke*, email leak, rate-limit key + username limit, search
+  escaping, games_anyone_insert drop*, CORS localhost gate.
+Correctness (7): idempotent ELO + winner_id guard, leaderboard filter, LoginPage
+  Navigate, _get_player_role logging, StrictMode guard, ProfilePage handler,
+  time_control Literal.
+Architecture (1): matchmaking schemas -> schemas/matchmaking.py.
+Frontend/UX (6): audio warm-up, GameHistory hold-repeat, waiting Cancel, WallSlot
+  a11y, BoardCell keydown gate, eloColor shared util.
+Code quality (4): notation/display dedup, Port-of JSDoc removal, useHoldRepeat
+  JSDoc + lint fix, GameCard prop removal.
+Dead code (2): orphaned components, dead CSS.
+Schema (2): friendships unordered unique index*, 001 comment fix.
+  (* = lives in migration 009; apply it to activate.)
+Plus: fixed 10 pre-existing failing tests and relocated frontend tests into __tests__/.
+
+
+================================================================================
+REMOVED (verified already done in a prior pass - do not re-add)
+================================================================================
+- Leaderboard "loading" flash race: fixed (cancelled flag guards setLoading).
+- "Play Again" button text not centered: fixed (.action-btn is inline-flex + centered).
+- Opponent fence-placement sound: works per static analysis (manual QA check only).
+- Leaderboard profile modal "wrong stats": no code defect found.

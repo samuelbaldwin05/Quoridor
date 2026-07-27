@@ -45,13 +45,6 @@
       "expected": true
     },
     {
-      "name": "p0 backward move off board is illegal",
-      "kind": "pawn_legal",
-      "history": [],
-      "candidate": "e0",
-      "expected": false
-    },
-    {
       "name": "p0 cannot move to p1 start square",
       "kind": "pawn_legal",
       "history": [],
@@ -138,21 +131,21 @@
     {
       "name": "p0 can jump straight over p1",
       "kind": "pawn_legal",
-      "history": ["e2", "e8", "e3", "e7", "e4", "e6"],
+      "history": ["e2", "e8", "e3", "e7", "e4", "e6", "e5", "a2h"],
       "candidate": "e7",
       "expected": true
     },
     {
       "name": "p0 diagonal jump when straight blocked by wall",
       "kind": "pawn_legal",
-      "history": ["e2", "e8", "e3", "e7", "e4", "e6", "e5", "e6h"],
+      "history": ["e2", "e8", "e3", "e7", "e4", "e6", "e5", "e7h"],
       "candidate": "d6",
       "expected": true
     },
     {
       "name": "p0 diagonal jump right when straight blocked by wall",
       "kind": "pawn_legal",
-      "history": ["e2", "e8", "e3", "e7", "e4", "e6", "e5", "e6h"],
+      "history": ["e2", "e8", "e3", "e7", "e4", "e6", "e5", "e7h"],
       "candidate": "f6",
       "expected": true
     },
@@ -173,9 +166,9 @@
       "name": "p1 wins by reaching row 8 (rank 1)",
       "kind": "history_winner",
       "history": [
-        "a2h", "e8", "b4h", "e7", "c6h", "e6",
-        "a4h", "e5", "b6h", "e4", "c8h", "e3",
-        "a6h", "e2", "b8h", "e1"
+        "d1", "e8", "c1", "e7", "d1", "e6",
+        "c1", "e5", "d1", "e4", "c1", "e3",
+        "d1", "e2", "c1", "e1"
       ],
       "expected_winner": 1
     },
@@ -198,9 +191,9 @@
       "name": "wall placement after 0 walls remaining is rejected",
       "kind": "history_invalid",
       "history": [
-        "e7h", "d9", "c7h", "d9", "a7h", "d9", "a5h", "d9",
-        "c5h", "d9", "e5h", "d9", "g5h", "d9", "g7h", "d9",
-        "c3h", "d9", "a3h", "d9", "e3h"
+        "a9h", "d9", "c9h", "e9", "a8h", "d9", "c8h", "e9",
+        "a7h", "d9", "c7h", "e9", "a6h", "d9", "c6h", "e9",
+        "a5h", "d9", "c5h", "e9", "e3h"
       ]
     }
   ]

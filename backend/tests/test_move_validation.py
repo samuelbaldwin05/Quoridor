@@ -2,18 +2,18 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-import pytest
-
 from app.engine import (
-    PawnMove,
-    WallMove,
     apply_move,
     create_initial_state,
     parse_move,
     start_game,
 )
 from app.engine.game_types import GameState, PlayerState, Position, Wall
-from app.engine.move_validation import get_valid_pawn_moves, has_path_to_goal, is_valid_wall_placement
+from app.engine.move_validation import (
+    get_valid_pawn_moves,
+    has_path_to_goal,
+    is_valid_wall_placement,
+)
 
 
 def playing() -> GameState:
@@ -41,6 +41,7 @@ def apply_history(moves: list[str]) -> GameState:
 
 
 # ── get_valid_pawn_moves — basic movement ─────────────────────────────────────
+
 
 class TestGetValidPawnMovesBasic:
     def test_p0_at_start_has_3_moves(self) -> None:
@@ -87,7 +88,7 @@ class TestGetValidPawnMovesWalls:
         s = with_players((8, 4), (0, 4), [Wall(7, 3, "h")])
         moves = get_valid_pawn_moves(s, 0)
         assert Position(7, 4) not in moves
-        assert Position(8, 3) in moves   # sideways still ok
+        assert Position(8, 3) in moves  # sideways still ok
         assert Position(8, 5) in moves
 
     def test_v_wall_blocks_right(self) -> None:
@@ -137,13 +138,17 @@ class TestGetValidPawnMovesJumps:
 
     def test_diagonal_blocked_by_wall(self) -> None:
         # h-wall blocks straight; v-wall blocks one diagonal
-        s = with_players((4, 4), (3, 4), [
-            Wall(2, 4, "h"),   # blocks straight jump
-            Wall(2, 3, "v"),   # blocks (3,4)→(3,3)
-        ])
+        s = with_players(
+            (4, 4),
+            (3, 4),
+            [
+                Wall(2, 4, "h"),  # blocks straight jump
+                Wall(2, 3, "v"),  # blocks (3,4)→(3,3)
+            ],
+        )
         moves = get_valid_pawn_moves(s, 0)
-        assert Position(3, 3) not in moves   # diagonal left blocked
-        assert Position(3, 5) in moves       # diagonal right still ok
+        assert Position(3, 3) not in moves  # diagonal left blocked
+        assert Position(3, 5) in moves  # diagonal right still ok
 
     def test_p1_jumps_over_p0_corpus_case(self) -> None:
         # Corpus case from fixture
@@ -154,6 +159,7 @@ class TestGetValidPawnMovesJumps:
 
 
 # ── has_path_to_goal ──────────────────────────────────────────────────────────
+
 
 class TestHasPathToGoal:
     def test_p0_has_path_from_start(self) -> None:
@@ -172,14 +178,17 @@ class TestHasPathToGoal:
 
     def test_four_h_walls_seal_cols_0_to_7_path_via_col_8_still_open(self) -> None:
         walls = (
-            Wall(0, 0, "h"), Wall(0, 2, "h"),
-            Wall(0, 4, "h"), Wall(0, 6, "h"),
+            Wall(0, 0, "h"),
+            Wall(0, 2, "h"),
+            Wall(0, 4, "h"),
+            Wall(0, 6, "h"),
         )
         # Col 8 is still open — path from (1,4) to row 0 exists via (1,8)→(0,8)
         assert has_path_to_goal(Position(1, 4), 0, walls)
 
 
 # ── is_valid_wall_placement — bounds ─────────────────────────────────────────
+
 
 class TestWallBounds:
     def test_valid_at_max_position_7_7(self) -> None:
@@ -202,6 +211,7 @@ class TestWallBounds:
 
 
 # ── is_valid_wall_placement — duplicates, overlap, intersection ───────────────
+
 
 class TestWallConflicts:
     def test_rejects_duplicate(self) -> None:
@@ -230,6 +240,7 @@ class TestWallConflicts:
 
 
 # ── is_valid_wall_placement — path connectivity ───────────────────────────────
+
 
 class TestWallPathConnectivity:
     def test_accepts_single_wall_in_center(self) -> None:

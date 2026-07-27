@@ -2,11 +2,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-import pytest
-
 from app.engine import apply_move, create_initial_state, parse_move, start_game
 from app.engine.game_engine import check_win
-from app.engine.game_types import GameState, PlayerState, Position, Wall
+from app.engine.game_types import GameState, Position, Wall
 
 
 def playing() -> GameState:
@@ -23,6 +21,7 @@ def apply_history(moves: list[str]) -> GameState:
 
 
 # ── create_initial_state ──────────────────────────────────────────────────────
+
 
 class TestCreateInitialState:
     def test_status_is_idle(self) -> None:
@@ -55,6 +54,7 @@ class TestCreateInitialState:
 
 # ── start_game ────────────────────────────────────────────────────────────────
 
+
 class TestStartGame:
     def test_status_becomes_playing(self) -> None:
         assert start_game(create_initial_state()).status == "playing"
@@ -66,6 +66,7 @@ class TestStartGame:
 
 
 # ── applyMove — non-playing states ───────────────────────────────────────────
+
 
 class TestApplyMoveNonPlayingStates:
     def test_rejects_when_idle(self) -> None:
@@ -80,6 +81,7 @@ class TestApplyMoveNonPlayingStates:
 
 
 # ── applyMove — valid pawn moves ──────────────────────────────────────────────
+
 
 class TestApplyMovePawn:
     def test_e2_is_valid_for_p0(self) -> None:
@@ -121,6 +123,7 @@ class TestApplyMovePawn:
 
 # ── applyMove — wall moves ────────────────────────────────────────────────────
 
+
 class TestApplyMoveWall:
     def test_valid_wall_placement(self) -> None:
         result = apply_move(playing(), parse_move("e7h"))
@@ -144,10 +147,13 @@ class TestApplyMoveWall:
         assert result.next_state.current_player_index == 1
 
     def test_rejects_when_no_walls_remaining(self) -> None:
-        s = replace(playing(), players=(
-            replace(playing().players[0], walls_remaining=0),
-            playing().players[1],
-        ))
+        s = replace(
+            playing(),
+            players=(
+                replace(playing().players[0], walls_remaining=0),
+                playing().players[1],
+            ),
+        )
         assert not apply_move(s, parse_move("e7h")).valid
 
     def test_rejects_duplicate_wall(self) -> None:
@@ -160,22 +166,29 @@ class TestApplyMoveWall:
 
 # ── check_win ─────────────────────────────────────────────────────────────────
 
+
 class TestCheckWin:
     def test_no_winner_at_start(self) -> None:
         assert check_win(playing()) is None
 
     def test_p0_wins_on_row_0(self) -> None:
-        s = replace(playing(), players=(
-            replace(playing().players[0], position=Position(0, 4)),
-            playing().players[1],
-        ))
+        s = replace(
+            playing(),
+            players=(
+                replace(playing().players[0], position=Position(0, 4)),
+                playing().players[1],
+            ),
+        )
         assert check_win(s) == 0
 
     def test_p1_wins_on_row_8(self) -> None:
-        s = replace(playing(), players=(
-            playing().players[0],
-            replace(playing().players[1], position=Position(8, 4)),
-        ))
+        s = replace(
+            playing(),
+            players=(
+                playing().players[0],
+                replace(playing().players[1], position=Position(8, 4)),
+            ),
+        )
         assert check_win(s) == 1
 
     def test_no_winner_when_neither_on_goal_row(self) -> None:
@@ -185,13 +198,28 @@ class TestCheckWin:
 
 # ── full game scenarios ───────────────────────────────────────────────────────
 
+
 class TestFullGameScenarios:
     def test_p0_wins_straight_march(self) -> None:
-        state = apply_history([
-            "e2", "d9", "e3", "e9", "e4", "d9",
-            "e5", "e9", "e6", "d9", "e7", "e9",
-            "e8", "d9", "e9",
-        ])
+        state = apply_history(
+            [
+                "e2",
+                "d9",
+                "e3",
+                "e9",
+                "e4",
+                "d9",
+                "e5",
+                "e9",
+                "e6",
+                "d9",
+                "e7",
+                "e9",
+                "e8",
+                "d9",
+                "e9",
+            ]
+        )
         assert state.status == "finished"
         assert state.winner == 0
 
@@ -201,18 +229,51 @@ class TestFullGameScenarios:
         assert state.winner is None
 
     def test_no_moves_accepted_after_finish(self) -> None:
-        finished = apply_history([
-            "e2", "d9", "e3", "e9", "e4", "d9",
-            "e5", "e9", "e6", "d9", "e7", "e9",
-            "e8", "d9", "e9",
-        ])
+        finished = apply_history(
+            [
+                "e2",
+                "d9",
+                "e3",
+                "e9",
+                "e4",
+                "d9",
+                "e5",
+                "e9",
+                "e6",
+                "d9",
+                "e7",
+                "e9",
+                "e8",
+                "d9",
+                "e9",
+            ]
+        )
         assert not apply_move(finished, parse_move("d9")).valid
 
     def test_10_walls_exhausts_supply(self) -> None:
+        # p0 places 10 legal walls on the left (cols 0+2, rows 0-4), leaving a clear
+        # col 4-7 corridor so every placement passes the path check; p1 oscillates d9/e9.
         wall_moves = [
-            "e7h", "d9", "c7h", "d9", "a7h", "d9", "a5h", "d9",
-            "c5h", "d9", "e5h", "d9", "g5h", "d9", "g7h", "d9",
-            "c3h", "d9", "a3h", "d9",
+            "a9h",
+            "d9",
+            "c9h",
+            "e9",
+            "a8h",
+            "d9",
+            "c8h",
+            "e9",
+            "a7h",
+            "d9",
+            "c7h",
+            "e9",
+            "a6h",
+            "d9",
+            "c6h",
+            "e9",
+            "a5h",
+            "d9",
+            "c5h",
+            "e9",
         ]
         state = apply_history(wall_moves)
         assert state.players[0].walls_remaining == 0
