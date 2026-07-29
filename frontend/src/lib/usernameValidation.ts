@@ -1,14 +1,36 @@
 // Words that are never allowed as usernames or substrings of usernames.
 const BLOCKED_WORDS = [
-  'fuck', 'shit', 'cunt', 'nigger', 'nigga', 'faggot', 'fag',
-  'bitch', 'cock', 'pussy', 'asshole', 'dick', 'whore', 'slut',
-  'prick', 'twat', 'wanker', 'bastard',
+  'fuck',
+  'shit',
+  'cunt',
+  'nigger',
+  'nigga',
+  'faggot',
+  'fag',
+  'bitch',
+  'cock',
+  'pussy',
+  'asshole',
+  'dick',
+  'whore',
+  'slut',
+  'prick',
+  'twat',
+  'wanker',
+  'bastard',
 ];
 
 // Names reserved for the platform itself — prevent impersonation.
 const RESERVED_NAMES = new Set([
-  'admin', 'administrator', 'moderator', 'mod', 'system',
-  'support', 'quoridor', 'staff', 'official',
+  'admin',
+  'administrator',
+  'moderator',
+  'mod',
+  'system',
+  'support',
+  'quoridor',
+  'staff',
+  'official',
 ]);
 
 /**

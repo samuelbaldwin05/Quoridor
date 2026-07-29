@@ -26,7 +26,13 @@ function UsernameGuard({ children }: { children: React.ReactNode }) {
 function LandscapeBlocker() {
   return (
     <div className="landscape-blocker" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="landscape-blocker-icon">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="landscape-blocker-icon"
+      >
         <rect x="5" y="2" width="14" height="20" rx="2" />
         <path d="M12 18h.01" />
       </svg>
