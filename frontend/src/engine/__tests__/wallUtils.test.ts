@@ -12,16 +12,24 @@ import type { Wall } from '../gameTypes';
 
 describe('wallsEqual', () => {
   it('returns true for identical walls', () => {
-    expect(wallsEqual({ row: 3, col: 4, orientation: 'h' }, { row: 3, col: 4, orientation: 'h' })).toBe(true);
+    expect(
+      wallsEqual({ row: 3, col: 4, orientation: 'h' }, { row: 3, col: 4, orientation: 'h' }),
+    ).toBe(true);
   });
   it('returns false when row differs', () => {
-    expect(wallsEqual({ row: 3, col: 4, orientation: 'h' }, { row: 4, col: 4, orientation: 'h' })).toBe(false);
+    expect(
+      wallsEqual({ row: 3, col: 4, orientation: 'h' }, { row: 4, col: 4, orientation: 'h' }),
+    ).toBe(false);
   });
   it('returns false when col differs', () => {
-    expect(wallsEqual({ row: 3, col: 4, orientation: 'h' }, { row: 3, col: 5, orientation: 'h' })).toBe(false);
+    expect(
+      wallsEqual({ row: 3, col: 4, orientation: 'h' }, { row: 3, col: 5, orientation: 'h' }),
+    ).toBe(false);
   });
   it('returns false when orientation differs', () => {
-    expect(wallsEqual({ row: 3, col: 4, orientation: 'h' }, { row: 3, col: 4, orientation: 'v' })).toBe(false);
+    expect(
+      wallsEqual({ row: 3, col: 4, orientation: 'h' }, { row: 3, col: 4, orientation: 'v' }),
+    ).toBe(false);
   });
 });
 
@@ -122,41 +130,35 @@ describe('wouldWallPostOverlap', () => {
 describe('wallsIntersect', () => {
   it('two h-walls on same row with overlapping col spans intersect', () => {
     // (4,3,'h') spans cols 3-4; (4,4,'h') spans cols 4-5 — they overlap at col 4
-    expect(wallsIntersect(
-      { row: 4, col: 3, orientation: 'h' },
-      { row: 4, col: 4, orientation: 'h' },
-    )).toBe(true);
+    expect(
+      wallsIntersect({ row: 4, col: 3, orientation: 'h' }, { row: 4, col: 4, orientation: 'h' }),
+    ).toBe(true);
   });
   it('two h-walls on same row with adjacent but non-overlapping spans do not intersect', () => {
     // (4,3,'h') spans 3-4; (4,5,'h') spans 5-6 — gap at col 4-5, no overlap
-    expect(wallsIntersect(
-      { row: 4, col: 3, orientation: 'h' },
-      { row: 4, col: 5, orientation: 'h' },
-    )).toBe(false);
+    expect(
+      wallsIntersect({ row: 4, col: 3, orientation: 'h' }, { row: 4, col: 5, orientation: 'h' }),
+    ).toBe(false);
   });
   it('two h-walls on different rows do not intersect', () => {
-    expect(wallsIntersect(
-      { row: 4, col: 4, orientation: 'h' },
-      { row: 5, col: 4, orientation: 'h' },
-    )).toBe(false);
+    expect(
+      wallsIntersect({ row: 4, col: 4, orientation: 'h' }, { row: 5, col: 4, orientation: 'h' }),
+    ).toBe(false);
   });
   it('two v-walls on same col with overlapping row spans intersect', () => {
-    expect(wallsIntersect(
-      { row: 3, col: 4, orientation: 'v' },
-      { row: 4, col: 4, orientation: 'v' },
-    )).toBe(true);
+    expect(
+      wallsIntersect({ row: 3, col: 4, orientation: 'v' }, { row: 4, col: 4, orientation: 'v' }),
+    ).toBe(true);
   });
   it('two v-walls on same col with non-overlapping row spans do not intersect', () => {
-    expect(wallsIntersect(
-      { row: 2, col: 4, orientation: 'v' },
-      { row: 4, col: 4, orientation: 'v' },
-    )).toBe(false);
+    expect(
+      wallsIntersect({ row: 2, col: 4, orientation: 'v' }, { row: 4, col: 4, orientation: 'v' }),
+    ).toBe(false);
   });
   it('h and v walls never intersect (different orientations)', () => {
-    expect(wallsIntersect(
-      { row: 4, col: 4, orientation: 'h' },
-      { row: 4, col: 4, orientation: 'v' },
-    )).toBe(false);
+    expect(
+      wallsIntersect({ row: 4, col: 4, orientation: 'h' }, { row: 4, col: 4, orientation: 'v' }),
+    ).toBe(false);
   });
   it('identical walls are considered intersecting', () => {
     const w: Wall = { row: 3, col: 3, orientation: 'h' };

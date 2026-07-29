@@ -171,20 +171,46 @@ describe('win detection', () => {
   it('p0 wins when reaching row 0', () => {
     // Fast p0 win: march straight, p1 wanders sideways
     const state = applyHistory([
-      'e2', 'd9', 'e3', 'e9', 'e4', 'd9',
-      'e5', 'e9', 'e6', 'd9', 'e7', 'e9',
-      'e8', 'd9', 'e9',
+      'e2',
+      'd9',
+      'e3',
+      'e9',
+      'e4',
+      'd9',
+      'e5',
+      'e9',
+      'e6',
+      'd9',
+      'e7',
+      'e9',
+      'e8',
+      'd9',
+      'e9',
     ]);
     expect(state.status).toBe('finished');
     expect(state.winner).toBe(0);
   });
 
   it('p1 wins when reaching row 8', () => {
-    // p0 must spend moves on walls while p1 charges
+    // p1 marches straight down column 4; p0 shuffles harmlessly in columns 2-3,
+    // never touching column 4, so p1's path and the goal square stay clear.
     const state = applyHistory([
-      'a2h', 'e8', 'b4h', 'e7', 'c6h', 'e6',
-      'a4h', 'e5', 'b6h', 'e4', 'c8h', 'e3',
-      'a6h', 'e2', 'b8h', 'e1',
+      'd1',
+      'e8',
+      'c1',
+      'e7',
+      'd1',
+      'e6',
+      'c1',
+      'e5',
+      'd1',
+      'e4',
+      'c1',
+      'e3',
+      'd1',
+      'e2',
+      'c1',
+      'e1',
     ]);
     expect(state.status).toBe('finished');
     expect(state.winner).toBe(1);
@@ -198,9 +224,21 @@ describe('win detection', () => {
 
   it('no further moves accepted after game is finished', () => {
     const finished = applyHistory([
-      'e2', 'd9', 'e3', 'e9', 'e4', 'd9',
-      'e5', 'e9', 'e6', 'd9', 'e7', 'e9',
-      'e8', 'd9', 'e9',
+      'e2',
+      'd9',
+      'e3',
+      'e9',
+      'e4',
+      'd9',
+      'e5',
+      'e9',
+      'e6',
+      'd9',
+      'e7',
+      'e9',
+      'e8',
+      'd9',
+      'e9',
     ]);
     expect(finished.status).toBe('finished');
     const result = applyMove(finished, parseMove('d9'));
@@ -217,10 +255,30 @@ describe('accumulated game state', () => {
   });
 
   it('10 walls placed exhausts p0 supply', () => {
-    // p0 places 10 walls while p1 moves sideways
-    const wallMoves = ['e7h', 'd9', 'c7h', 'd9', 'a7h', 'd9', 'a5h', 'd9',
-                       'c5h', 'd9', 'e5h', 'd9', 'g5h', 'd9', 'g7h', 'd9',
-                       'c3h', 'd9', 'a3h', 'd9'];
+    // p0 places 10 legal walls on the left (cols 0+2, rows 0-4), leaving a clear
+    // col 4-7 corridor so every placement passes the path check; p1 oscillates d9/e9.
+    const wallMoves = [
+      'a9h',
+      'd9',
+      'c9h',
+      'e9',
+      'a8h',
+      'd9',
+      'c8h',
+      'e9',
+      'a7h',
+      'd9',
+      'c7h',
+      'e9',
+      'a6h',
+      'd9',
+      'c6h',
+      'e9',
+      'a5h',
+      'd9',
+      'c5h',
+      'e9',
+    ];
     const state = applyHistory(wallMoves);
     expect(state.players[0].wallsRemaining).toBe(0);
     // Now p0 cannot place another wall
@@ -231,6 +289,6 @@ describe('accumulated game state', () => {
   it('p0 state is unchanged when p1 places a wall', () => {
     const state = applyHistory(['e2', 'e5h']); // p0 moves, p1 places wall
     expect(state.players[0].wallsRemaining).toBe(10); // p0 unchanged
-    expect(state.players[1].wallsRemaining).toBe(9);  // p1 used one
+    expect(state.players[1].wallsRemaining).toBe(9); // p1 used one
   });
 });
