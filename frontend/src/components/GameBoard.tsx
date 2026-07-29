@@ -80,6 +80,7 @@ export function GameBoard({
             flipped={flipped}
             isPlaced={isPlaced}
             previewState={previewState}
+            interactive={clickMoveEnabled && isHumanTurn && !isPlaced}
             onMouseEnter={() => onWallHover(wall)}
             onMouseLeave={() => onWallHover(null)}
             onClick={() => onWallClick(wall)}

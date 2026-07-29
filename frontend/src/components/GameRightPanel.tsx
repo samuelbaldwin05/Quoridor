@@ -1,22 +1,10 @@
 import { useRef, useEffect } from 'react';
-import type { StoredMove, Move } from '@/engine/gameTypes';
+import type { StoredMove } from '@/engine/gameTypes';
+import { serializeMove } from '@/engine/notation';
+import { moveIcon } from '@/engine/moveDisplay';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
 import { useHoldRepeat } from '@/hooks/useHoldRepeat';
 import { PlayPanel } from './PlayPanel';
-
-// ── move notation ────────────────────────────────────────────────────────────
-function moveNotation(move: Move): string {
-  const col = (c: number) => String.fromCharCode(97 + c);
-  const rank = (r: number) => String(9 - r);
-  if (move.kind === 'pawn') {
-    return `${col(move.to.col)}${rank(move.to.row)}`;
-  }
-  return `${col(move.wall.col)}${rank(move.wall.row)}${move.wall.orientation}`;
-}
-
-function moveIcon(move: Move) {
-  return move.kind === 'pawn' ? '♟' : '⊟';
-}
 
 // ── types ────────────────────────────────────────────────────────────────────
 interface GameRightPanelProps {
@@ -127,7 +115,7 @@ export function GameRightPanel({
             >
               <span className="ghp-num">{i + 1}</span>
               <span className="ghp-icon">{moveIcon(sm.move)}</span>
-              <span className="ghp-notation">{moveNotation(sm.move)}</span>
+              <span className="ghp-notation">{serializeMove(sm.move)}</span>
               <span className="ghp-who">{playerLabel(sm.playerIndex)}</span>
             </button>
           );
@@ -146,12 +134,7 @@ export function GameRightPanel({
         <span className="ghp-position">
           {isLive ? 'Live' : `${effectiveIndex} / ${moveHistory.length}`}
         </span>
-        <button
-          className="btn ghp-nav-btn"
-          {...forwardHold}
-          disabled={isLive}
-          title="Next move"
-        >
+        <button className="btn ghp-nav-btn" {...forwardHold} disabled={isLive} title="Next move">
           →
         </button>
 

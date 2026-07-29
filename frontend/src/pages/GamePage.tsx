@@ -8,9 +8,9 @@ import { GameCard } from '@/components/GameCard';
 import { GameRightPanel } from '@/components/GameRightPanel';
 import { SettingsModal } from '@/components/SettingsModal';
 import { WinLoseModal } from '@/components/WinLoseModal';
-import { createInitialState, applyMove } from '@/engine/gameEngine';
 import { getValidPawnMoves } from '@/engine/moveValidation';
-import type { GameState, Position, StoredMove } from '@/engine/gameTypes';
+import { replayToIndex } from '@/engine/moveDisplay';
+import type { Position } from '@/engine/gameTypes';
 import { MESSAGE_TIMEOUT_MS } from '@/engine/constants';
 import { useAi } from '@/hooks/useAi';
 import { useAudio } from '@/hooks/useAudio';
@@ -19,15 +19,6 @@ import { useGame } from '@/hooks/useGame';
 import { useKeyboard, type KeyAction } from '@/hooks/useKeyboard';
 import { useTheme } from '@/hooks/useTheme';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
-
-function replayToIndex(moves: StoredMove[], index: number): GameState {
-  let state: GameState = { ...createInitialState(), status: 'playing' };
-  for (let i = 0; i < index; i++) {
-    const result = applyMove(state, moves[i]!.move);
-    if (result.valid) state = result.nextState;
-  }
-  return state;
-}
 
 export function GamePage() {
   const navigate = useNavigate();
@@ -197,7 +188,6 @@ export function GamePage() {
           <GameCard
             difficulty={state.settings.difficulty}
             gameMode={state.settings.gameMode}
-            gameStatus={state.game.status}
             topFenceCount={displayGameState.players[1].wallsRemaining}
             bottomFenceCount={displayGameState.players[0].wallsRemaining}
             wrapperClassName={state.game.status === 'idle' ? 'mobile-hide-board' : undefined}

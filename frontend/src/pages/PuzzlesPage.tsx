@@ -247,7 +247,7 @@ export function PuzzlesPage() {
 
       <div className="main-content">
         <div className="board-section">
-          <GameCard opponentLabel="Puzzle" gameStatus={puzzleState.status}>
+          <GameCard opponentLabel="Puzzle">
             <div className="board-wrapper">
               <GameBoard
                 gameState={puzzleState}

@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { NavSidebar } from '@/components/NavSidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { apiFetch } from '@/lib/api';
+import { eloColor } from '@/lib/elo';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,8 @@ interface ChallengeEntry {
   challenged_id: string;
   challenger_name: string | null;
   challenged_name: string | null;
+  challenger_elo: number | null;
+  challenged_elo: number | null;
   time_control: number;
   status: string;
   game_id: string | null;
@@ -43,13 +46,6 @@ interface ApiFriend {
 type FriendsTab = 'friends' | 'search';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function eloColor(elo: number): string {
-  if (elo >= 1800) return '#f39c12';
-  if (elo >= 1500) return '#3498db';
-  if (elo >= 1300) return '#2ecc71';
-  return 'rgba(255,255,255,0.5)';
-}
 
 function displayFor(u: { username: string }): string {
   return u.username;
@@ -209,6 +205,7 @@ export function FriendsPage() {
     challengeId: string,
     timeControl: number,
     challengerName: string | null,
+    challengerElo: number | null,
   ) {
     setPending(`chal-${challengeId}`, true);
     try {
@@ -216,8 +213,9 @@ export function FriendsPage() {
         method: 'POST',
       });
       if (result.game_id) {
+        // The accepter is the challenged player, so the opponent is the challenger.
         navigate(
-          `/game/online/${result.game_id}?role=1&opponent=${encodeURIComponent(challengerName ?? 'Opponent')}&opponentElo=500&tc=${timeControl}`,
+          `/game/online/${result.game_id}?role=1&opponent=${encodeURIComponent(challengerName ?? 'Opponent')}&opponentElo=${challengerElo ?? 500}&tc=${timeControl}`,
         );
       }
     } finally {
@@ -395,7 +393,12 @@ export function FriendsPage() {
                               <button
                                 className="btn friend-accept-btn"
                                 onClick={() =>
-                                  handleAcceptChallenge(c.id, c.time_control, c.challenger_name)
+                                  handleAcceptChallenge(
+                                    c.id,
+                                    c.time_control,
+                                    c.challenger_name,
+                                    c.challenger_elo,
+                                  )
                                 }
                                 disabled={pendingActions.has(`chal-${c.id}`)}
                                 title="Accept challenge"

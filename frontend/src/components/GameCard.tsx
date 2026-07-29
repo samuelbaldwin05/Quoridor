@@ -11,7 +11,6 @@ const DIFFICULTY_LABELS: Record<Settings['difficulty'], string> = {
 interface GameCardProps {
   difficulty?: Settings['difficulty'];
   gameMode?: Settings['gameMode'];
-  gameStatus: 'idle' | 'playing' | 'finished';
   opponentLabel?: string;
   playerLabel?: string;
   /** Optional content rendered inline on the right side of the top label row */
@@ -30,7 +29,6 @@ interface GameCardProps {
 export function GameCard({
   difficulty,
   gameMode,
-  gameStatus: _gameStatus,
   opponentLabel,
   playerLabel,
   topRight,

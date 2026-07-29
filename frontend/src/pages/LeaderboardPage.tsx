@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavSidebar } from '@/components/NavSidebar';
 import { ProfileModal } from '@/components/ProfileModal';
 import { supabase } from '@/lib/supabase';
+import { eloColor } from '@/lib/elo';
 
 type SortMode = 'elo' | 'games_played';
 
@@ -10,13 +11,6 @@ interface LeaderEntry {
   username: string;
   elo: number;
   games_played: number;
-}
-
-function eloColor(elo: number): string {
-  if (elo >= 1800) return '#f39c12';
-  if (elo >= 1500) return '#3498db';
-  if (elo >= 1300) return '#2ecc71';
-  return 'rgba(255,255,255,0.5)';
 }
 
 const SORT_OPTIONS: { id: SortMode; label: string }[] = [
@@ -40,6 +34,7 @@ export function LeaderboardPage() {
           .from('users')
           .select('id, username, elo, games_played')
           .eq('username_chosen', true)
+          .gt('games_played', 0)
           .order(sort, { ascending: false })
           .limit(20);
         if (cancelled) return;

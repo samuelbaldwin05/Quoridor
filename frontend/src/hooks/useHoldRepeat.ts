@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef } from 'react';
 
-/**
- * Returns pointer-event handlers that fire `callback` immediately on press
- * and then repeatedly every `repeatMs` ms while held. Works on touch and mouse.
- */
+// Pointer-event handlers that fire `callback` on press and repeat every repeatMs
+// while held. callbackRef keeps the latest callback so the running interval never
+// fires a stale closure; pointer (not click) events give touch + mouse parity.
 export function useHoldRepeat(callback: () => void, repeatMs = 140) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const callbackRef = useRef(callback);
-  callbackRef.current = callback;
+  useEffect(() => {
+    callbackRef.current = callback;
+  });
 
   const stop = useCallback(() => {
     if (intervalRef.current !== null) {

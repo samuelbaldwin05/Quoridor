@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { NavSidebar } from '@/components/NavSidebar';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -10,8 +10,7 @@ export function LoginPage() {
   const [devError, setDevError] = useState<string | null>(null);
 
   if (user) {
-    navigate('/', { replace: true });
-    return null;
+    return <Navigate to="/" replace />;
   }
 
   async function handleGoogle() {
