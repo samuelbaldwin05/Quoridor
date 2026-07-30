@@ -71,10 +71,11 @@ init: ## Copy .env.example files
 
 # ── Dev ───────────────────────────────────────────────────────────────────────
 dev: ## Start Supabase then app containers
-	bun x supabase start
+	bun x supabase start || { echo ">> supabase start failed (often a flaky realtime healthcheck on cold start) — retrying once..."; bun x supabase start; }
 	docker compose up --build -d
 
 up: ## Start app containers only
+	@docker network inspect supabase_network_QuoridorEngine >/dev/null 2>&1 || { echo ">> Supabase network not found — Supabase isn't running. Run 'make dev' first."; exit 1; }
 	docker compose up -d
 
 down: ## Stop app containers + Supabase
@@ -83,6 +84,7 @@ down: ## Stop app containers + Supabase
 
 restart: ## Restart app containers only (Supabase keeps running)
 	docker compose down
+	@docker network inspect supabase_network_QuoridorEngine >/dev/null 2>&1 || { echo ">> Supabase network not found — Supabase isn't running. Run 'make dev' first."; exit 1; }
 	docker compose up -d
 
 rebuild: ## Rebuild app images from scratch and restart
