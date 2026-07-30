@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 // Types
 // ---------------------------------------------------------------------------
 
-export type ConnectionStatus = 'connecting' | 'ready' | 'error';
+export type ConnectionStatus = 'connecting' | 'ready' | 'reconnecting' | 'error';
 
 export interface OnlineResult {
   winner: 0 | 1;
@@ -59,6 +59,12 @@ export function useOnlineGame({
   const channelRef = useRef<RealtimeChannel | null>(null);
   const resultSubmittedRef = useRef(false);
 
+  // Reconnect: a transient socket error bumps `resubscribeNonce` (after a capped
+  // exponential backoff) so the subscribe effect tears down + re-subscribes.
+  // backoffRef resets on a clean SUBSCRIBE without re-running the effect.
+  const [resubscribeNonce, setResubscribeNonce] = useState(0);
+  const backoffRef = useRef(0);
+
   // Keep callbacks in refs so channel handlers don't go stale. Updates run in
   // an effect (not during render) per React rules; the channel handlers read
   // ref.current at fire time, so a one-frame lag here is fine.
@@ -74,11 +80,19 @@ export function useOnlineGame({
   });
 
   useEffect(() => {
+    // NOTE: this channel is not private. The backend is authoritative over every
+    // move + the result (see /games/{id}/move and /result), so a forged broadcast
+    // can't fabricate a ranked outcome — but it can still grief (fake resign/abort,
+    // desync). To close that, enable a private channel: add `private: true` here
+    // AND apply a Realtime authorization policy restricting topic game:{id} to the
+    // two participants. Left off until that policy is verified live (a wrong policy
+    // silently blocks ALL realtime).
     const channel = supabase.channel(`game:${gameId}`, {
       config: { broadcast: { self: false } },
     });
     channelRef.current = channel;
 
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     const opponentIndex: PlayerIndex = myRole === 0 ? 1 : 0;
 
     channel
@@ -104,15 +118,30 @@ export function useOnlineGame({
         if (status === 'SUBSCRIBED') {
           await channel.track({ userId: myUserId });
           setConnectionStatus('ready');
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setConnectionStatus('error');
+          backoffRef.current = 0;
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setConnectionStatus('reconnecting');
+          if (reconnectTimer) clearTimeout(reconnectTimer);
+          const delay = Math.min(1000 * 2 ** backoffRef.current, 10000);
+          backoffRef.current += 1;
+          reconnectTimer = setTimeout(() => setResubscribeNonce((n) => n + 1), delay);
         }
       });
 
     return () => {
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       supabase.removeChannel(channel);
     };
-  }, [gameId, myUserId, myRole]);
+  }, [gameId, myUserId, myRole, resubscribeNonce]);
+
+  // Server-authoritative move: the backend validates against stored state and
+  // records it. Throws (via apiFetch) on rejection — caller must not apply locally.
+  async function submitMove(notation: string): Promise<void> {
+    await apiFetch<{ move_number: number }>(`/games/${gameId}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ notation }),
+    });
+  }
 
   function broadcastMove(move: Move) {
     channelRef.current?.send({
@@ -146,7 +175,13 @@ export function useOnlineGame({
     });
   }
 
-  async function submitResult(winner: 0 | 1, finalTimes?: [number, number], savedGameId?: string) {
+  async function submitResult(
+    winner: 0 | 1,
+    reason: 'win' | 'resign' | 'timeout',
+    moveHistory: string[],
+    finalTimes?: [number, number],
+    savedGameId?: string,
+  ) {
     if (resultSubmittedRef.current) return;
     resultSubmittedRef.current = true;
     try {
@@ -154,7 +189,8 @@ export function useOnlineGame({
         method: 'POST',
         body: JSON.stringify({
           winner_index: winner,
-          move_history: [],
+          reason,
+          move_history: moveHistory,
           time_remaining_p1: finalTimes?.[0] ?? null,
           time_remaining_p2: finalTimes?.[1] ?? null,
         }),
@@ -166,14 +202,27 @@ export function useOnlineGame({
     }
   }
 
+  // Display-only result for the WINNER of a forfeit. Only the forfeiting player
+  // can record a server-valid result (the backend treats the caller as the loser,
+  // and you can only report your own loss), so the winner just shows the outcome
+  // and relies on refreshProfile() to pick up the new ELO once the loser's write
+  // lands. eloChange 0 simply hides the delta line in the overlay.
+  function observeResult(winner: 0 | 1, savedGameId?: string) {
+    if (resultSubmittedRef.current) return;
+    resultSubmittedRef.current = true;
+    setResult({ winner, eloChange: 0, savedGameId: savedGameId ?? null });
+  }
+
   return {
     connectionStatus,
     opponentConnected,
     result,
+    submitMove,
     broadcastMove,
     broadcastResign,
     broadcastTimeout,
     broadcastAbort,
     submitResult,
+    observeResult,
   };
 }

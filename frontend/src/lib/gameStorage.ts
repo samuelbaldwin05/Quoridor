@@ -8,6 +8,9 @@ export interface SavedGame {
   opponentLabel: string;
   // Which side the user played. Optional: pre-existing saves default to 0.
   userRole?: 0 | 1;
+  // Real [player1, player2] names for online-game replays (viewer may be a
+  // non-participant, so both sides are shown by name rather than "You"/opponent).
+  playerNames?: [string, string];
 }
 
 const STORAGE_KEY = 'quoridor_games';

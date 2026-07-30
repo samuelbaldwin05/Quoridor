@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { NavSidebar } from '@/components/NavSidebar';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { validateUsername } from '@/lib/usernameValidation';
+import { eloColor } from '@/lib/elo';
 
 interface TimeStats {
   time_control: number;
@@ -29,14 +30,16 @@ interface ApiFriend {
   requester_id?: string;
 }
 
-type FriendStatus = 'self' | 'none' | 'pending_sent' | 'pending_received' | 'accepted';
-
-function eloColor(elo: number): string {
-  if (elo >= 1800) return '#f39c12';
-  if (elo >= 1500) return '#3498db';
-  if (elo >= 1300) return '#2ecc71';
-  return 'rgba(255,255,255,0.6)';
+interface RecentGame {
+  id: string;
+  time_control: number | null;
+  opponent_name: string | null;
+  result: 'win' | 'loss';
+  elo_change: number | null;
+  completed_at: string | null;
 }
+
+type FriendStatus = 'self' | 'none' | 'pending_sent' | 'pending_received' | 'accepted';
 
 function tcLabel(tc: number): string {
   if (tc < 60) return `${tc}s`;
@@ -45,11 +48,13 @@ function tcLabel(tc: number): string {
 
 export function ProfilePage() {
   const { userId } = useParams<{ userId: string }>();
+  const navigate = useNavigate();
   const { profile: myProfile, updateUsername } = useAuth();
   const myId = myProfile?.id ?? '';
   const isMe = myProfile?.id === userId;
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [recentGames, setRecentGames] = useState<RecentGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -69,6 +74,13 @@ export function ProfilePage() {
       .then(setProfile)
       .catch(() => setError('Player not found.'))
       .finally(() => setLoading(false));
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    apiFetch<RecentGame[]>(`/api/users/${userId}/games?limit=10`)
+      .then(setRecentGames)
+      .catch(() => setRecentGames([]));
   }, [userId]);
 
   useEffect(() => {
@@ -134,7 +146,8 @@ export function ProfilePage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
       if (msg.includes('409')) setUsernameError('Username taken.');
-      else if (msg.includes('429')) setUsernameError('You can only change your username once per week.');
+      else if (msg.includes('429'))
+        setUsernameError('You can only change your username once per week.');
       else setUsernameError('Error saving.');
     } finally {
       setSavingUsername(false);
@@ -184,7 +197,9 @@ export function ProfilePage() {
                 <div className="profile-header-info">
                   {editingUsername && isMe ? (
                     <div className="profile-username-edit">
-                      <div className={`profile-edit-input-wrap${usernameError ? ' profile-edit-input-wrap-error' : ''}`}>
+                      <div
+                        className={`profile-edit-input-wrap${usernameError ? ' profile-edit-input-wrap-error' : ''}`}
+                      >
                         <input
                           className="profile-edit-input"
                           value={usernameInput}
@@ -202,7 +217,7 @@ export function ProfilePage() {
                         />
                         <button
                           className="profile-edit-icon-btn profile-edit-confirm"
-                          onClick={saveUsername}
+                          onClick={() => void saveUsername()}
                           disabled={savingUsername}
                           title="Save"
                         >
@@ -256,11 +271,15 @@ export function ProfilePage() {
                   <span className="profile-stat-label">Games</span>
                 </div>
                 <div className="profile-stat-card">
-                  <span className="profile-stat-value" style={{ color: '#2ecc71' }}>{wins}</span>
+                  <span className="profile-stat-value" style={{ color: '#2ecc71' }}>
+                    {wins}
+                  </span>
                   <span className="profile-stat-label">Wins</span>
                 </div>
                 <div className="profile-stat-card">
-                  <span className="profile-stat-value" style={{ color: '#e74c3c' }}>{losses}</span>
+                  <span className="profile-stat-value" style={{ color: '#e74c3c' }}>
+                    {losses}
+                  </span>
                   <span className="profile-stat-label">Losses</span>
                 </div>
                 <div className="profile-stat-card">
@@ -279,6 +298,50 @@ export function ProfilePage() {
                         <span className="profile-tc-stat">{t.games_played} games</span>
                         <span className="profile-tc-stat">{Math.round(t.win_pct * 100)}% wins</span>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {recentGames.length > 0 && (
+                <div className="profile-section">
+                  <p className="profile-section-label">RECENT GAMES</p>
+                  <div className="profile-tc-list">
+                    {recentGames.map((g) => (
+                      <button
+                        key={g.id}
+                        className="profile-game-row"
+                        onClick={() => navigate(`/history/${g.id}`)}
+                        title="Replay game"
+                      >
+                        <span
+                          className="profile-game-result"
+                          style={{ color: g.result === 'win' ? '#2ecc71' : '#e74c3c' }}
+                        >
+                          {g.result === 'win' ? 'W' : 'L'}
+                        </span>
+                        <span className="profile-game-opp">vs {g.opponent_name ?? 'Unknown'}</span>
+                        {g.time_control && (
+                          <span className="profile-game-meta">{tcLabel(g.time_control)}</span>
+                        )}
+                        {g.elo_change !== null && (
+                          <span
+                            className="profile-game-meta"
+                            style={{ color: g.elo_change >= 0 ? '#2ecc71' : '#e74c3c' }}
+                          >
+                            {g.elo_change >= 0 ? '+' : ''}
+                            {g.elo_change}
+                          </span>
+                        )}
+                        <span className="profile-game-meta">
+                          {g.completed_at
+                            ? new Date(g.completed_at).toLocaleDateString([], {
+                                month: 'short',
+                                day: 'numeric',
+                              })
+                            : ''}
+                        </span>
+                      </button>
                     ))}
                   </div>
                 </div>
