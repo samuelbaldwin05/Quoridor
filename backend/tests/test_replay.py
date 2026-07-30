@@ -5,8 +5,8 @@ import pytest
 from app.core.exceptions import InvalidMoveError
 from app.engine.replay import replay, validate_history_winner
 
-
 # ── replay ────────────────────────────────────────────────────────────────────
+
 
 class TestReplay:
     def test_empty_history_returns_fresh_playing_state(self) -> None:
@@ -43,9 +43,21 @@ class TestReplay:
 
     def test_full_game_winner_in_state(self) -> None:
         history = [
-            "e2", "d9", "e3", "e9", "e4", "d9",
-            "e5", "e9", "e6", "d9", "e7", "e9",
-            "e8", "d9", "e9",
+            "e2",
+            "d9",
+            "e3",
+            "e9",
+            "e4",
+            "d9",
+            "e5",
+            "e9",
+            "e6",
+            "d9",
+            "e7",
+            "e9",
+            "e8",
+            "d9",
+            "e9",
         ]
         state = replay(history)
         assert state.status == "finished"
@@ -64,25 +76,54 @@ class TestReplay:
 
 # ── validate_history_winner ───────────────────────────────────────────────────
 
+
 class TestValidateHistoryWinner:
-    def test_empty_history_skips_validation(self) -> None:
-        # Must NOT raise, even though winner_index is arbitrary
-        validate_history_winner([], 0)
-        validate_history_winner([], 1)
+    def test_empty_history_rejected(self) -> None:
+        # A board win cannot be confirmed without history — must raise for either
+        # claimed winner. (Forfeit results derive the winner from the caller and
+        # never reach this function.)
+        with pytest.raises(InvalidMoveError):
+            validate_history_winner([], 0)
+        with pytest.raises(InvalidMoveError):
+            validate_history_winner([], 1)
 
     def test_valid_history_correct_winner(self) -> None:
         history = [
-            "e2", "d9", "e3", "e9", "e4", "d9",
-            "e5", "e9", "e6", "d9", "e7", "e9",
-            "e8", "d9", "e9",
+            "e2",
+            "d9",
+            "e3",
+            "e9",
+            "e4",
+            "d9",
+            "e5",
+            "e9",
+            "e6",
+            "d9",
+            "e7",
+            "e9",
+            "e8",
+            "d9",
+            "e9",
         ]
         validate_history_winner(history, 0)  # should not raise
 
     def test_valid_history_wrong_winner_raises(self) -> None:
         history = [
-            "e2", "d9", "e3", "e9", "e4", "d9",
-            "e5", "e9", "e6", "d9", "e7", "e9",
-            "e8", "d9", "e9",
+            "e2",
+            "d9",
+            "e3",
+            "e9",
+            "e4",
+            "d9",
+            "e5",
+            "e9",
+            "e6",
+            "d9",
+            "e7",
+            "e9",
+            "e8",
+            "d9",
+            "e9",
         ]
         with pytest.raises(InvalidMoveError):
             validate_history_winner(history, 1)  # p0 wins, not p1
@@ -100,14 +141,11 @@ class TestValidateHistoryWinner:
         with pytest.raises(InvalidMoveError):
             validate_history_winner(["e2", "GARBAGE"], 0)
 
-    def test_security_bug_empty_history_accepts_any_winner(self) -> None:
-        """Documents the known security gap: empty move_history bypasses winner validation.
-
-        The backend explicitly allows empty history (resignation / legacy clients),
-        which means any caller can claim any winner_index when move_history=[].
-        This test documents the CURRENT BEHAVIOR. If the bypass is ever removed,
-        this test should be updated to expect an InvalidMoveError for a false claim.
-        """
-        # Should NOT raise (current behavior — known gap)
-        validate_history_winner([], 0)
-        validate_history_winner([], 1)
+    def test_empty_history_cannot_claim_a_winner(self) -> None:
+        """Regression guard for the closed forge-a-win gap: an empty history can no
+        longer assert any winner. A board win must be proven by replaying real moves;
+        forfeits are handled separately in game_service (caller = loser)."""
+        with pytest.raises(InvalidMoveError):
+            validate_history_winner([], 0)
+        with pytest.raises(InvalidMoveError):
+            validate_history_winner([], 1)
