@@ -5,6 +5,7 @@ interface WallSlotProps {
   flipped: boolean;
   isPlaced: boolean;
   previewState: 'valid' | 'invalid' | null;
+  interactive: boolean;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
   onClick: () => void;
@@ -15,6 +16,7 @@ export function WallSlot({
   flipped,
   isPlaced,
   previewState,
+  interactive,
   onMouseEnter,
   onMouseLeave,
   onClick,
@@ -62,13 +64,36 @@ export function WallSlot({
     .filter(Boolean)
     .join(' ');
 
+  // Algebraic name, e.g. "e3v" — matches the notation used elsewhere.
+  const wallName = `${String.fromCharCode(97 + wall.col)}${9 - wall.row}${wall.orientation}`;
+  const orientationWord = wall.orientation === 'h' ? 'horizontal' : 'vertical';
+  const ariaLabel = isPlaced
+    ? `Wall at ${wallName}`
+    : `Place ${orientationWord} wall at ${wallName}`;
+
   return (
     <div
       className={classes}
       style={style}
+      role="button"
+      aria-label={ariaLabel}
+      aria-disabled={!interactive}
+      tabIndex={interactive ? 0 : -1}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      onFocus={interactive ? onMouseEnter : undefined}
+      onBlur={interactive ? onMouseLeave : undefined}
       onClick={onClick}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
     />
   );
 }

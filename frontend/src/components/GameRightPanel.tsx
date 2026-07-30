@@ -1,21 +1,10 @@
 import { useRef, useEffect } from 'react';
-import type { StoredMove, Move } from '@/engine/gameTypes';
+import type { StoredMove } from '@/engine/gameTypes';
+import { serializeMove } from '@/engine/notation';
+import { moveIcon } from '@/engine/moveDisplay';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
+import { useHoldRepeat } from '@/hooks/useHoldRepeat';
 import { PlayPanel } from './PlayPanel';
-
-// ── move notation ────────────────────────────────────────────────────────────
-function moveNotation(move: Move): string {
-  const col = (c: number) => String.fromCharCode(97 + c);
-  const rank = (r: number) => String(9 - r);
-  if (move.kind === 'pawn') {
-    return `${col(move.to.col)}${rank(move.to.row)}`;
-  }
-  return `${col(move.wall.col)}${rank(move.wall.row)}${move.wall.orientation}`;
-}
-
-function moveIcon(move: Move) {
-  return move.kind === 'pawn' ? '♟' : '⊟';
-}
 
 // ── types ────────────────────────────────────────────────────────────────────
 interface GameRightPanelProps {
@@ -26,7 +15,7 @@ interface GameRightPanelProps {
   /** null = live; number = viewing state after N moves */
   viewIndex: number | null;
   onPlay: (difficulty: Settings['difficulty'], gameMode: Settings['gameMode']) => void;
-  onViewIndex: (index: number | null) => void;
+  onViewIndex: React.Dispatch<React.SetStateAction<number | null>>;
   onResign?: () => void;
   onShowSettings?: () => void;
 }
@@ -64,18 +53,23 @@ export function GameRightPanel({
   }, [effectiveIndex, isLive]);
 
   function handleBack() {
-    if (effectiveIndex <= 0) return;
-    onViewIndex(effectiveIndex - 1);
+    onViewIndex((cur) => {
+      const c = cur ?? moveHistory.length;
+      return c > 0 ? c - 1 : cur;
+    });
   }
 
   function handleForward() {
-    if (effectiveIndex >= moveHistory.length) {
-      onViewIndex(null); // back to live
-      return;
-    }
-    const next = effectiveIndex + 1;
-    onViewIndex(next >= moveHistory.length ? null : next);
+    onViewIndex((cur) => {
+      const c = cur ?? moveHistory.length;
+      if (c >= moveHistory.length) return null;
+      const next = c + 1;
+      return next >= moveHistory.length ? null : next;
+    });
   }
+
+  const backHold = useHoldRepeat(handleBack);
+  const forwardHold = useHoldRepeat(handleForward);
 
   // ── idle: show play panel ────────────────────────────────────────────────
   if (gameStatus === 'idle') {
@@ -121,7 +115,7 @@ export function GameRightPanel({
             >
               <span className="ghp-num">{i + 1}</span>
               <span className="ghp-icon">{moveIcon(sm.move)}</span>
-              <span className="ghp-notation">{moveNotation(sm.move)}</span>
+              <span className="ghp-notation">{serializeMove(sm.move)}</span>
               <span className="ghp-who">{playerLabel(sm.playerIndex)}</span>
             </button>
           );
@@ -131,7 +125,7 @@ export function GameRightPanel({
       <div className="ghp-controls">
         <button
           className="btn ghp-nav-btn"
-          onClick={handleBack}
+          {...backHold}
           disabled={effectiveIndex === 0}
           title="Previous move"
         >
@@ -140,12 +134,7 @@ export function GameRightPanel({
         <span className="ghp-position">
           {isLive ? 'Live' : `${effectiveIndex} / ${moveHistory.length}`}
         </span>
-        <button
-          className="btn ghp-nav-btn"
-          onClick={handleForward}
-          disabled={isLive}
-          title="Next move"
-        >
+        <button className="btn ghp-nav-btn" {...forwardHold} disabled={isLive} title="Next move">
           →
         </button>
 

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { NavSidebar } from '@/components/NavSidebar';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { validateUsername } from '@/lib/usernameValidation';
+import { eloColor } from '@/lib/elo';
 
 interface TimeStats {
   time_control: number;
@@ -28,14 +30,16 @@ interface ApiFriend {
   requester_id?: string;
 }
 
-type FriendStatus = 'self' | 'none' | 'pending_sent' | 'pending_received' | 'accepted';
-
-function eloColor(elo: number): string {
-  if (elo >= 1800) return '#f39c12';
-  if (elo >= 1500) return '#3498db';
-  if (elo >= 1300) return '#2ecc71';
-  return 'rgba(255,255,255,0.6)';
+interface RecentGame {
+  id: string;
+  time_control: number | null;
+  opponent_name: string | null;
+  result: 'win' | 'loss';
+  elo_change: number | null;
+  completed_at: string | null;
 }
+
+type FriendStatus = 'self' | 'none' | 'pending_sent' | 'pending_received' | 'accepted';
 
 function tcLabel(tc: number): string {
   if (tc < 60) return `${tc}s`;
@@ -44,17 +48,24 @@ function tcLabel(tc: number): string {
 
 export function ProfilePage() {
   const { userId } = useParams<{ userId: string }>();
-  const { profile: myProfile } = useAuth();
+  const navigate = useNavigate();
+  const { profile: myProfile, updateUsername } = useAuth();
   const myId = myProfile?.id ?? '';
   const isMe = myProfile?.id === userId;
 
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [recentGames, setRecentGames] = useState<RecentGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const [friendStatus, setFriendStatus] = useState<FriendStatus>('none');
   const [friendshipId, setFriendshipId] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
+
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [savingUsername, setSavingUsername] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -63,6 +74,13 @@ export function ProfilePage() {
       .then(setProfile)
       .catch(() => setError('Player not found.'))
       .finally(() => setLoading(false));
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    apiFetch<RecentGame[]>(`/api/users/${userId}/games?limit=10`)
+      .then(setRecentGames)
+      .catch(() => setRecentGames([]));
   }, [userId]);
 
   useEffect(() => {
@@ -95,8 +113,7 @@ export function ProfilePage() {
       });
       setFriendStatus('pending_sent');
     } catch {
-      // 409 (already exists) or other — leave state alone; the duplicate-prevent
-      // logic on the server is the authoritative guard.
+      // 409 (already exists) or other — server is the authoritative guard
     } finally {
       setActing(false);
     }
@@ -113,14 +130,36 @@ export function ProfilePage() {
     }
   }
 
+  async function saveUsername() {
+    const trimmed = usernameInput.trim();
+    const validationError = validateUsername(trimmed);
+    if (validationError) {
+      setUsernameError(validationError);
+      return;
+    }
+    setSavingUsername(true);
+    setUsernameError('');
+    try {
+      await updateUsername(trimmed);
+      setProfile((prev) => (prev ? { ...prev, username: trimmed } : prev));
+      setEditingUsername(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg.includes('409')) setUsernameError('Username taken.');
+      else if (msg.includes('429'))
+        setUsernameError('You can only change your username once per week.');
+      else setUsernameError('Error saving.');
+    } finally {
+      setSavingUsername(false);
+    }
+  }
+
   const status: FriendStatus = isMe ? 'self' : friendStatus;
   const displayName = profile?.username ?? '…';
+  const wins = profile ? profile.time_stats.reduce((s, t) => s + t.wins, 0) : 0;
+  const losses = profile ? profile.games_played - wins : 0;
   const winPct =
-    profile && profile.games_played > 0
-      ? Math.round(
-          (profile.time_stats.reduce((s, t) => s + t.wins, 0) / profile.games_played) * 100,
-        )
-      : 0;
+    profile && profile.games_played > 0 ? Math.round((wins / profile.games_played) * 100) : 0;
 
   function renderFriendAction() {
     if (status === 'self') return null;
@@ -146,7 +185,7 @@ export function ProfilePage() {
 
   return (
     <div className="game-layout">
-      <NavSidebar activePage="play" />
+      <NavSidebar activePage="profile" />
       <div className="main-content">
         <div className="profile-page-card">
           {loading && <p className="profile-loading">Loading…</p>}
@@ -156,9 +195,71 @@ export function ProfilePage() {
               <div className="profile-header">
                 <div className="profile-avatar-lg">{displayName[0]?.toUpperCase()}</div>
                 <div className="profile-header-info">
-                  <h2 className="profile-username">{displayName}</h2>
+                  {editingUsername && isMe ? (
+                    <div className="profile-username-edit">
+                      <div
+                        className={`profile-edit-input-wrap${usernameError ? ' profile-edit-input-wrap-error' : ''}`}
+                      >
+                        <input
+                          className="profile-edit-input"
+                          value={usernameInput}
+                          onChange={(e) => {
+                            setUsernameInput(e.target.value);
+                            setUsernameError('');
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') void saveUsername();
+                            if (e.key === 'Escape') setEditingUsername(false);
+                          }}
+                          placeholder="new username"
+                          maxLength={24}
+                          autoFocus
+                        />
+                        <button
+                          className="profile-edit-icon-btn profile-edit-confirm"
+                          onClick={() => void saveUsername()}
+                          disabled={savingUsername}
+                          title="Save"
+                        >
+                          {savingUsername ? '…' : '✓'}
+                        </button>
+                        <button
+                          className="profile-edit-icon-btn profile-edit-dismiss"
+                          onClick={() => setEditingUsername(false)}
+                          title="Cancel"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      {usernameError && <p className="profile-edit-error">{usernameError}</p>}
+                    </div>
+                  ) : (
+                    <div className="profile-username-row">
+                      <h2 className="profile-username">{displayName}</h2>
+                      {isMe && (
+                        <button
+                          className="profile-edit-btn"
+                          title="Change username"
+                          onClick={() => {
+                            setUsernameInput(displayName);
+                            setUsernameError('');
+                            setEditingUsername(true);
+                          }}
+                        >
+                          ✏️
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <p className="profile-elo" style={{ color: eloColor(profile.elo) }}>
                     {profile.elo} ELO
+                  </p>
+                  <p className="profile-member-since">
+                    Member since{' '}
+                    {new Date(profile.created_at).toLocaleDateString([], {
+                      month: 'short',
+                      year: 'numeric',
+                    })}
                   </p>
                 </div>
                 {renderFriendAction()}
@@ -167,26 +268,23 @@ export function ProfilePage() {
               <div className="profile-stats-grid">
                 <div className="profile-stat-card">
                   <span className="profile-stat-value">{profile.games_played}</span>
-                  <span className="profile-stat-label">Games Played</span>
+                  <span className="profile-stat-label">Games</span>
+                </div>
+                <div className="profile-stat-card">
+                  <span className="profile-stat-value" style={{ color: '#2ecc71' }}>
+                    {wins}
+                  </span>
+                  <span className="profile-stat-label">Wins</span>
+                </div>
+                <div className="profile-stat-card">
+                  <span className="profile-stat-value" style={{ color: '#e74c3c' }}>
+                    {losses}
+                  </span>
+                  <span className="profile-stat-label">Losses</span>
                 </div>
                 <div className="profile-stat-card">
                   <span className="profile-stat-value">{winPct}%</span>
                   <span className="profile-stat-label">Win Rate</span>
-                </div>
-                <div className="profile-stat-card">
-                  <span className="profile-stat-value" style={{ color: eloColor(profile.elo) }}>
-                    {profile.elo}
-                  </span>
-                  <span className="profile-stat-label">ELO</span>
-                </div>
-                <div className="profile-stat-card">
-                  <span className="profile-stat-value">
-                    {new Date(profile.created_at).toLocaleDateString([], {
-                      month: 'short',
-                      year: 'numeric',
-                    })}
-                  </span>
-                  <span className="profile-stat-label">Member Since</span>
                 </div>
               </div>
 
@@ -200,6 +298,50 @@ export function ProfilePage() {
                         <span className="profile-tc-stat">{t.games_played} games</span>
                         <span className="profile-tc-stat">{Math.round(t.win_pct * 100)}% wins</span>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {recentGames.length > 0 && (
+                <div className="profile-section">
+                  <p className="profile-section-label">RECENT GAMES</p>
+                  <div className="profile-tc-list">
+                    {recentGames.map((g) => (
+                      <button
+                        key={g.id}
+                        className="profile-game-row"
+                        onClick={() => navigate(`/history/${g.id}`)}
+                        title="Replay game"
+                      >
+                        <span
+                          className="profile-game-result"
+                          style={{ color: g.result === 'win' ? '#2ecc71' : '#e74c3c' }}
+                        >
+                          {g.result === 'win' ? 'W' : 'L'}
+                        </span>
+                        <span className="profile-game-opp">vs {g.opponent_name ?? 'Unknown'}</span>
+                        {g.time_control && (
+                          <span className="profile-game-meta">{tcLabel(g.time_control)}</span>
+                        )}
+                        {g.elo_change !== null && (
+                          <span
+                            className="profile-game-meta"
+                            style={{ color: g.elo_change >= 0 ? '#2ecc71' : '#e74c3c' }}
+                          >
+                            {g.elo_change >= 0 ? '+' : ''}
+                            {g.elo_change}
+                          </span>
+                        )}
+                        <span className="profile-game-meta">
+                          {g.completed_at
+                            ? new Date(g.completed_at).toLocaleDateString([], {
+                                month: 'short',
+                                day: 'numeric',
+                              })
+                            : ''}
+                        </span>
+                      </button>
                     ))}
                   </div>
                 </div>

@@ -199,16 +199,6 @@ body {
   overflow: hidden;
 }
 
-/* Right sidebar: fixed width, no background box (kept for any leftover usage) */
-.sidebar {
-  width: 170px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 4px 0;
-}
-
 /* ── Left navigation sidebar ────────────────────────────────────────────── */
 .nav-sidebar {
   width: 220px;
@@ -756,6 +746,214 @@ body {
   font-weight: 700;
 }
 
+/* Recent-games rows (clickable -> replay) */
+.profile-game-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  border-radius: var(--border-radius-small);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.profile-game-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.profile-game-result {
+  font-weight: 700;
+  width: 16px;
+  flex-shrink: 0;
+}
+.profile-game-opp {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-game-meta {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Username row with inline edit button */
+.profile-username-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.45;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: opacity 0.12s;
+  line-height: 1;
+}
+.profile-edit-btn:hover {
+  opacity: 1;
+}
+
+/* Inline username edit form */
+.profile-username-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Input + icon buttons share one bordered row */
+.profile-edit-input-wrap {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--border-radius-small);
+  padding-right: 4px;
+}
+.profile-edit-input-wrap:focus-within {
+  border-color: var(--player1-color);
+}
+.profile-edit-input-wrap-error {
+  border-color: var(--hover-danger) !important;
+}
+
+.profile-edit-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  padding: 6px 10px;
+  min-width: 0;
+}
+
+.profile-edit-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 6px;
+  border-radius: var(--border-radius-small);
+  line-height: 1;
+  flex-shrink: 0;
+  transition:
+    background 0.1s,
+    color 0.1s;
+}
+.profile-edit-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.profile-edit-confirm {
+  color: #2ecc71;
+}
+.profile-edit-confirm:hover:not(:disabled) {
+  background: rgba(46, 204, 113, 0.15);
+}
+.profile-edit-dismiss {
+  color: rgba(255, 255, 255, 0.4);
+}
+.profile-edit-dismiss:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--hover-danger);
+}
+
+.profile-edit-error {
+  font-size: 11px;
+  color: var(--hover-danger);
+  margin: 0;
+  padding-left: 2px;
+}
+
+/* ELO + rank badge row */
+.profile-elo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.profile-rank-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  border: 1px solid;
+  border-radius: 4px;
+  padding: 2px 6px;
+  opacity: 0.8;
+}
+
+/* Member since subtitle */
+.profile-member-since {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+  margin: 2px 0 0;
+}
+
+/* ── Landscape blocker ──────────────────────────────────────────────────────── */
+/* Hidden by default; shown only on phones held sideways (landscape + short viewport). */
+.landscape-blocker {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--primary-bg);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  pointer-events: all;
+}
+
+.landscape-blocker-icon {
+  width: 48px;
+  height: 48px;
+  color: rgba(255, 255, 255, 0.35);
+  animation: landscape-rock 1.8s ease-in-out infinite;
+}
+
+.landscape-blocker-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+  margin: 0;
+}
+
+@keyframes landscape-rock {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  30% {
+    transform: rotate(-90deg);
+  }
+  70% {
+    transform: rotate(-90deg);
+  }
+}
+
+/* Activate on phones in landscape: landscape + height under 500px covers all phones,
+   excludes tablets and laptops whose landscape viewport is tall enough to use normally. */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  .landscape-blocker {
+    display: flex;
+  }
+}
+
 /* Grey box wrapping the board grid + fence panel */
 .board-wrapper {
   display: flex;
@@ -813,11 +1011,6 @@ body {
   border-radius: 2px;
   opacity: 0.9;
   background: var(--ui-brown);
-}
-
-.fence-piece-computer {
-}
-.fence-piece-player {
 }
 
 /* Board grid — visual styling is on .board-wrapper */
@@ -1347,27 +1540,10 @@ body {
   :root {
     --mobile-scale: 0.8;
     --cell-size: calc(32px * var(--mobile-scale));
-    --fence-width: calc(16px * var(--mobile-scale));
-    --board-size: calc(550px * var(--mobile-scale));
   }
 
   body {
     padding: 10px;
-  }
-
-  .game-area {
-    flex-direction: column;
-    padding: 15px;
-    gap: 15px;
-  }
-
-  .board-container {
-    padding: 30px;
-    order: 1;
-  }
-  .sidebar {
-    width: 100%;
-    order: 2;
   }
 
   .btn {
@@ -1392,13 +1568,6 @@ body {
 @media (max-width: 480px) {
   :root {
     --mobile-scale: 0.6;
-  }
-  .game-area {
-    padding: 10px;
-    gap: 10px;
-  }
-  .board-container {
-    padding: 25px;
   }
 }
 
@@ -1529,10 +1698,6 @@ body {
 
 .win-lose-buttons .btn {
   white-space: nowrap;
-}
-
-.win-lose-analyze-btn {
-  /* inherits neutral .btn style */
 }
 
 /* ── Rules Page ─────────────────────────────────────────────────────────────── */
@@ -3514,6 +3679,9 @@ body {
     padding: 4px;
     align-items: stretch;
     justify-content: flex-start;
+    /* Fixed viewport budget (dvh minus the 52px top bar): content must fit — any
+       panel taller than this is CLIPPED, not scrolled. Switch to overflow:auto or
+       a scroll container before adding a taller panel type here. */
     overflow: hidden;
     height: calc(100dvh - 52px);
     min-height: 0;
@@ -3530,10 +3698,16 @@ body {
     min-height: 0;
   }
 
-  /* Cell-size budget: main-content (8) + card right (8) + board-wrapper (8)
-     + axis-y (19) + 4 safety = 47. Vertical leaves room for topbar + history. */
+  /* Horizontal chrome around the board, summed from its parts so the fit-calc
+     below stays correct if any piece changes (was a hardcoded 47): main-content
+     padding (8) + card body padding (8) + board-wrapper padding (8) + row-number
+     axis (19) + safety (4). Vertical leaves room for the top bar + history. */
   :root {
-    --cell-size: min(calc((100vw - 47px - 8 * 8px) / 9), calc((100dvh - 260px - 8 * 8px) / 9));
+    --board-h-chrome: calc(8px + 8px + 8px + 19px + 4px);
+    --cell-size: min(
+      calc((100vw - var(--board-h-chrome) - 8 * 8px) / 9),
+      calc((100dvh - 260px - 8 * 8px) / 9)
+    );
     --gap-size: 8px;
   }
 

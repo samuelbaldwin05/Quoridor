@@ -9,6 +9,8 @@ interface ChallengeEntry {
   challenged_id: string;
   challenger_name: string | null;
   challenged_name: string | null;
+  challenger_elo: number | null;
+  challenged_elo: number | null;
   time_control: number;
   status: string;
   game_id: string | null;
@@ -50,9 +52,10 @@ export function ChallengeRedirector() {
         if (!accepted || !accepted.game_id) return;
         navigatedRef.current.add(accepted.id);
         void apiFetch(`/api/challenges/${accepted.id}`, { method: 'DELETE' }).catch(() => {});
+        // The challenger is player 0; the opponent is the challenged player.
         const opponent = encodeURIComponent(accepted.challenged_name ?? 'Opponent');
         navigate(
-          `/game/online/${accepted.game_id}?role=0&opponent=${opponent}&opponentElo=500&tc=${accepted.time_control}`,
+          `/game/online/${accepted.game_id}?role=0&opponent=${opponent}&opponentElo=${accepted.challenged_elo ?? 500}&tc=${accepted.time_control}`,
         );
       } catch {
         // ignore poll failures

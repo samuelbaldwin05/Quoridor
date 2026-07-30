@@ -4,28 +4,41 @@ import { NavSidebar } from '@/components/NavSidebar';
 import { GameBoard } from '@/components/GameBoard';
 import { FencePanel } from '@/components/FencePanel';
 import { GameCard } from '@/components/GameCard';
-import { createInitialState, applyMove } from '@/engine/gameEngine';
-import type { GameState, StoredMove, Move } from '@/engine/gameTypes';
-import { loadGame, listGames, didUserWin } from '@/lib/gameStorage';
+import { createInitialState } from '@/engine/gameEngine';
+import { replayToIndex, moveIcon } from '@/engine/moveDisplay';
+import { serializeMove, parseMove } from '@/engine/notation';
+import type { StoredMove } from '@/engine/gameTypes';
+import { loadGame, listGames, didUserWin, type SavedGame } from '@/lib/gameStorage';
+import { apiFetch } from '@/lib/api';
+import { useHoldRepeat } from '@/hooks/useHoldRepeat';
 
-function replayToIndex(moves: StoredMove[], index: number): GameState {
-  let state: GameState = { ...createInitialState(), status: 'playing' };
-  for (let i = 0; i < index; i++) {
-    const result = applyMove(state, moves[i]!.move);
-    if (result.valid) state = result.nextState;
-  }
-  return state;
+// Public replay record from GET /games/{id} (online games).
+interface OnlineGameDetail {
+  id: string;
+  player1_name: string | null;
+  player2_name: string | null;
+  winner_index: number | null;
+  move_history: string[];
+  completed_at: string | null;
 }
 
-function moveNotation(move: Move): string {
-  const col = (c: number) => String.fromCharCode(97 + c);
-  const rank = (r: number) => String(9 - r);
-  if (move.kind === 'pawn') return `${col(move.to.col)}${rank(move.to.row)}`;
-  return `${col(move.wall.col)}${rank(move.wall.row)}${move.wall.orientation}`;
-}
-
-function moveIcon(move: Move) {
-  return move.kind === 'pawn' ? '♟' : '⊟';
+// Adapt an online game into the viewer's SavedGame shape. player1 (index 0) moves
+// first, so move i belongs to player i % 2. Both sides are shown by real name.
+function adaptOnlineGame(d: OnlineGameDetail): SavedGame {
+  const moves: StoredMove[] = d.move_history.map((notation, i) => ({
+    move: parseMove(notation),
+    playerIndex: (i % 2) as 0 | 1,
+    timestamp: 0,
+  }));
+  return {
+    id: d.id,
+    date: d.completed_at ? new Date(d.completed_at).getTime() : 0,
+    moves,
+    winner: d.winner_index === 0 || d.winner_index === 1 ? d.winner_index : null,
+    opponentLabel: d.player2_name ?? 'Player 2',
+    userRole: 0,
+    playerNames: [d.player1_name ?? 'Player 1', d.player2_name ?? 'Player 2'],
+  };
 }
 
 export function GameHistoryPage() {
@@ -42,7 +55,30 @@ export function GameHistoryPage() {
   const filterPanelRef = useRef<HTMLDivElement>(null);
 
   const games = useMemo(() => listGames(), []);
-  const currentGame = useMemo(() => (selectedId ? loadGame(selectedId) : null), [selectedId]);
+
+  // A selected game is either a local (offline) save (derived synchronously) or,
+  // failing that, an online game fetched from the backend for replay (e.g. opened
+  // from a profile). The fetched game is tagged with its id so a stale response
+  // can't leak into a different selection.
+  const localGame = useMemo(() => (selectedId ? loadGame(selectedId) : null), [selectedId]);
+  const [onlineGame, setOnlineGame] = useState<{ id: string; game: SavedGame } | null>(null);
+  useEffect(() => {
+    if (!selectedId || localGame) return;
+    let cancelled = false;
+    apiFetch<OnlineGameDetail>(`/games/${selectedId}`)
+      .then((d) => {
+        if (!cancelled) setOnlineGame({ id: selectedId, game: adaptOnlineGame(d) });
+      })
+      .catch(() => {
+        if (!cancelled) setOnlineGame(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, localGame]);
+
+  const currentGame =
+    localGame ?? (onlineGame && onlineGame.id === selectedId ? onlineGame.game : null);
 
   const boardState = useMemo(() => {
     if (!currentGame) return null;
@@ -52,6 +88,10 @@ export function GameHistoryPage() {
   const totalMoves = currentGame?.moves.length ?? 0;
 
   const moveListRef = useRef<HTMLDivElement>(null);
+
+  // Hold-to-repeat stepping, matching GamePage/OnlineGamePage move-nav arrows.
+  const stepBack = useHoldRepeat(() => setMoveIndex((i) => Math.max(0, i - 1)));
+  const stepForward = useHoldRepeat(() => setMoveIndex((i) => Math.min(totalMoves, i + 1)));
 
   const filteredGames = useMemo(() => {
     let list = [...games];
@@ -128,7 +168,6 @@ export function GameHistoryPage() {
     (filterOpponent !== 'all' ? 1 : 0);
 
   const displayState = boardState ?? { ...createInitialState(), status: 'idle' as const };
-  const selectedGame = games.find((g) => g.id === selectedId);
 
   return (
     <div className="game-layout">
@@ -138,8 +177,10 @@ export function GameHistoryPage() {
         <div className="board-section">
           {/* Board */}
           <GameCard
-            gameStatus={displayState.status}
-            opponentLabel={selectedGame?.opponentLabel ?? 'Opponent'}
+            opponentLabel={
+              currentGame?.playerNames?.[1] ?? currentGame?.opponentLabel ?? 'Opponent'
+            }
+            playerLabel={currentGame?.playerNames?.[0]}
           >
             <div className="board-wrapper">
               <GameBoard
@@ -316,11 +357,11 @@ export function GameHistoryPage() {
 
                   {currentGame.moves.map((sm, i) => {
                     const isActive = moveIndex === i + 1;
-                    const userRole = currentGame.userRole ?? 0;
-                    const who =
-                      sm.playerIndex === userRole
+                    const who = currentGame.playerNames
+                      ? currentGame.playerNames[sm.playerIndex]
+                      : sm.playerIndex === (currentGame.userRole ?? 0)
                         ? 'You'
-                        : (selectedGame?.opponentLabel ?? 'Opponent');
+                        : (currentGame.opponentLabel ?? 'Opponent');
                     return (
                       <button
                         key={i}
@@ -329,7 +370,7 @@ export function GameHistoryPage() {
                       >
                         <span className="ghp-num">{i + 1}</span>
                         <span className="ghp-icon">{moveIcon(sm.move)}</span>
-                        <span className="ghp-notation">{moveNotation(sm.move)}</span>
+                        <span className="ghp-notation">{serializeMove(sm.move)}</span>
                         <span className="ghp-who">{who}</span>
                       </button>
                     );
@@ -339,8 +380,9 @@ export function GameHistoryPage() {
                 <div className="ghp-controls">
                   <button
                     className="btn ghp-nav-btn"
-                    onClick={() => setMoveIndex((i) => Math.max(0, i - 1))}
+                    {...stepBack}
                     disabled={moveIndex === 0}
+                    title="Previous move"
                   >
                     ←
                   </button>
@@ -349,8 +391,9 @@ export function GameHistoryPage() {
                   </span>
                   <button
                     className="btn ghp-nav-btn"
-                    onClick={() => setMoveIndex((i) => Math.min(totalMoves, i + 1))}
+                    {...stepForward}
                     disabled={moveIndex === totalMoves}
+                    title="Next move"
                   >
                     →
                   </button>

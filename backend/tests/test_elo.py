@@ -51,13 +51,19 @@ def test_loss_multiplier_applied() -> None:
 
 
 def test_update_elos_clamps_to_ceiling() -> None:
-    new_winner, _ = update_elos(ELO_MAX, 1000)
-    assert new_winner == ELO_MAX
+    # Equal ratings at the ceiling: the winner would overflow (+16) and is pinned,
+    # while the loser must still drop — asserting both catches a swapped clamp.
+    new_winner, new_loser = update_elos(ELO_MAX, ELO_MAX)
+    assert new_winner == ELO_MAX  # winner pinned at ceiling
+    assert new_loser < ELO_MAX  # loser moved down, NOT clamped to the winner's ceiling
 
 
 def test_update_elos_clamps_to_floor() -> None:
-    _, new_loser = update_elos(2000, ELO_MIN)
-    assert new_loser == ELO_MIN
+    # Equal ratings at the floor: the loser would underflow and is pinned, while
+    # the winner must still rise.
+    new_winner, new_loser = update_elos(ELO_MIN, ELO_MIN)
+    assert new_loser == ELO_MIN  # loser pinned at floor
+    assert new_winner > ELO_MIN  # winner moved up, NOT clamped to the loser's floor
 
 
 def test_update_elos_zero_sum_ish() -> None:

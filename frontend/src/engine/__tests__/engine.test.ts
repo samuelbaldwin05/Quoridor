@@ -3,10 +3,10 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { applyMove, createInitialState } from './gameEngine';
-import { getValidPawnMoves, isValidWallPlacement } from './moveValidation';
-import { parseMove } from './notation';
-import type { GameState, Move, PlayerIndex, Wall } from './gameTypes';
+import { applyMove, createInitialState } from '../gameEngine';
+import { getValidPawnMoves, isValidWallPlacement } from '../moveValidation';
+import { parseMove } from '../notation';
+import type { GameState, Move, PlayerIndex, Wall } from '../gameTypes';
 
 interface BaseCase {
   name: string;
@@ -37,7 +37,7 @@ interface Corpus {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const corpusPath = resolve(__dirname, '../../../tests/fixtures/engine_cases.json');
+const corpusPath = resolve(__dirname, '../../../../tests/fixtures/engine_cases.json');
 const corpus: Corpus = JSON.parse(readFileSync(corpusPath, 'utf-8'));
 
 function startedGame(): GameState {

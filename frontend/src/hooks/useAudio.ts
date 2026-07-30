@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 
 const SOUND_SOURCES = {
   move: '/sounds/click.mp3',
@@ -27,6 +27,12 @@ function getCache(): Partial<Record<SoundKey, HTMLAudioElement>> {
 }
 
 export function useAudio(enabled: boolean, volume: number) {
+  // Warm the cache once on mount so the first playStart()/playMove() doesn't pay
+  // Audio construction + decode latency on the same tick it's asked to play.
+  useEffect(() => {
+    getCache();
+  }, []);
+
   const playSound = useCallback(
     (key: SoundKey) => {
       if (!enabled) return;

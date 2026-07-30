@@ -5,11 +5,17 @@ import { FencePanel } from '@/components/FencePanel';
 import { GameBoard } from '@/components/GameBoard';
 import { GameCard } from '@/components/GameCard';
 import { NavSidebar } from '@/components/NavSidebar';
-import { applyMove, createInitialState } from '@/engine/gameEngine';
+import { SettingsModal } from '@/components/SettingsModal';
+import { applyMove } from '@/engine/gameEngine';
 import { getValidPawnMoves, isValidWallPlacement } from '@/engine/moveValidation';
-import type { GameState, Move, PlayerIndex, Position, StoredMove, Wall } from '@/engine/gameTypes';
+import { wallsEqual } from '@/engine/wallUtils';
+import { replayToIndex, moveIcon } from '@/engine/moveDisplay';
+import { serializeMove } from '@/engine/notation';
+import type { GameState, Move, PlayerIndex, Position, Wall } from '@/engine/gameTypes';
 import { useAuth } from '@/hooks/useAuth';
 import { useGame } from '@/hooks/useGame';
+import { useHoldRepeat } from '@/hooks/useHoldRepeat';
+import { useKeyboard, type KeyAction } from '@/hooks/useKeyboard';
 import { useOnlineGame } from '@/hooks/useOnlineGame';
 import { useTheme } from '@/hooks/useTheme';
 import { useAudio } from '@/hooks/useAudio';
@@ -17,26 +23,6 @@ import { apiFetch } from '@/lib/api';
 import { saveGame } from '@/lib/gameStorage';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-function replayToIndex(moves: StoredMove[], index: number): GameState {
-  let state: GameState = { ...createInitialState(), status: 'playing' };
-  for (let i = 0; i < index; i++) {
-    const result = applyMove(state, moves[i]!.move);
-    if (result.valid) state = result.nextState;
-  }
-  return state;
-}
-
-function moveNotation(move: Move): string {
-  const col = (c: number) => String.fromCharCode(97 + c);
-  const rank = (r: number) => String(9 - r);
-  if (move.kind === 'pawn') return `${col(move.to.col)}${rank(move.to.row)}`;
-  return `${col(move.wall.col)}${rank(move.wall.row)}${move.wall.orientation}`;
-}
-
-function moveIcon(move: Move) {
-  return move.kind === 'pawn' ? '♟' : '⊟';
-}
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -75,46 +61,76 @@ export function OnlineGamePage() {
   const [times, setTimes] = useState<[number, number]>([timeControl, timeControl]);
   const timesRef = useRef<[number, number]>([timeControl, timeControl]);
 
-  // Away / auto-resign countdown
-  const [awayCountdown, setAwayCountdown] = useState<number | null>(null);
-  const handleResignRef = useRef<() => void>(() => {});
+  const [showSettings, setShowSettings] = useState(false);
+  const [confirmWallPlacement, setConfirmWallPlacement] = useState(
+    () => window.matchMedia?.('(pointer: coarse)').matches ?? false,
+  );
 
   useTheme(state.settings.theme);
   const audio = useAudio(state.settings.soundEnabled, state.settings.volume);
 
   const [aborted, setAborted] = useState(false);
 
-  const { result, broadcastMove, broadcastResign, broadcastTimeout, broadcastAbort, submitResult } =
-    useOnlineGame({
-      gameId: gameId ?? '',
-      myRole,
-      myUserId,
-      onMoveReceived: useCallback(
-        (move: Move, playerIndex: PlayerIndex) => {
-          // Validate against current state — illegal move means the sender cheated
-          const validation = applyMove(gameStateRef.current, move);
-          if (!validation.valid) {
-            dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
-            return;
-          }
-          dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex });
-          setViewIndex(null);
-        },
-        [dispatch, myRole],
-      ),
-      onOpponentResigned: useCallback(() => {
-        dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
-      }, [dispatch, myRole]),
-      onOpponentTimeout: useCallback(() => {
-        dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
-      }, [dispatch, myRole]),
-      onOpponentAborted: useCallback(() => {
-        setAborted(true);
-      }, []),
-    });
+  // Why the game ended + whether THIS client should submit the result. For a board
+  // win either client can submit (the history proves it); for resign/timeout only
+  // the forfeiting player may, since the backend records the caller as the loser.
+  const terminalRef = useRef<{ reason: 'win' | 'resign' | 'timeout'; mine: boolean } | null>(null);
 
-  // Start the game, clean up matchmaking queue, play start sound
+  // Lets onMoveReceived (defined below, before the hook returns broadcastAbort)
+  // reach broadcastAbort once it's available.
+  const broadcastAbortRef = useRef<() => void>(() => {});
+
+  const {
+    result,
+    connectionStatus,
+    opponentConnected,
+    submitMove,
+    broadcastMove,
+    broadcastResign,
+    broadcastTimeout,
+    broadcastAbort,
+    submitResult,
+    observeResult,
+  } = useOnlineGame({
+    gameId: gameId ?? '',
+    myRole,
+    myUserId,
+    onMoveReceived: useCallback(
+      (move: Move, playerIndex: PlayerIndex) => {
+        // Validate against current state. An illegal broadcast means a cheat or a
+        // desync; we can't prove a result, so abort both clients (no ELO) and tell
+        // the sender via a terminal broadcast so they converge instead of hanging.
+        const validation = applyMove(gameStateRef.current, move);
+        if (!validation.valid) {
+          broadcastAbortRef.current();
+          setAborted(true);
+          return;
+        }
+        dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex });
+        setViewIndex(null);
+      },
+      [dispatch],
+    ),
+    onOpponentResigned: useCallback(() => {
+      terminalRef.current = { reason: 'resign', mine: false };
+      dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
+    }, [dispatch, myRole]),
+    onOpponentTimeout: useCallback(() => {
+      terminalRef.current = { reason: 'timeout', mine: false };
+      dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
+    }, [dispatch, myRole]),
+    onOpponentAborted: useCallback(() => {
+      setAborted(true);
+    }, []),
+  });
+
+  // Start the game, clean up matchmaking queue, play start sound.
+  // Guarded so the one-time side effects (DELETE, start sound) fire exactly once
+  // even under StrictMode's dev double-invoke.
+  const startedRef = useRef(false);
   useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
     dispatch({ type: 'START_GAME' });
     void apiFetch('/matchmaking/leave', { method: 'DELETE' }).catch(() => {});
     audio.playStart();
@@ -136,12 +152,24 @@ export function OnlineGamePage() {
   }, [state.moveHistory.length]);
 
   // Submit result when game finishes (skipped if aborted — no ELO change either way).
+  // Board win: send the full move history so the backend can replay + confirm the
+  // winner. Resign/timeout: only the forfeiting player submits (caller = loser);
+  // the winner just observes and lets refreshProfile() pick up the new ELO.
   useEffect(() => {
     if (aborted) return;
     if (state.game.status === 'finished' && result === null) {
       const winner = state.game.winner as 0 | 1;
+      const terminal = terminalRef.current ?? { reason: 'win' as const, mine: true };
       const savedId = saveGame(state.moveHistory, winner, opponentName, myRole);
-      void submitResult(winner, timesRef.current, savedId).then(() => refreshProfile());
+      if (terminal.reason === 'win' || terminal.mine) {
+        const history = state.moveHistory.map((sm) => serializeMove(sm.move));
+        void submitResult(winner, terminal.reason, history, timesRef.current, savedId).then(() =>
+          refreshProfile(),
+        );
+      } else {
+        observeResult(winner, savedId);
+        void refreshProfile();
+      }
       if (winner === myRole) audio.playWin();
       else audio.playLose();
     }
@@ -154,6 +182,10 @@ export function OnlineGamePage() {
     if (state.game.status !== 'playing') return;
     if (state.moveHistory.length === 0) return;
     if (aborted) return;
+    // Pause the clock while the opponent is disconnected — input is gated on
+    // opponentConnected too, so the clock must not tick toward a timeout the
+    // player can't act on. Resumes on reconnect.
+    if (!opponentConnected) return;
     const current = state.game.currentPlayerIndex as 0 | 1;
     const t = setInterval(() => {
       setTimes((prev) => {
@@ -164,7 +196,13 @@ export function OnlineGamePage() {
       });
     }, 1000);
     return () => clearInterval(t);
-  }, [state.game.status, state.game.currentPlayerIndex, state.moveHistory.length, aborted]);
+  }, [
+    state.game.status,
+    state.game.currentPlayerIndex,
+    state.moveHistory.length,
+    aborted,
+    opponentConnected,
+  ]);
 
   // 20s grace window: if the starter doesn't make the first move in time, abort
   // the game on both clients. Neither side submits a result, so no ELO moves.
@@ -188,6 +226,7 @@ export function OnlineGamePage() {
     if (aborted) return;
     broadcastTimeout();
     const opponent: 0 | 1 = myRole === 0 ? 1 : 0;
+    terminalRef.current = { reason: 'timeout', mine: true };
     dispatch({ type: 'RESIGN_ONLINE', winner: opponent });
   }, [times, myRole, state.game.status, aborted, broadcastTimeout, dispatch]);
 
@@ -205,6 +244,32 @@ export function OnlineGamePage() {
     active?.scrollIntoView({ block: 'nearest' });
   }, [viewIndex]);
 
+  // Arrow-key history navigation. Functional updater avoids stale closures so
+  // holding a key steps through moves rapidly at the OS key-repeat rate.
+  useEffect(() => {
+    const totalMoves = state.moveHistory.length;
+    function onKeyDown(e: KeyboardEvent) {
+      if (state.game.status !== 'playing' && state.game.status !== 'finished') return;
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setViewIndex((cur) => {
+          const c = cur ?? totalMoves;
+          return c > 0 ? c - 1 : cur;
+        });
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setViewIndex((cur) => {
+          const c = cur ?? totalMoves;
+          if (c >= totalMoves) return cur;
+          const next = c + 1;
+          return next >= totalMoves ? null : next;
+        });
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [state.moveHistory.length, state.game.status]);
+
   const isLive = viewIndex === null;
   const effectiveIndex = viewIndex ?? state.moveHistory.length;
   const totalMoves = state.moveHistory.length;
@@ -214,36 +279,56 @@ export function OnlineGamePage() {
     return replayToIndex(state.moveHistory, effectiveIndex);
   }, [isLive, effectiveIndex, state.moveHistory, state.game]);
 
-  const isMyTurn = state.game.status === 'playing' && state.game.currentPlayerIndex === myRole;
+  const isMyTurn =
+    state.game.status === 'playing' &&
+    state.game.currentPlayerIndex === myRole &&
+    opponentConnected;
 
   const validPawnMoves: Position[] =
     isMyTurn && isLive ? getValidPawnMoves(state.game, myRole) : [];
+
+  // Keep broadcastAbortRef current so onMoveReceived (defined above) can reach it.
+  useEffect(() => {
+    broadcastAbortRef.current = broadcastAbort;
+  }, [broadcastAbort]);
+
+  // Server-authoritative move: confirm with the backend BEFORE applying locally,
+  // so the move only lands once it's recorded (no optimistic rollback needed).
+  // submittingRef blocks a double-submit in the window before the turn flips.
+  const submittingRef = useRef(false);
+  const commitMove = useCallback(
+    async (move: Move) => {
+      if (submittingRef.current) return;
+      submittingRef.current = true;
+      try {
+        await submitMove(serializeMove(move));
+        dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex: myRole });
+        broadcastMove(move);
+      } catch {
+        // Backend rejected (out of turn / illegal / desync) — leave state unchanged.
+      } finally {
+        submittingRef.current = false;
+      }
+    },
+    [submitMove, dispatch, broadcastMove, myRole],
+  );
 
   const handleCellClick = useCallback(
     (pos: Position) => {
       if (!isMyTurn || !isLive || !state.settings.clickMoveEnabled) return;
       const move: Move = { kind: 'pawn', to: pos };
-      const res = applyMove(state.game, move);
-      if (!res.valid) return;
-      dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex: myRole });
-      broadcastMove(move);
+      if (!applyMove(state.game, move).valid) return;
+      void commitMove(move);
     },
-    [
-      isMyTurn,
-      isLive,
-      state.game,
-      state.settings.clickMoveEnabled,
-      myRole,
-      dispatch,
-      broadcastMove,
-    ],
+    [isMyTurn, isLive, state.game, state.settings.clickMoveEnabled, commitMove],
   );
 
   const handleWallHover = useCallback(
     (wall: Wall | null) => {
+      if (confirmWallPlacement) return; // hover disabled; first click previews instead
       setWallPreview(isMyTurn && isLive ? wall : null);
     },
-    [isMyTurn, isLive],
+    [isMyTurn, isLive, confirmWallPlacement],
   );
 
   const handleWallClick = useCallback(
@@ -251,85 +336,85 @@ export function OnlineGamePage() {
       if (!isMyTurn || !isLive) return;
       if (state.game.players[myRole].wallsRemaining <= 0) return;
       if (!isValidWallPlacement(state.game, wall)) return;
+      if (confirmWallPlacement) {
+        // First click previews; second click on the same slot commits.
+        if (!wallPreview || !wallsEqual(wallPreview, wall)) {
+          setWallPreview(wall);
+          return;
+        }
+      }
       const move: Move = { kind: 'wall', wall };
-      dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex: myRole });
-      broadcastMove(move);
       setWallPreview(null);
+      void commitMove(move);
     },
-    [isMyTurn, isLive, state.game, myRole, dispatch, broadcastMove],
+    [isMyTurn, isLive, state.game, myRole, commitMove, confirmWallPlacement, wallPreview],
   );
 
   function handleResign() {
+    terminalRef.current = { reason: 'resign', mine: true };
     broadcastResign();
     dispatch({ type: 'RESIGN_ONLINE', winner: myRole === 0 ? 1 : 0 });
   }
 
-  // Keep resign ref current so the away-timer can call it without stale closures
-  handleResignRef.current = handleResign;
-
-  // Auto-resign when the player hides the tab for 10 seconds.
-  // Skipped during the 20s grace window (no moves yet) and after abort, so
-  // backgrounding a tab while waiting on the first move can't snipe the
-  // grace timer and turn an abort into a loss.
-  useEffect(() => {
-    if (state.game.status !== 'playing') return;
-    if (state.moveHistory.length === 0) return;
-    if (aborted) return;
-
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-    let secsLeft = 10;
-
-    function startCountdown() {
-      if (intervalId) return;
-      secsLeft = 10;
-      setAwayCountdown(10);
-      intervalId = setInterval(() => {
-        secsLeft -= 1;
-        if (secsLeft <= 0) {
-          clearInterval(intervalId!);
-          intervalId = null;
-          setAwayCountdown(null);
-          handleResignRef.current();
-        } else {
-          setAwayCountdown(secsLeft);
-        }
-      }, 1000);
-    }
-
-    function stopCountdown() {
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
+  const handleKeyboardAction = useCallback(
+    (action: KeyAction) => {
+      if (!isMyTurn || !isLive) return;
+      const { position } = state.game.players[myRole];
+      const validMoves = getValidPawnMoves(state.game, myRole);
+      let target: { row: number; col: number } | undefined;
+      switch (action) {
+        case 'up':
+          target = validMoves.find((m) => m.col === position.col && m.row < position.row);
+          break;
+        case 'down':
+          target = validMoves.find((m) => m.col === position.col && m.row > position.row);
+          break;
+        case 'left':
+          target = validMoves.find((m) => m.row === position.row && m.col < position.col);
+          break;
+        case 'right':
+          target = validMoves.find((m) => m.row === position.row && m.col > position.col);
+          break;
+        case 'diag-ul':
+          target = validMoves.find((m) => m.row < position.row && m.col < position.col);
+          break;
+        case 'diag-ur':
+          target = validMoves.find((m) => m.row < position.row && m.col > position.col);
+          break;
+        case 'diag-dl':
+          target = validMoves.find((m) => m.row > position.row && m.col < position.col);
+          break;
+        case 'diag-dr':
+          target = validMoves.find((m) => m.row > position.row && m.col > position.col);
+          break;
       }
-      setAwayCountdown(null);
-    }
+      if (!target) return;
+      const move: Move = { kind: 'pawn', to: target };
+      void commitMove(move);
+    },
+    [isMyTurn, isLive, state.game, myRole, commitMove],
+  );
 
-    function onVisibilityChange() {
-      if (document.hidden) startCountdown();
-      else stopCountdown();
-    }
-
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      if (intervalId) clearInterval(intervalId);
-      setAwayCountdown(null);
-    };
-  }, [state.game.status, state.moveHistory.length, aborted]);
+  useKeyboard(state.settings.keyboardEnabled, isMyTurn && isLive, handleKeyboardAction);
 
   function handleBack() {
-    if (effectiveIndex <= 0) return;
-    setViewIndex(effectiveIndex - 1);
+    setViewIndex((cur) => {
+      const c = cur ?? totalMoves;
+      return c > 0 ? c - 1 : cur;
+    });
   }
 
   function handleForward() {
-    if (effectiveIndex >= totalMoves) {
-      setViewIndex(null);
-      return;
-    }
-    const next = effectiveIndex + 1;
-    setViewIndex(next >= totalMoves ? null : next);
+    setViewIndex((cur) => {
+      const c = cur ?? totalMoves;
+      if (c >= totalMoves) return null;
+      const next = c + 1;
+      return next >= totalMoves ? null : next;
+    });
   }
+
+  const backHold = useHoldRepeat(handleBack);
+  const forwardHold = useHoldRepeat(handleForward);
 
   const opponentIndex: 0 | 1 = myRole === 0 ? 1 : 0;
   const myName = profile?.username ?? 'You';
@@ -354,7 +439,6 @@ export function OnlineGamePage() {
           <GameCard
             difficulty={state.settings.difficulty}
             gameMode={state.settings.gameMode}
-            gameStatus={state.game.status}
             opponentLabel={topLabel}
             playerLabel={bottomLabel}
             topFenceCount={state.game.players[opponentIndex].wallsRemaining}
@@ -368,9 +452,6 @@ export function OnlineGamePage() {
             }
             bottomRight={
               <div className="online-timer-row">
-                {awayCountdown !== null && (
-                  <span className="online-away-countdown">{awayCountdown}</span>
-                )}
                 <div
                   className={`online-timer-card${state.game.currentPlayerIndex === bottomPlayerIndex && state.game.status === 'playing' ? ' online-timer-card-active' : ''}`}
                 >
@@ -430,7 +511,7 @@ export function OnlineGamePage() {
                   >
                     <span className="ghp-num">{i + 1}</span>
                     <span className="ghp-icon">{moveIcon(sm.move)}</span>
-                    <span className="ghp-notation">{moveNotation(sm.move)}</span>
+                    <span className="ghp-notation">{serializeMove(sm.move)}</span>
                     <span className="ghp-who">{playerLabel(sm.playerIndex)}</span>
                   </button>
                 );
@@ -440,7 +521,7 @@ export function OnlineGamePage() {
             <div className="ghp-controls">
               <button
                 className="btn ghp-nav-btn"
-                onClick={handleBack}
+                {...backHold}
                 disabled={effectiveIndex === 0}
                 title="Previous move"
               >
@@ -451,11 +532,18 @@ export function OnlineGamePage() {
               </span>
               <button
                 className="btn ghp-nav-btn"
-                onClick={handleForward}
+                {...forwardHold}
                 disabled={isLive}
                 title="Next move"
               >
                 →
+              </button>
+              <button
+                className="btn ghp-nav-btn ghp-action-btn"
+                onClick={() => setShowSettings(true)}
+                title="Settings"
+              >
+                ⚙
               </button>
               {state.game.status === 'playing' && (
                 <button
@@ -470,6 +558,43 @@ export function OnlineGamePage() {
           </div>
         </div>
       </div>
+
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        settings={state.settings}
+        onUpdateSettings={(patch) => dispatch({ type: 'UPDATE_SETTINGS', patch })}
+        showOfflineSettings={false}
+        confirmWallPlacement={confirmWallPlacement}
+        onConfirmWallPlacementChange={setConfirmWallPlacement}
+      />
+
+      {/* Waiting overlay — shown until the opponent's presence appears in the channel.
+          Blocks interaction so reloading the URL or pasting it doesn't let you play
+          into the void. The 20s abort timer runs in the background and will fire if
+          the opponent never connects. */}
+      {connectionStatus === 'ready' && !opponentConnected && !aborted && result === null && (
+        <div className="win-lose-overlay flex-center">
+          <div className="win-lose-modal">
+            <h1 className="win-lose-title">Waiting for opponent…</h1>
+            <p className="online-elo-change">
+              The game will be abandoned if they don't connect in time.
+            </p>
+            <div className="win-lose-buttons">
+              <button
+                className="btn action-btn"
+                onClick={() => {
+                  broadcastAbort();
+                  dispatch({ type: 'RESET_TO_IDLE' });
+                  navigate('/');
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Aborted overlay — shown when the starter didn't move in 20s. No ELO change. */}
       {aborted && result === null && (

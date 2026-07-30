@@ -15,7 +15,9 @@ interface SettingsModalProps {
   onClose: () => void;
   settings: Settings;
   onUpdateSettings: (patch: Partial<Settings>) => void;
-  onResetScore: () => void;
+  onResetScore?: () => void;
+  /** Hide AI delay + keyboard-move settings that only apply to offline games. */
+  showOfflineSettings?: boolean;
   /** Session-scoped: when true, placing a wall requires a second click to confirm. */
   confirmWallPlacement?: boolean;
   onConfirmWallPlacementChange?: (value: boolean) => void;
@@ -26,6 +28,7 @@ export function SettingsModal({
   onClose,
   settings,
   onUpdateSettings,
+  showOfflineSettings = true,
   confirmWallPlacement,
   onConfirmWallPlacementChange,
 }: SettingsModalProps) {
@@ -52,14 +55,16 @@ export function SettingsModal({
             <span>Keyboard Controls (WASD)</span>
           </label>
 
-          <label className="settings-row">
-            <input
-              type="checkbox"
-              checked={settings.aiDelayEnabled}
-              onChange={(e) => onUpdateSettings({ aiDelayEnabled: e.target.checked })}
-            />
-            <span>AI Move Delay</span>
-          </label>
+          {showOfflineSettings && (
+            <label className="settings-row">
+              <input
+                type="checkbox"
+                checked={settings.aiDelayEnabled}
+                onChange={(e) => onUpdateSettings({ aiDelayEnabled: e.target.checked })}
+              />
+              <span>AI Move Delay</span>
+            </label>
+          )}
 
           <label className="settings-row">
             <input

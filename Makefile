@@ -14,7 +14,7 @@ endif
         backend-shell frontend-shell db-shell db-reset \
         lint-backend format-backend test-backend \
         lint-frontend format-frontend test-frontend \
-        ci migrate seed
+        test ci migrate seed
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 help: ## Show this help message
@@ -49,6 +49,7 @@ help: ## Show this help message
 	@echo "    make test-frontend  Run Vitest"
 	@echo ""
 	@echo "  CI"
+	@echo "    make test           Run all tests (frontend + backend), no linting"
 	@echo "    make ci             Run linting and testing for frontend and backend"
 	@echo ""
 	@echo "  Database"
@@ -70,10 +71,11 @@ init: ## Copy .env.example files
 
 # ── Dev ───────────────────────────────────────────────────────────────────────
 dev: ## Start Supabase then app containers
-	bun x supabase start
+	bun x supabase start || { echo ">> supabase start failed (often a flaky realtime healthcheck on cold start) — retrying once..."; bun x supabase start; }
 	docker compose up --build -d
 
 up: ## Start app containers only
+	@docker network inspect supabase_network_QuoridorEngine >/dev/null 2>&1 || { echo ">> Supabase network not found — Supabase isn't running. Run 'make dev' first."; exit 1; }
 	docker compose up -d
 
 down: ## Stop app containers + Supabase
@@ -82,6 +84,7 @@ down: ## Stop app containers + Supabase
 
 restart: ## Restart app containers only (Supabase keeps running)
 	docker compose down
+	@docker network inspect supabase_network_QuoridorEngine >/dev/null 2>&1 || { echo ">> Supabase network not found — Supabase isn't running. Run 'make dev' first."; exit 1; }
 	docker compose up -d
 
 rebuild: ## Rebuild app images from scratch and restart
@@ -134,6 +137,10 @@ test-frontend: ## Run Vitest
 	cd frontend && bun run test:run
 
 # ── CI ───────────────────────────────────────────────────────────────────────
+test: ## Run all tests (frontend + backend), no linting
+	@$(MAKE) test-backend
+	@$(MAKE) test-frontend
+
 ci: ## Run linting and testing checks
 	@$(MAKE) lint-backend
 	@$(MAKE) lint-frontend

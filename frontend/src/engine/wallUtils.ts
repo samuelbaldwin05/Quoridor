@@ -4,15 +4,9 @@ export function wallsEqual(a: Wall, b: Wall): boolean {
   return a.row === b.row && a.col === b.col && a.orientation === b.orientation;
 }
 
-/**
- * Port of Fence.blocksMovement
- * Horizontal fence (orientation='h'): blocks vertical movement
- *   condition: fence.row >= min(fromRow,toRow) && fence.row < max(fromRow,toRow)
- *              && fromCol >= fence.col && fromCol <= fence.col+1
- * Vertical fence (orientation='v'): blocks horizontal movement
- *   condition: fence.col >= min(fromCol,toCol) && fence.col < max(fromCol,toCol)
- *              && fromRow >= fence.row && fromRow <= fence.row+1
- */
+// An h-wall blocks vertical movement across the groove below its anchor row, and
+// a v-wall blocks horizontal movement across the groove right of its anchor col —
+// each over its 2-cell span. The index math below encodes exactly that.
 export function wallBlocksMovement(wall: Wall, from: Position, to: Position): boolean {
   if (wall.orientation === 'h') {
     // Horizontal fence blocks vertical movement (same col)
@@ -40,11 +34,8 @@ export function isMovementBlocked(from: Position, to: Position, walls: readonly 
   return walls.some((w) => wallBlocksMovement(w, from, to));
 }
 
-/**
- * Port of GameEngine.wouldFencePostOverlap
- * newFencePostRow = fence.row * 2 + 1
- * newFencePostCol = fence.col * 2 + 1
- */
+// Two walls collide if they share the same center post — the (2r+1, 2c+1) lattice
+// point an h- and a v-wall would both occupy.
 export function wouldWallPostOverlap(candidate: Wall, existing: readonly Wall[]): boolean {
   const newPostRow = candidate.row * 2 + 1;
   const newPostCol = candidate.col * 2 + 1;
@@ -58,13 +49,8 @@ export function wouldWallPostOverlap(candidate: Wall, existing: readonly Wall[])
   return false;
 }
 
-/**
- * Port of GameEngine.fencesIntersect
- * Same orientation:
- *   horizontal => same row, col spans overlap (!(col+1 < other.col || other.col+1 < col))
- *   vertical   => same col, row spans overlap
- * Different orientations: return false
- */
+// Two same-orientation walls intersect when they're collinear and their 2-cell
+// spans overlap. Different orientations never intersect here (post-overlap covers them).
 export function wallsIntersect(a: Wall, b: Wall): boolean {
   if (a.orientation === b.orientation) {
     if (a.orientation === 'h') {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { didUserWin } from './gameStorage';
+import { didUserWin } from '../gameStorage';
 
 describe('didUserWin', () => {
   it('treats winner === userRole as a user win', () => {

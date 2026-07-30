@@ -60,14 +60,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session) {
-        setAuthMode('google');
-        fetchProfile().finally(() => setIsLoading(false));
-      } else {
-        setIsLoading(false);
-      }
+      // onAuthStateChange fires INITIAL_SESSION synchronously before this promise
+      // resolves, so auth state + profile fetch are already handled there.
+      // Only the no-session path needs explicit isLoading cleanup here.
+      if (!session) setIsLoading(false);
     });
 
     const {
@@ -77,12 +73,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
       if (session) {
         setAuthMode('google');
-        fetchProfile();
+        // Wait for profile before clearing isLoading — otherwise the guard and
+        // ELO label briefly see (isLoading=false, profile=null) and show stale
+        // defaults or let new users through to the app before /setup redirect.
+        fetchProfile().finally(() => setIsLoading(false));
       } else {
         setAuthMode('none');
         setProfile(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();

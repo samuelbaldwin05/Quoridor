@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { eloColor } from '@/lib/elo';
 
 interface TimeStats {
   time_control: number;
@@ -30,13 +31,6 @@ const TC_LABELS: Record<number, string> = {
 function winPct(wins: number, played: number): string {
   if (played === 0) return '—';
   return `${Math.round((wins / played) * 100)}%`;
-}
-
-function eloColor(elo: number): string {
-  if (elo >= 1800) return '#f39c12';
-  if (elo >= 1500) return '#3498db';
-  if (elo >= 1300) return '#2ecc71';
-  return 'rgba(255,255,255,0.5)';
 }
 
 export function ProfileModal({ userId, onClose }: ProfileModalProps) {

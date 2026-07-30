@@ -29,11 +29,12 @@ class UserRead(BaseModel):
     elo: int
     games_played: int
     created_at: datetime
+    username_updated_at: datetime | None = None
 
 
 class UserProfile(BaseModel):
+    # Public profile (GET /api/users/{id} is unauthenticated) — must NOT carry email.
     id: UUID
-    email: str
     username: str
     elo: int
     games_played: int

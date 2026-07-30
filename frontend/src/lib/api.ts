@@ -24,5 +24,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`API ${res.status}: ${text}`);
   }
+  // 204 / empty bodies (e.g. DELETE endpoints) have no JSON to parse.
+  if (res.status === 204 || res.headers.get('content-length') === '0') {
+    return undefined as T;
+  }
   return res.json() as Promise<T>;
 }

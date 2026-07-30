@@ -32,6 +32,11 @@ export function BoardCell({
     gridColumn: col * 2 + 1,
   };
 
+  // Only an actionable cell (a valid move on the human's turn, with click moves
+  // enabled) responds to keyboard activation — a cell focused despite tabIndex=-1
+  // must not be able to trigger an invalid move.
+  const keyboardActionable = clickMoveEnabled && isValidMove && isHumanTurn;
+
   return (
     <div
       className={classes}
@@ -41,9 +46,16 @@ export function BoardCell({
       onClick={clickMoveEnabled ? onClick : undefined}
       role="button"
       tabIndex={isValidMove && isHumanTurn ? 0 : -1}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') onClick();
-      }}
+      onKeyDown={
+        keyboardActionable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
       aria-label={`Cell ${row},${col}${occupant !== null ? ` (player ${occupant + 1})` : ''}${isValidMove ? ' - valid move' : ''}`}
     />
   );

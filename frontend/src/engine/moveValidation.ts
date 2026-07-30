@@ -10,10 +10,6 @@ function positionsEqual(a: Position, b: Position): boolean {
   return a.row === b.row && a.col === b.col;
 }
 
-/**
- * Port of GameEngine.getValidMoves
- * Returns valid pawn positions for the given player.
- */
 export function getValidPawnMoves(state: GameState, playerIndex: PlayerIndex): Position[] {
   const player = state.players[playerIndex];
   const opponent = state.players[playerIndex === 0 ? 1 : 0];
@@ -121,9 +117,6 @@ export function hasPathToGoal(
   return false;
 }
 
-/**
- * Port of GameEngine.isValidFencePlacement
- */
 export function isValidWallPlacement(state: GameState, wall: Wall): boolean {
   // Bounds check: row/col 0-7 (anchor spans 2 squares)
   if (wall.row < 0 || wall.row > 7 || wall.col < 0 || wall.col > 7) return false;
