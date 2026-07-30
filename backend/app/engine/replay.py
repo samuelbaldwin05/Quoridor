@@ -29,15 +29,13 @@ def replay(moves: Sequence[str]) -> GameState:
 def validate_history_winner(moves: Sequence[str], claimed_winner_index: PlayerIndex) -> None:
     """Replay and assert the move history actually ends with the claimed winner crossing.
 
-    Raises InvalidMoveError if any move is illegal, or if the final position
-    doesn't show the claimed winner on their goal row. Resignation cases skip
-    this check entirely (caller passes an empty `moves` list to opt out).
+    Raises InvalidMoveError if the history is empty, if any move is illegal, or if
+    the final position doesn't show the claimed winner on their goal row. This is
+    the board-win path; forfeit results (resign/timeout) derive the winner from the
+    caller's identity instead and never call this.
     """
     if not moves:
-        # No history to validate — caller (game_service) treats this as
-        # "trust the resignation/forfeit path"; full validation kicks in only
-        # when the frontend starts sending the actual history.
-        return
+        raise InvalidMoveError("cannot confirm a board win without move history")
 
     final = replay(moves)
     if final.status != "finished":
