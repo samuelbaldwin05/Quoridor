@@ -63,10 +63,16 @@ class MoveCreate(BaseModel):
     notation: MoveNotation
 
 
-# How a game ended. "win" = a player reached their goal row and must be proven by
-# replaying move_history. "resign"/"timeout" = the CALLER forfeits; the server
-# records the caller as the loser and ignores any client-supplied winner_index.
-ResultReason = Literal["win", "resign", "timeout"]
+# How a game ended.
+#   "win"              a player reached their goal row; proven by replaying move_history.
+#   "resign"/"timeout" the CALLER forfeits; the server records the caller as the loser
+#                      and ignores any client-supplied winner_index.
+#   "disconnect"       the caller reports that the OPPONENT abandoned the game. The
+#                      caller is recorded as the winner, but only if the server's own
+#                      replay shows it is currently the opponent's turn (i.e. the caller
+#                      has already made their move and the absent player owes the next
+#                      one). See game_service.record_game_result.
+ResultReason = Literal["win", "resign", "timeout", "disconnect"]
 
 
 class GameResultRequest(BaseModel):
@@ -89,6 +95,41 @@ class GameResultResponse(BaseModel):
     elo_change_p2: int
     new_elo_p1: int
     new_elo_p2: int
+
+
+# Bot difficulty levels, mirroring the frontend Settings.difficulty union.
+BotDifficulty = Literal["bot0", "bot1", "bot2", "extreme"]
+
+
+class BotGameCreate(BaseModel):
+    """A completed single-player bot game reported by the client.
+
+    History only: accepted as-is with NO server-side move validation, because there
+    is no opponent and nothing at stake (the worst case is a user faking their own
+    single-player history). `client_game_id` makes the write idempotent so the
+    one-time login backfill can re-send safely. winner_index 0 = the user, 1 = bot.
+    """
+
+    client_game_id: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+    ]
+    ai_difficulty: BotDifficulty
+    winner_index: int = Field(ge=0, le=1)
+    move_history: list[MoveNotation] = Field(default_factory=list, max_length=500)
+
+    @field_validator("move_history")
+    @classmethod
+    def _strip_blanks(cls, v: list[str]) -> list[str]:
+        return [s for s in v if _NOTATION_RE.match(s)]
+
+
+class BotGameRead(BaseModel):
+    id: UUID
+    client_game_id: str
+    ai_difficulty: BotDifficulty
+    winner_index: int
+    status: GameStatus
+    created: bool  # False when the game already existed (idempotent no-op)
 
 
 class GameSummary(BaseModel):
