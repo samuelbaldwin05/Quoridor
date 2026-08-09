@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from supabase import Client
@@ -15,6 +16,8 @@ from app.core.exceptions import (
 from app.engine import NotationError, apply_move, parse_move, replay, validate_history_winner
 from app.repositories import game_repository
 from app.schemas.game import (
+    BotGameCreate,
+    BotGameRead,
     GameDetail,
     GameResultRequest,
     GameResultResponse,
@@ -23,6 +26,26 @@ from app.schemas.game import (
     MoveSubmitResponse,
 )
 from app.services.elo_service import update_elos
+
+# A disconnect forfeit is only honored once the game has been quiet (no move) for at
+# least this long. Turn ownership alone is not evidence of absence — it is the opponent's
+# turn during normal play right after the caller moves — so a dwell requirement is what
+# stops a losing player from moving and instantly claiming a free win. Kept below the
+# frontend's 15s grace so a legitimate claim after that grace reliably passes.
+DISCONNECT_FORFEIT_MIN_SECONDS = 12
+
+
+def _seconds_since(iso_timestamp: str | None) -> float | None:
+    """Seconds elapsed since an ISO8601 timestamp (server clock), or None if unparseable."""
+    if not iso_timestamp:
+        return None
+    try:
+        ts = datetime.fromisoformat(iso_timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=UTC)
+    return (datetime.now(UTC) - ts).total_seconds()
 
 
 def record_game_result(
@@ -72,6 +95,13 @@ def record_game_result(
             new_elo_p2=(p2_cur.data[0]["elo"] if p2_cur.data else 0),
         )
 
+    # A new result can only finalize a live game. "finished" is handled above
+    # (idempotent); "waiting"/"resigned" are not finalizable, so reject them
+    # rather than let any branch below (including the disconnect win) act on a
+    # game that never started.
+    if game["status"] != "playing":
+        raise InvalidMoveError("game is not in progress")
+
     # Resolve the AUTHORITATIVE winner from SERVER state, never the client. Moves
     # are recorded per-move via submit_move(), so game["move_history"] is the
     # source of truth:
@@ -79,10 +109,33 @@ def record_game_result(
     #     actually reached their goal row (rejects empty / illegal / forged).
     #   - "resign"/"timeout": the CALLER forfeits, so the opponent wins regardless
     #     of any client-supplied winner_index (you cannot resign and claim a win).
+    #   - "disconnect": the caller reports the OPPONENT abandoned. The caller wins,
+    #     but only if replaying the stored history shows it is the opponent's turn —
+    #     i.e. the caller has already played and the absent player owes the next move.
+    #     This keeps the outcome tied to server state rather than trusting the claim.
+    caller_role = 0 if caller_str == p1_id else 1
     stored_history = game.get("move_history") or []
     if body.reason == "win":
         validate_history_winner(stored_history, body.winner_index)  # type: ignore[arg-type]
         winner_index = body.winner_index
+    elif body.reason == "disconnect":
+        opponent_role = 1 - caller_role
+        state = replay(stored_history)
+        if state.current_player_index != opponent_role:
+            raise AuthorizationError(
+                "cannot claim a disconnect forfeit while it is your move to make"
+            )
+        # Liveness guard: the absent player must have been given the full quiet window to
+        # move and not taken it. Without this, "it's their turn" is true during normal
+        # play immediately after the caller moves, so a losing player could move and
+        # instantly claim a win. A present opponent who moves within the window resets
+        # last_move_at and cancels the claim.
+        quiet_for = _seconds_since(game.get("last_move_at"))
+        if quiet_for is None or quiet_for < DISCONNECT_FORFEIT_MIN_SECONDS:
+            raise AuthorizationError(
+                "opponent has not been idle long enough to forfeit by disconnect"
+            )
+        winner_index = caller_role
     else:
         winner_index = 1 if caller_str == p1_id else 0
 
@@ -210,6 +263,64 @@ def submit_move(
         current_player_index=next_state.current_player_index,
         status=next_state.status,
         winner=next_state.winner,
+    )
+
+
+def record_bot_game(
+    supabase: Client,
+    body: BotGameCreate,
+    caller_id: UUID,
+) -> BotGameRead:
+    """Persist a completed single-player bot game for the caller. HISTORY ONLY.
+
+    Bot games are low-stakes and single-player, so this path deliberately does NOT
+    touch Elo, ranked stats, leaderboards, or games_played, and does NOT validate the
+    reported result or move history (there is no opponent and nothing at stake). The
+    game is recorded as player1 = the authenticated user, player2 = NULL (the bot).
+
+    Idempotent on client_game_id: a re-send (e.g. the login backfill) returns the
+    already-stored row instead of inserting a duplicate.
+    """
+    existing = game_repository.get_bot_game_by_client_id(supabase, caller_id, body.client_game_id)
+    if existing:
+        return _to_bot_read(existing, created=False)
+
+    caller_str = str(caller_id)
+    payload = {
+        "mode": "vs_ai",
+        "status": "finished",
+        "player1_id": caller_str,
+        "player2_id": None,
+        # winner_index 0 = the user; 1 = the bot, which has no user row so winner_id
+        # stays NULL. Never resolves to a real opponent, so no ranked/Elo impact.
+        "winner_id": caller_str if body.winner_index == 0 else None,
+        "winner_index": body.winner_index,
+        "ai_difficulty": body.ai_difficulty,
+        "client_game_id": body.client_game_id,
+        "move_history": body.move_history,
+        "completed_at": datetime.now(UTC).isoformat(),
+    }
+    try:
+        row = game_repository.insert_bot_game(supabase, payload)
+    except ConflictError:
+        # A concurrent duplicate won the race; return the stored row (idempotent).
+        existing = game_repository.get_bot_game_by_client_id(
+            supabase, caller_id, body.client_game_id
+        )
+        if existing:
+            return _to_bot_read(existing, created=False)
+        raise
+    return _to_bot_read(row, created=True)
+
+
+def _to_bot_read(row: dict, created: bool) -> BotGameRead:
+    return BotGameRead(
+        id=UUID(row["id"]),
+        client_game_id=row["client_game_id"],
+        ai_difficulty=row["ai_difficulty"],
+        winner_index=row["winner_index"],
+        status=row["status"],
+        created=created,
     )
 
 

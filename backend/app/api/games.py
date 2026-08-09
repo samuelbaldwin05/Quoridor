@@ -8,6 +8,8 @@ from supabase import Client
 from app.core.auth import get_current_user
 from app.core.dependencies import get_supabase
 from app.schemas.game import (
+    BotGameCreate,
+    BotGameRead,
     GameDetail,
     GameResultRequest,
     GameResultResponse,
@@ -15,7 +17,12 @@ from app.schemas.game import (
     MoveSubmitResponse,
 )
 from app.schemas.user import UserRead
-from app.services.game_service import get_game_detail, record_game_result, submit_move
+from app.services.game_service import (
+    get_game_detail,
+    record_bot_game,
+    record_game_result,
+    submit_move,
+)
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -27,6 +34,19 @@ def read_game(
 ) -> GameDetail:
     """Public: full record for replaying a finished game."""
     return get_game_detail(supabase, game_id)
+
+
+@router.post("/bot", response_model=BotGameRead)
+def record_bot_game_route(
+    body: BotGameCreate,
+    user: UserRead = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
+) -> BotGameRead:
+    """Record a completed single-player bot game for the current user.
+
+    History only: no Elo, no ranked stats, no server-side move validation.
+    Idempotent on the client-supplied game id."""
+    return record_bot_game(supabase, body, user.id)
 
 
 @router.post("/{game_id}/move", response_model=MoveSubmitResponse)

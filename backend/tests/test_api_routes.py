@@ -24,6 +24,7 @@ from app.core.exceptions import (
     NotFoundError,
     ValidationError,
 )
+from app.schemas.game import BotGameRead
 from app.schemas.user import UserProfile, UserRead
 
 
@@ -203,3 +204,90 @@ class TestGameHistoryRoutes:
         monkeypatch.setattr("app.api.games.get_game_detail", raise_not_found)
         resp = client.get(f"/games/{uuid4()}")
         assert resp.status_code == 404
+
+
+# ── record bot game route ───────────────────────────────────────────────────────
+
+
+class TestBotGameRoute:
+    def test_record_bot_game_returns_200(self, client, monkeypatch):
+        stored = BotGameRead(
+            id=uuid4(),
+            client_game_id="local-1",
+            ai_difficulty="bot2",
+            winner_index=0,
+            status="finished",
+            created=True,
+        )
+        # games.py imports record_bot_game by name, so patch it in that module.
+        monkeypatch.setattr("app.api.games.record_bot_game", lambda s, b, uid: stored)
+        resp = client.post(
+            "/games/bot",
+            json={
+                "client_game_id": "local-1",
+                "ai_difficulty": "bot2",
+                "winner_index": 0,
+                "move_history": ["e2", "e8"],
+            },
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["ai_difficulty"] == "bot2"
+        assert body["created"] is True
+
+    def test_record_bot_game_rejects_bad_difficulty(self, client):
+        resp = client.post(
+            "/games/bot",
+            json={"client_game_id": "x", "ai_difficulty": "easy", "winner_index": 0},
+        )
+        assert resp.status_code == 422
+
+    def test_record_bot_game_rejects_out_of_range_winner(self, client):
+        resp = client.post(
+            "/games/bot",
+            json={"client_game_id": "x", "ai_difficulty": "bot0", "winner_index": 2},
+        )
+        assert resp.status_code == 422
+
+
+# ── move submission route (per-move authority wiring) ─────────────────────────
+
+
+class TestSubmitMoveRoute:
+    def test_submit_move_returns_200(self, client, monkeypatch):
+        from app.schemas.game import MoveSubmitResponse
+
+        resp_obj = MoveSubmitResponse(
+            move_number=1, current_player_index=1, status="playing", winner=None
+        )
+        monkeypatch.setattr("app.api.games.submit_move", lambda s, gid, b, uid: resp_obj)
+        resp = client.post(f"/games/{uuid4()}/move", json={"notation": "e2"})
+        assert resp.status_code == 200
+        assert resp.json()["move_number"] == 1
+
+    def test_submit_move_bad_notation_rejected_at_schema(self, client):
+        resp = client.post(f"/games/{uuid4()}/move", json={"notation": "GARBAGE"})
+        assert resp.status_code == 422
+
+    def test_submit_move_conflict_maps_to_409(self, client, monkeypatch):
+        # A stale / double-submitted move (optimistic-concurrency mismatch) surfaces as
+        # ConflictError -> 409, telling the client to resync rather than duplicating.
+        def raise_conflict(*a, **k):
+            raise ConflictError("game state changed; resync required")
+
+        monkeypatch.setattr("app.api.games.submit_move", raise_conflict)
+        resp = client.post(f"/games/{uuid4()}/move", json={"notation": "e2"})
+        assert resp.status_code == 409
+
+    def test_result_disconnect_authz_rejection_maps_to_403(self, client, monkeypatch):
+        # A disconnect-forfeit claim made when it is the caller's own turn is rejected
+        # server-side (AuthorizationError -> 403).
+        def raise_authz(*a, **k):
+            raise AuthorizationError("cannot claim a disconnect forfeit while it is your move")
+
+        monkeypatch.setattr("app.api.games.record_game_result", raise_authz)
+        resp = client.post(
+            f"/games/{uuid4()}/result",
+            json={"winner_index": 0, "move_history": [], "reason": "disconnect"},
+        )
+        assert resp.status_code == 403
