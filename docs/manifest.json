@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-08-06T22:44:59Z",
+  "head": "41812a9",
+  "docs": {
+    "docs/ARCHITECTURE.md": {
+      "title": "Architecture",
+      "reviewed_at": "0e3abee",
+      "covers": [
+        "backend/app",
+        "frontend/src/engine",
+        "supabase/migrations"
+      ],
+      "content_sha": "bfd57a0ee240",
+      "last_edit_commit": null,
+      "last_edit_date": null,
+      "stale": false,
+      "unreviewed_code_commits": []
+    },
+    "docs/BACKLOG.md": {
+      "title": "Backlog",
+      "reviewed_at": "0e3abee",
+      "covers": [],
+      "content_sha": "6941c8177522",
+      "last_edit_commit": null,
+      "last_edit_date": null,
+      "stale": null,
+      "unreviewed_code_commits": []
+    },
+    "docs/DECISIONS.md": {
+      "title": "Decisions",
+      "reviewed_at": "0e3abee",
+      "covers": [],
+      "content_sha": "68f3c2fdff0d",
+      "last_edit_commit": null,
+      "last_edit_date": null,
+      "stale": null,
+      "unreviewed_code_commits": []
+    },
+    "docs/INFRASTRUCTURE.md": {
+      "title": "Infrastructure",
+      "reviewed_at": "0e3abee",
+      "covers": [
+        ".github/workflows",
+        "Makefile",
+        "supabase/config.toml",
+        "backend/app/core/config.py",
+        "backend/Dockerfile"
+      ],
+      "content_sha": "e13ca762c812",
+      "last_edit_commit": null,
+      "last_edit_date": null,
+      "stale": false,
+      "unreviewed_code_commits": []
+    }
+  }
+}

@@ -6,6 +6,16 @@ A full-featured Quoridor game platform (chess.com-style) with pass-and-play, onl
 
 Monorepo: React/TypeScript frontend, Python/FastAPI backend, Supabase (Postgres + Auth + Realtime).
 
+## Knowledge Base (docs/)
+
+Before starting non-trivial work, consult the `docs/` knowledge base for context, and update it when your change makes it stale:
+
+- `docs/ARCHITECTURE.md` — how the system works: the layering, the game engine and the frontend/backend engine-parity invariant, the multiplayer authority model, and the test tiers.
+- `docs/INFRASTRUCTURE.md` — deploy pipeline, CI workflows, database and migrations (they auto-apply on merge to `main`), env vars, and local dev commands.
+- `docs/BACKLOG.md` — open work items.
+- `docs/DECISIONS.md` — settled decisions and deferrals with their rationale. Check here before re-litigating a choice or re-proposing something already deferred.
+- `docs/manifest.json` — per-doc freshness. If a doc is marked `stale`, the code it `covers` changed since it was last reviewed, so verify it against the current code before trusting it. Run `make docs-check` to refresh, and bump a doc's `reviewed_at` (in its frontmatter) after rereading it against its covered code.
+
 ## Repo Structure
 
 ```

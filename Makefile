@@ -14,7 +14,7 @@ endif
         backend-shell frontend-shell db-shell db-reset \
         lint-backend format-backend test-backend \
         lint-frontend format-frontend test-frontend \
-        test ci migrate seed
+        test ci migrate seed docs-check
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 help: ## Show this help message
@@ -56,6 +56,9 @@ help: ## Show this help message
 	@echo "    make db-reset       Wipe DB, rerun migrations + seed (supabase db reset)"
 	@echo "    make seed           Load seed data without wiping"
 	@echo "    make migrate        Push migrations to hosted Supabase project"
+	@echo ""
+	@echo "  Docs"
+	@echo "    make docs-check     Regenerate docs/manifest.json + flag stale reference docs"
 	@echo ""
 
 # ── Init ─────────────────────────────────────────────────────────────────────
@@ -156,3 +159,7 @@ seed: ## Load seed data without wiping
 
 migrate: ## Push migrations to hosted Supabase project
 	bun x supabase db push
+
+# ── Docs ─────────────────────────────────────────────────────────────────────
+docs-check: ## Regenerate docs/manifest.json and flag stale reference docs
+	python scripts/docs_manifest.py
