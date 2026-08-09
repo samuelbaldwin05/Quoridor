@@ -4,17 +4,17 @@ import { DevStats } from '@/components/DevStats';
 import { FencePanel } from '@/components/FencePanel';
 import { GameBoard } from '@/components/GameBoard';
 import { GameCard } from '@/components/GameCard';
+import { MoveListPanel } from '@/components/MoveListPanel';
 import { NavSidebar } from '@/components/NavSidebar';
 import { SettingsModal } from '@/components/SettingsModal';
 import { applyMove } from '@/engine/gameEngine';
 import { getValidPawnMoves, isValidWallPlacement } from '@/engine/moveValidation';
 import { wallsEqual } from '@/engine/wallUtils';
-import { replayToIndex, moveIcon } from '@/engine/moveDisplay';
+import { replayToIndex } from '@/engine/moveDisplay';
 import { serializeMove } from '@/engine/notation';
 import type { GameState, Move, PlayerIndex, Position, Wall } from '@/engine/gameTypes';
 import { useAuth } from '@/hooks/useAuth';
 import { useGame } from '@/hooks/useGame';
-import { useHoldRepeat } from '@/hooks/useHoldRepeat';
 import { useKeyboard, type KeyAction } from '@/hooks/useKeyboard';
 import { useOnlineGame } from '@/hooks/useOnlineGame';
 import { useTheme } from '@/hooks/useTheme';
@@ -23,6 +23,13 @@ import { apiFetch } from '@/lib/api';
 import { saveGame } from '@/lib/gameStorage';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+// How long an opponent may stay disconnected mid-game before it resolves as their
+// forfeit. A reconnect within the window cancels it. Separate from the 20s start grace.
+const DISCONNECT_GRACE_MS = 15000;
+// Debounce before surfacing the "waiting/reconnecting" status, so a brief presence gap
+// during the start handshake or a blip doesn't flash the notice.
+const WAITING_DEBOUNCE_MS = 4000;
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -55,7 +62,6 @@ export function OnlineGamePage() {
 
   // Cosmetic history viewing (does NOT affect actual game state)
   const [viewIndex, setViewIndex] = useState<number | null>(null);
-  const moveListRef = useRef<HTMLDivElement>(null);
 
   // Per-player countdown timers [player0Time, player1Time]
   const [times, setTimes] = useState<[number, number]>([timeControl, timeControl]);
@@ -71,10 +77,20 @@ export function OnlineGamePage() {
 
   const [aborted, setAborted] = useState(false);
 
+  // Debounced "opponent not present" flag. Only true after the opponent has been
+  // absent for WAITING_DEBOUNCE_MS, so the brief gap while their client finishes the
+  // start handshake (clocks still end up synced) doesn't flash a waiting notice.
+  const [waitingDebounced, setWaitingDebounced] = useState(false);
+
   // Why the game ended + whether THIS client should submit the result. For a board
   // win either client can submit (the history proves it); for resign/timeout only
   // the forfeiting player may, since the backend records the caller as the loser.
-  const terminalRef = useRef<{ reason: 'win' | 'resign' | 'timeout'; mine: boolean } | null>(null);
+  // For "disconnect" the present player submits and the backend awards them the win,
+  // but only if it is genuinely the absent player's turn (server turn-guard).
+  const terminalRef = useRef<{
+    reason: 'win' | 'resign' | 'timeout' | 'disconnect';
+    mine: boolean;
+  } | null>(null);
 
   // Lets onMoveReceived (defined below, before the hook returns broadcastAbort)
   // reach broadcastAbort once it's available.
@@ -230,19 +246,67 @@ export function OnlineGamePage() {
     dispatch({ type: 'RESIGN_ONLINE', winner: opponent });
   }, [times, myRole, state.game.status, aborted, broadcastTimeout, dispatch]);
 
-  // Auto-scroll move list to bottom when live
+  // Sustained opponent disconnect -> forfeit. If the opponent stays absent for
+  // DISCONNECT_GRACE_MS mid-game while it is THEIR turn to move, record a win via the
+  // server (reason "disconnect"; the backend awards it only because its own replay
+  // confirms it is the absent player's turn). A reconnect flips opponentConnected back
+  // and this effect's cleanup cancels the pending forfeit. Distinct from the 20s
+  // start-of-game abort above: that fires before any move and yields no result.
   useEffect(() => {
-    if (viewIndex === null && moveListRef.current) {
-      moveListRef.current.scrollTop = moveListRef.current.scrollHeight;
-    }
-  }, [state.moveHistory.length, viewIndex]);
+    if (state.game.status !== 'playing') return;
+    if (state.moveHistory.length === 0) return; // start abort covers the pre-first-move case
+    if (aborted || result !== null) return;
+    // Only when OUR socket is healthy: a local blip makes presence unreliable, and this
+    // is the effect that submits a ranked result, so never arm the forfeit on a bad link.
+    if (connectionStatus !== 'ready') return;
+    if (opponentConnected) return;
+    // Only meaningful when the absent player owes the next move (matches the server
+    // guard). If it is our turn we can still move to progress (see isMyTurn), which flips
+    // the turn and lets this fire; we do not forfeit on our own turn.
+    if (state.game.currentPlayerIndex === myRole) return;
+    const t = setTimeout(() => {
+      terminalRef.current = { reason: 'disconnect', mine: true };
+      dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
+    }, DISCONNECT_GRACE_MS);
+    return () => clearTimeout(t);
+  }, [
+    state.game.status,
+    state.game.currentPlayerIndex,
+    state.moveHistory.length,
+    aborted,
+    result,
+    connectionStatus,
+    opponentConnected,
+    myRole,
+    dispatch,
+  ]);
 
-  // Scroll active entry into view
+  // Drive the debounced waiting flag: arm a timer while the opponent is absent, clear
+  // it the moment they appear (or the game ends). A presence sync within the window
+  // cancels the pending timer so no notice ever shows.
   useEffect(() => {
-    if (!moveListRef.current) return;
-    const active = moveListRef.current.querySelector('.ghp-entry-active');
-    active?.scrollIntoView({ block: 'nearest' });
-  }, [viewIndex]);
+    if (opponentConnected || connectionStatus !== 'ready' || aborted || result !== null) {
+      setWaitingDebounced(false);
+      return;
+    }
+    const t = setTimeout(() => setWaitingDebounced(true), WAITING_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [opponentConnected, connectionStatus, aborted, result]);
+
+  // Small inline note shown to the left of the opponent's timer. "reconnecting…" when
+  // our own socket is re-establishing; "waiting…" when connected but the opponent is
+  // absent past the debounce. Replaces the old full-screen blocking overlay (input is
+  // already gated on opponentConnected, so nothing needs blocking).
+  const opponentStatusNote: 'waiting…' | 'reconnecting…' | null =
+    result !== null || aborted
+      ? null
+      : connectionStatus === 'reconnecting'
+        ? 'reconnecting…' // an established socket dropped; 'connecting' (first connect) shows nothing
+        : waitingDebounced
+          ? 'waiting…'
+          : null;
+
+  // Move-list auto-scroll (live + active entry) is handled inside MoveListPanel.
 
   // Arrow-key history navigation. Functional updater avoids stale closures so
   // holding a key steps through moves rapidly at the OS key-repeat rate.
@@ -272,17 +336,21 @@ export function OnlineGamePage() {
 
   const isLive = viewIndex === null;
   const effectiveIndex = viewIndex ?? state.moveHistory.length;
-  const totalMoves = state.moveHistory.length;
 
   const displayGameState = useMemo(() => {
     if (isLive) return state.game;
     return replayToIndex(state.moveHistory, effectiveIndex);
   }, [isLive, effectiveIndex, state.moveHistory, state.game]);
 
+  // My turn when the game is live and it's my move. Before the first move we also
+  // require the opponent present (don't play into the void on a fresh/pasted URL). Once
+  // the game is underway we allow moving even if the opponent has dropped: making the
+  // move flips the turn to the absent player and lets the disconnect-forfeit resolve,
+  // rather than freezing the board when they leave on our turn.
   const isMyTurn =
     state.game.status === 'playing' &&
     state.game.currentPlayerIndex === myRole &&
-    opponentConnected;
+    (opponentConnected || state.moveHistory.length > 0);
 
   const validPawnMoves: Position[] =
     isMyTurn && isLive ? getValidPawnMoves(state.game, myRole) : [];
@@ -356,6 +424,14 @@ export function OnlineGamePage() {
     dispatch({ type: 'RESIGN_ONLINE', winner: myRole === 0 ? 1 : 0 });
   }
 
+  // Bail out of a game whose opponent never connected (pre-first-move). Mirrors the
+  // old waiting-overlay Cancel: tell the other side to abort, reset, and leave.
+  function handleCancelWaiting() {
+    broadcastAbort();
+    dispatch({ type: 'RESET_TO_IDLE' });
+    navigate('/');
+  }
+
   const handleKeyboardAction = useCallback(
     (action: KeyAction) => {
       if (!isMyTurn || !isLive) return;
@@ -397,25 +473,6 @@ export function OnlineGamePage() {
 
   useKeyboard(state.settings.keyboardEnabled, isMyTurn && isLive, handleKeyboardAction);
 
-  function handleBack() {
-    setViewIndex((cur) => {
-      const c = cur ?? totalMoves;
-      return c > 0 ? c - 1 : cur;
-    });
-  }
-
-  function handleForward() {
-    setViewIndex((cur) => {
-      const c = cur ?? totalMoves;
-      if (c >= totalMoves) return null;
-      const next = c + 1;
-      return next >= totalMoves ? null : next;
-    });
-  }
-
-  const backHold = useHoldRepeat(handleBack);
-  const forwardHold = useHoldRepeat(handleForward);
-
   const opponentIndex: 0 | 1 = myRole === 0 ? 1 : 0;
   const myName = profile?.username ?? 'You';
   const myElo = profile?.elo ?? 500;
@@ -444,10 +501,26 @@ export function OnlineGamePage() {
             topFenceCount={state.game.players[opponentIndex].wallsRemaining}
             bottomFenceCount={state.game.players[myRole].wallsRemaining}
             topRight={
-              <div
-                className={`online-timer-card${state.game.currentPlayerIndex === topPlayerIndex && state.game.status === 'playing' ? ' online-timer-card-active' : ''}`}
-              >
-                {formatTime(times[topPlayerIndex])}
+              <div className="online-timer-row">
+                {opponentStatusNote && (
+                  <span className="online-status-note">
+                    {opponentStatusNote}
+                    {state.moveHistory.length === 0 && (
+                      <button
+                        type="button"
+                        className="online-status-cancel"
+                        onClick={handleCancelWaiting}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </span>
+                )}
+                <div
+                  className={`online-timer-card${state.game.currentPlayerIndex === topPlayerIndex && state.game.status === 'playing' ? ' online-timer-card-active' : ''}`}
+                >
+                  {formatTime(times[topPlayerIndex])}
+                </div>
               </div>
             }
             bottomRight={
@@ -480,82 +553,16 @@ export function OnlineGamePage() {
             </div>
           </GameCard>
 
-          {/* Right panel — always shown */}
-          <div className="right-panel game-history-panel">
-            <div className="ghp-header">
-              <span className="play-panel-heading" style={{ margin: 0 }}>
-                Moves
-              </span>
-              {!isLive && (
-                <button className="ghp-live-btn" onClick={() => setViewIndex(null)}>
-                  Live ↓
-                </button>
-              )}
-            </div>
-
-            <div className="ghp-list" ref={moveListRef}>
-              <button
-                className={`ghp-entry ghp-initial${effectiveIndex === 0 ? ' ghp-entry-active' : ''}`}
-                onClick={() => setViewIndex(0)}
-              >
-                Start
-              </button>
-
-              {state.moveHistory.map((sm, i) => {
-                const isActive = effectiveIndex === i + 1;
-                return (
-                  <button
-                    key={i}
-                    className={`ghp-entry${isActive ? ' ghp-entry-active' : ''}`}
-                    onClick={() => setViewIndex(i + 1)}
-                  >
-                    <span className="ghp-num">{i + 1}</span>
-                    <span className="ghp-icon">{moveIcon(sm.move)}</span>
-                    <span className="ghp-notation">{serializeMove(sm.move)}</span>
-                    <span className="ghp-who">{playerLabel(sm.playerIndex)}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="ghp-controls">
-              <button
-                className="btn ghp-nav-btn"
-                {...backHold}
-                disabled={effectiveIndex === 0}
-                title="Previous move"
-              >
-                ←
-              </button>
-              <span className="ghp-position">
-                {isLive ? 'Live' : `${effectiveIndex} / ${totalMoves}`}
-              </span>
-              <button
-                className="btn ghp-nav-btn"
-                {...forwardHold}
-                disabled={isLive}
-                title="Next move"
-              >
-                →
-              </button>
-              <button
-                className="btn ghp-nav-btn ghp-action-btn"
-                onClick={() => setShowSettings(true)}
-                title="Settings"
-              >
-                ⚙
-              </button>
-              {state.game.status === 'playing' && (
-                <button
-                  className="btn ghp-nav-btn ghp-resign-btn"
-                  onClick={handleResign}
-                  title="Resign"
-                >
-                  ⚑
-                </button>
-              )}
-            </div>
-          </div>
+          {/* Right panel — shared with the offline game view (MoveListPanel). */}
+          <MoveListPanel
+            moveHistory={state.moveHistory}
+            viewIndex={viewIndex}
+            onViewIndex={setViewIndex}
+            playerLabel={playerLabel}
+            showResign={state.game.status === 'playing'}
+            onResign={handleResign}
+            onShowSettings={() => setShowSettings(true)}
+          />
         </div>
       </div>
 
@@ -569,32 +576,9 @@ export function OnlineGamePage() {
         onConfirmWallPlacementChange={setConfirmWallPlacement}
       />
 
-      {/* Waiting overlay — shown until the opponent's presence appears in the channel.
-          Blocks interaction so reloading the URL or pasting it doesn't let you play
-          into the void. The 20s abort timer runs in the background and will fire if
-          the opponent never connects. */}
-      {connectionStatus === 'ready' && !opponentConnected && !aborted && result === null && (
-        <div className="win-lose-overlay flex-center">
-          <div className="win-lose-modal">
-            <h1 className="win-lose-title">Waiting for opponent…</h1>
-            <p className="online-elo-change">
-              The game will be abandoned if they don't connect in time.
-            </p>
-            <div className="win-lose-buttons">
-              <button
-                className="btn action-btn"
-                onClick={() => {
-                  broadcastAbort();
-                  dispatch({ type: 'RESET_TO_IDLE' });
-                  navigate('/');
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Opponent-presence status is now an inline note beside the opponent's timer
+          (see topRight above), not a blocking overlay — input is already gated on
+          opponentConnected. The 20s start-abort timer still runs in the background. */}
 
       {/* Aborted overlay — shown when the starter didn't move in 20s. No ELO change. */}
       {aborted && result === null && (

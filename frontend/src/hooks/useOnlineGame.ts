@@ -177,7 +177,7 @@ export function useOnlineGame({
 
   async function submitResult(
     winner: 0 | 1,
-    reason: 'win' | 'resign' | 'timeout',
+    reason: 'win' | 'resign' | 'timeout' | 'disconnect',
     moveHistory: string[],
     finalTimes?: [number, number],
     savedGameId?: string,
