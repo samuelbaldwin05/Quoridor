@@ -195,6 +195,40 @@
         "a7h", "d9", "c7h", "e9", "a6h", "d9", "c6h", "e9",
         "a5h", "d9", "c5h", "e9", "e3h"
       ]
+    },
+    {
+      "name": "wall that seals off a player's only path to goal is illegal",
+      "kind": "wall_legal",
+      "history": ["a9h", "b9v", "c9h", "d9v", "e9h"],
+      "candidate": "f9v",
+      "expected": false
+    },
+    {
+      "name": "diagonal jump blocked by a wall is illegal",
+      "kind": "pawn_legal",
+      "history": ["e2", "e8", "e3", "e7", "e4", "e6", "e7h", "d6", "e6v", "a2h", "e5", "e6"],
+      "candidate": "f6",
+      "expected": false
+    },
+    {
+      "name": "the unblocked diagonal jump is still legal in that same position",
+      "kind": "pawn_legal",
+      "history": ["e2", "e8", "e3", "e7", "e4", "e6", "e7h", "d6", "e6v", "a2h", "e5", "e6"],
+      "candidate": "d6",
+      "expected": true
+    },
+    {
+      "name": "off-board straight jump forces the diagonal fallback at the board edge",
+      "kind": "pawn_legal",
+      "history": ["e2", "d9", "e3", "e9", "e4", "d9", "e5", "e9", "e6", "d9", "e7", "a2h", "e8", "e9"],
+      "candidate": "f9",
+      "expected": true
+    },
+    {
+      "name": "malformed notation is rejected on both engines",
+      "kind": "notation_invalid",
+      "history": [],
+      "tokens": ["e1h", "e10", "e0", "z1", "e3x", ""]
     }
   ]
 }

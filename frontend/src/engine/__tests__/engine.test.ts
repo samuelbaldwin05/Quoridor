@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { applyMove, createInitialState } from '../gameEngine';
 import { getValidPawnMoves, isValidWallPlacement } from '../moveValidation';
-import { parseMove } from '../notation';
+import { NotationError, parseMove } from '../notation';
 import type { GameState, Move, PlayerIndex, Wall } from '../gameTypes';
 
 interface BaseCase {
@@ -29,7 +29,16 @@ interface HistoryWinnerCase extends BaseCase {
 interface HistoryInvalidCase extends BaseCase {
   kind: 'history_invalid';
 }
-type Case = PawnLegalCase | WallLegalCase | HistoryWinnerCase | HistoryInvalidCase;
+interface NotationInvalidCase extends BaseCase {
+  kind: 'notation_invalid';
+  tokens: string[];
+}
+type Case =
+  | PawnLegalCase
+  | WallLegalCase
+  | HistoryWinnerCase
+  | HistoryInvalidCase
+  | NotationInvalidCase;
 interface Corpus {
   version: number;
   cases: Case[];
@@ -98,6 +107,14 @@ function runHistoryInvalid(c: HistoryInvalidCase): void {
   expect(ok).toBe(false);
 }
 
+function runNotationInvalid(c: NotationInvalidCase): void {
+  for (const token of c.tokens) {
+    expect(() => parseMove(token), `expected ${JSON.stringify(token)} to be rejected`).toThrow(
+      NotationError,
+    );
+  }
+}
+
 describe('engine corpus parity', () => {
   for (const c of corpus.cases) {
     it(c.name, () => {
@@ -110,6 +127,8 @@ describe('engine corpus parity', () => {
           return runHistoryWinner(c);
         case 'history_invalid':
           return runHistoryInvalid(c);
+        case 'notation_invalid':
+          return runNotationInvalid(c);
       }
     });
   }
