@@ -40,6 +40,20 @@ with no error, and only shows up with two live clients. Confirm realtime still f
 the two participants and is denied to a third party. If it breaks, revert `private: true`
 in `frontend/src/hooks/useOnlineGame.ts` and drop the 015 policies together. See DECISIONS.
 
+Test with two real Google accounts, NOT two dev logins. `signInAsDev` in
+`frontend/src/hooks/useAuth.ts` sets a local dev token and calls `/auth/me` through
+`apiFetch`; it never creates a Supabase Auth session. So the realtime socket connects as
+`anon` with `auth.uid()` NULL, and both 015 policies fail on their `TO authenticated`
+clause before the participant check is even reached. Under dev auth a private channel is
+dead, not degraded, which looks identical to a broken policy. There is also no
+`supabase.realtime.setAuth()` call anywhere; that is fine for a real session, since
+supabase-js supplies the token from the auth session, but it is the second thing to check
+if a real-account test also fails.
+
+Consequence beyond the test: `private: true` makes online play unusable for dev logins.
+If dev auth is meant to keep working against a private channel, it needs a genuine
+Supabase session (or an explicit `realtime.setAuth()`), which is its own work item.
+
 ### [MED] Disconnect forfeit, end-to-end
 
 Backend `disconnect` result is turn and liveness guarded (migration 017 `last_move_at`,
