@@ -4,7 +4,11 @@
 !.env.example
 
 # ── Claude ────────────────────────────────────────────────────────────────────
-.claude/
+# Ignore everything under .claude/ by default (settings.local.json, scratch files),
+# but share project skills and subagents with the team.
+.claude/*
+!.claude/skills/
+!.claude/agents/
 
 # ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/

@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from app.engine import (
+    NotationError,
     PawnMove,
     WallMove,
     apply_move,
@@ -69,6 +70,11 @@ def test_corpus(case: dict) -> None:
 
     elif kind == "history_invalid":
         assert ok is False
+
+    elif kind == "notation_invalid":
+        for token in case["tokens"]:
+            with pytest.raises(NotationError):
+                parse_move(token)
 
     else:
         pytest.fail(f"unknown case kind: {kind}")
