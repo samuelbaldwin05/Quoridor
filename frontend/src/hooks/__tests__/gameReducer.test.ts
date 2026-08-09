@@ -143,6 +143,16 @@ describe('RESIGN', () => {
     expect(gameReducer(idle, { type: 'RESIGN' })).toBe(idle);
     expect(saveGame).not.toHaveBeenCalled();
   });
+
+  it('tags a vs-bot save with the bot difficulty (for backend persistence)', () => {
+    gameReducer(playing({ gameMode: 'vs-bot', difficulty: 'bot1' }), { type: 'RESIGN' });
+    expect(saveGame).toHaveBeenCalledWith(expect.anything(), 1, expect.any(String), 0, 'bot1');
+  });
+
+  it('leaves difficulty undefined for a pass-and-play save (stays local-only)', () => {
+    gameReducer(playing({ gameMode: 'pass-and-play' }), { type: 'RESIGN' });
+    expect(saveGame).toHaveBeenCalledWith(expect.anything(), 1, expect.any(String), 0, undefined);
+  });
 });
 
 describe('UPDATE_SETTINGS', () => {

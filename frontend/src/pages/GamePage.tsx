@@ -14,10 +14,13 @@ import type { Position } from '@/engine/gameTypes';
 import { MESSAGE_TIMEOUT_MS } from '@/engine/constants';
 import { useAi } from '@/hooks/useAi';
 import { useAudio } from '@/hooks/useAudio';
+import { useAuth } from '@/hooks/useAuth';
 import { useBoardInteraction } from '@/hooks/useBoardInteraction';
 import { useGame } from '@/hooks/useGame';
 import { useKeyboard, type KeyAction } from '@/hooks/useKeyboard';
 import { useTheme } from '@/hooks/useTheme';
+import { syncBotGame } from '@/lib/botGameSync';
+import { loadGame } from '@/lib/gameStorage';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
 
 export function GamePage() {
@@ -35,6 +38,7 @@ export function GamePage() {
   });
 
   const audio = useAudio(state.settings.soundEnabled, state.settings.volume);
+  const { authMode } = useAuth();
 
   const {
     wallPreview,
@@ -66,6 +70,17 @@ export function GamePage() {
   useEffect(() => {
     if (state.game.status === 'finished') setShowWinLose(true);
   }, [state.game.status]);
+
+  // Persist a finished bot game to the backend (history only — no Elo/ranked impact).
+  // syncBotGame no-ops on pass-and-play saves (no difficulty). Guests skip and the
+  // game backfills on their next login; a failed upload is swallowed and retried by
+  // the backfill. lastSavedGameId only changes when a game is saved, so this fires
+  // once per finished game.
+  useEffect(() => {
+    if (!state.lastSavedGameId || authMode === 'none') return;
+    const saved = loadGame(state.lastSavedGameId);
+    if (saved) void syncBotGame(saved).catch(() => {});
+  }, [state.lastSavedGameId, authMode]);
 
   useEffect(() => {
     if (!state.message) return;
