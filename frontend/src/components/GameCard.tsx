@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
 
+// 'bot0' is retired from selection but still labels older games. See gameReducer.
 const DIFFICULTY_LABELS: Record<Settings['difficulty'], string> = {
-  bot0: 'Easy Bot',
-  bot1: 'Medium Bot',
-  bot2: 'Hard Bot',
-  extreme: 'Extreme AI',
+  bot0: 'Beginner Bot',
+  bot1: 'Easy Bot',
+  bot2: 'Medium Bot',
+  extreme: 'Hard AI',
+  mcts: 'Extreme AI',
 };
 
 interface GameCardProps {

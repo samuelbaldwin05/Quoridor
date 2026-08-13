@@ -6,11 +6,14 @@ import { saveGame } from '@/lib/gameStorage';
 import { saveSettings } from '@/lib/settingsStorage';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
 
+// Labels shifted down a tier when 'bot0' was retired from selection. The ids are storage keys,
+// so they did not move; 'bot0' stays here to label games played before the change.
 const DIFFICULTY_LABELS: Record<Settings['difficulty'], string> = {
-  bot0: 'Easy Bot',
-  bot1: 'Medium Bot',
-  bot2: 'Hard Bot',
-  extreme: 'Extreme Bot',
+  bot0: 'Beginner Bot (retired)',
+  bot1: 'Easy Bot',
+  bot2: 'Medium Bot',
+  extreme: 'Hard Bot',
+  mcts: 'Extreme Bot',
 };
 
 function getOpponentLabel(settings: Settings): string {

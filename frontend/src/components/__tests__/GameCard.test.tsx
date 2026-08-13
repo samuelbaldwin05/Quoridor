@@ -20,7 +20,8 @@ describe('GameCard', () => {
         <div />
       </GameCard>,
     );
-    expect(screen.getByText('Hard Bot')).toBeInTheDocument();
+    // bot2 is the Medium tier since bot0 was retired and the labels shifted down.
+    expect(screen.getByText('Medium Bot')).toBeInTheDocument();
     expect(screen.getByText('You')).toBeInTheDocument();
   });
 
