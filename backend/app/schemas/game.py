@@ -97,8 +97,10 @@ class GameResultResponse(BaseModel):
     new_elo_p2: int
 
 
-# Bot difficulty levels, mirroring the frontend Settings.difficulty union.
-BotDifficulty = Literal["bot0", "bot1", "bot2", "extreme"]
+# Bot difficulty levels, mirroring the frontend Settings.difficulty union. Kept in step with
+# the games.ai_difficulty CHECK constraint (migration 018): adding a level here without the
+# migration turns every synced game against it into a constraint violation.
+BotDifficulty = Literal["bot0", "bot1", "bot2", "extreme", "mcts"]
 
 
 class BotGameCreate(BaseModel):
