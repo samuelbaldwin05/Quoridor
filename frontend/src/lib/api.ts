@@ -2,7 +2,12 @@ import { config } from './config';
 import { getDevToken } from './dev';
 import { supabase } from './supabase';
 
-async function getAuthHeader(): Promise<string | null> {
+/**
+ * The bearer header for the current session, or null for a guest. Exported because a couple of
+ * callers need it without the rest of apiFetch: `/api/ai/move` reads Retry-After off a 503 and
+ * so cannot use apiFetch, but still has to identify itself for the members-only engine.
+ */
+export async function getAuthHeader(): Promise<string | null> {
   const devToken = getDevToken();
   if (devToken) return `Bearer ${devToken}`;
   const {
