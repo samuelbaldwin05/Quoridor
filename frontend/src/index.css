@@ -3255,6 +3255,50 @@ body {
   padding: 3px 10px;
 }
 
+/* Whole-app states: shown by UsernameGuard while auth resolves, and by ErrorBoundary when a
+   render throws. Both replace the entire page, so they centre in the viewport rather than in a
+   panel. Reuses .matchmaking-spinner below for the spinner itself. */
+.app-loading,
+.app-error {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+}
+
+.app-loading-text {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 13px;
+  margin: 0;
+}
+
+.app-error-title {
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.app-error-text {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  margin: 0;
+  max-width: 420px;
+}
+
+.app-error-detail {
+  color: rgba(255, 255, 255, 0.35);
+  font-family: monospace;
+  font-size: 11px;
+  margin: 0;
+  max-width: 420px;
+  overflow-wrap: break-word;
+}
+
 .matchmaking-spinner {
   width: 44px;
   height: 44px;

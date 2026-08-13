@@ -16,15 +16,65 @@ export async function getAuthHeader(): Promise<string | null> {
   return session?.access_token ? `Bearer ${session.access_token}` : null;
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+/**
+ * Every request gets a deadline. An unbounded fetch is not just slow, it strands whatever is
+ * waiting on it: the auth provider only clears `isLoading` in this promise's `finally`, so a
+ * request that never settles used to leave the app rendering nothing at all. A cold backend
+ * scaled to zero is exactly that case.
+ *
+ * Generous rather than tight, since it is a backstop and not a latency budget. Callers that
+ * expect to be slow can raise it; nothing should turn it off.
+ */
+export const API_TIMEOUT_MS = 15000;
+
+export interface ApiFetchOptions extends RequestInit {
+  timeoutMs?: number;
+}
+
+export class ApiTimeoutError extends Error {
+  constructor(path: string, timeoutMs: number) {
+    super(`API ${path} timed out after ${timeoutMs}ms`);
+    this.name = 'ApiTimeoutError';
+  }
+}
+
+export async function apiFetch<T>(path: string, init?: ApiFetchOptions): Promise<T> {
+  const { timeoutMs = API_TIMEOUT_MS, ...requestInit } = init ?? {};
   const authHeader = await getAuthHeader();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(init?.headers as Record<string, string> | undefined),
+    ...(requestInit.headers as Record<string, string> | undefined),
   };
   if (authHeader) headers['Authorization'] = authHeader;
 
-  const res = await fetch(`${config.apiUrl}${path}`, { ...init, headers });
+  // A caller's own signal still wins; this only adds the deadline on top of it.
+  const timeoutController = new AbortController();
+  const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+  const callerSignal = requestInit.signal;
+  const onCallerAbort = () => timeoutController.abort();
+  // Check before subscribing: a signal that was already aborted will never emit the event, and
+  // attaching alone would let the request run on regardless of it.
+  if (callerSignal?.aborted) onCallerAbort();
+  else callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
+
+  let res: Response;
+  try {
+    res = await fetch(`${config.apiUrl}${path}`, {
+      ...requestInit,
+      headers,
+      signal: timeoutController.signal,
+    });
+  } catch (err) {
+    // Distinguish our deadline from a caller cancelling, so a timeout is reported as one.
+    if (timeoutController.signal.aborted && callerSignal?.aborted !== true) {
+      throw new ApiTimeoutError(path, timeoutMs);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', onCallerAbort);
+  }
+
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`API ${res.status}: ${text}`);

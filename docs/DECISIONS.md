@@ -347,3 +347,35 @@ distance, which reads the same from either side of the board, and gained two beh
 near-certain block when the opponent can win next move, and a random wall on their current
 route once they are within three. Random rather than optimal on purpose, so Easy costs you a
 couple of moves without playing like the Medium bot.
+
+## The app never renders nothing
+
+Two guarantees, both added after a blank screen after login turned out to be unreproducible by
+inspection. `UsernameGuard` renders a spinner while auth resolves instead of `null`, and an
+`ErrorBoundary` wraps the routes so an uncaught render throw shows a message with the error text
+rather than unmounting the tree.
+
+Why it mattered: the guard wraps every route except /login and /setup, so `return null` was the
+whole app for as long as it lasted, and `isLoading` only cleared when a network call settled.
+Guests skipped that call and were fine, which is why the bug looked like "empty after login". A
+blank page also happens to be exactly what an uncaught render error produces, so the two most
+likely causes were indistinguishable from the outside. Both now say which one it is.
+
+`UsernameGuard` moved out of App.tsx into its own module for the same reason the tests exist at
+all: importing App pulls in every page, and with them the Supabase client, which throws on
+construction without configured env.
+
+## Every API request has a deadline
+
+`apiFetch` aborts at `API_TIMEOUT_MS` (15s) unless a caller overrides it, and reports that as
+`ApiTimeoutError` rather than a generic abort. The profile fetch in the auth provider uses a
+tighter 10s, because the whole app waits on that one call.
+
+Why: an unbounded fetch does not just make a screen slow, it strands whatever awaits it. The
+auth provider clears `isLoading` in that promise's `finally`, so a request that never settled
+left the app rendering nothing, forever, with no error anywhere. A Container App scaled to zero
+importing torch on first hit is exactly the kind of hang that produces it.
+
+The tradeoff on the shorter profile deadline is that giving up leaves `profile` null, so a
+brand-new user skips the /setup redirect for that load and the Elo label shows a placeholder.
+Both recover on a reload, and neither is a blank screen.
