@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import type { GameState, Move } from '@/engine/gameTypes';
-import { getAuthHeader } from '@/lib/api';
 import { config } from '@/lib/config';
 import type { EngineDecision } from './mctsTypes';
 
@@ -90,10 +89,17 @@ export async function chooseMoveOnServer(
     // Not apiFetch: this path needs to read Retry-After off a 503 and to treat a failure as a
     // fallback signal rather than an exception. The bearer header still goes along, because the
     // search engine is members-only and answers 403 without it.
-    // A failed session lookup must not cost the move: send it unauthenticated and let the
-    // server decide. For the members-only engine that means a 403 and a drop to the next
-    // source, which is a better outcome than an exception on the way out.
-    const authHeader = await getAuthHeader().catch(() => null);
+    // Imported here rather than at the top of the file on purpose. `@/lib/api` constructs the
+    // Supabase client at module load and throws without configured env, and this module is
+    // reachable from the game reducer, so a static import would take the whole reducer down in
+    // any environment without frontend env vars (CI, for one).
+    //
+    // A failed session lookup must not cost the move either: send it unauthenticated and let
+    // the server decide. For the members-only engine that means a 403 and a drop to the next
+    // source, which beats throwing on the way out.
+    const authHeader = await import('@/lib/api')
+      .then((api) => api.getAuthHeader())
+      .catch(() => null);
     response = await fetch(`${config.apiUrl}/api/ai/move`, {
       method: 'POST',
       headers: {
