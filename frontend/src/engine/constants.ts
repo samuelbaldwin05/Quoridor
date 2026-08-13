@@ -16,7 +16,10 @@ export const AI_CONFIG = {
   HIGH_IMPACT_THRESHOLD: 3,
   OPPONENT_DISTANCE_THRESHOLD: 3,
   OPPONENT_ROW_THRESHOLD: 4,
-  BOT1_STRATEGIC_ROW_THRESHOLD: 6,
+  // How close the opponent has to be to their goal before bot1 starts spending walls on them,
+  // measured as a shortest-path distance. This replaced a raw row threshold, which read the
+  // board from one side only and so fired while the opponent was still near their start.
+  BOT1_BLOCK_DISTANCE: 3,
   FENCE_PROXIMITY_PENALTIES: {
     ADJACENT: 0.1,
     NEAR: 0.05,
