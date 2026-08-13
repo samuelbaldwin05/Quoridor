@@ -42,11 +42,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authMode, setAuthMode] = useState<AuthMode>('none');
   const [isLoading, setIsLoading] = useState(true);
 
+  // Shorter than the default, because the whole app waits on this one call: UsernameGuard
+  // renders a spinner until it settles. Ten seconds of spinner on a cold backend is bad; a
+  // spinner that never ends is worse, which is what happened when this had no deadline at all.
+  //
+  // The cost of giving up early is that `profile` stays null, so a brand-new user skips the
+  // /setup redirect for that load and the Elo label shows a placeholder. Both recover on a
+  // reload or via refreshProfile, and neither is a blank screen.
+  const PROFILE_TIMEOUT_MS = 10000;
+
   async function fetchProfile(): Promise<void> {
     try {
-      const data = await apiFetch<UserProfile>('/auth/me');
+      const data = await apiFetch<UserProfile>('/auth/me', { timeoutMs: PROFILE_TIMEOUT_MS });
       setProfile(data);
-    } catch {
+    } catch (err) {
+      // Worth a line in the console: from the UI alone, "signed in with no profile" looks the
+      // same whether the backend is down, cold, or rejecting the token.
+      console.warn('Could not load profile:', err);
       setProfile(null);
     }
   }
