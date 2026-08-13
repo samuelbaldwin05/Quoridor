@@ -16,7 +16,21 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
+      # submodules: true pulls backend/vendor/quoridor-mcts, the C++ engine the image
+      # compiles into a wheel. Without it the build still succeeds and the MCTS bot tier
+      # reports itself unavailable.
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Resolve engine commit
+        id: engine
+        run: |
+          if [ -f backend/vendor/quoridor-mcts/setup.py ]; then
+            echo "commit=$(git -C backend/vendor/quoridor-mcts rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            echo "commit=absent" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -33,6 +47,8 @@ jobs:
         with:
           context: ./backend
           push: true
+          build-args: |
+            QMCTS_COMMIT=${{ steps.engine.outputs.commit }}
           tags: |
             ghcr.io/samuelbaldwin05/quoridor-backend:latest
             ghcr.io/samuelbaldwin05/quoridor-backend:${{ github.sha }}

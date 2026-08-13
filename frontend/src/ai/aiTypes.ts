@@ -1,6 +1,7 @@
+import type { EngineStats } from '@/ai/mcts/mctsTypes';
 import type { Move, Position } from '@/engine/gameTypes';
 
-export type BotDifficulty = 'bot0' | 'bot1' | 'bot2' | 'extreme';
+export type BotDifficulty = 'bot0' | 'bot1' | 'bot2' | 'extreme' | 'mcts';
 
 export interface AiDecision {
   move: Move;
@@ -18,11 +19,18 @@ export interface Bot2Context {
   openingStep: number;
 }
 
+/** Kept so dev stats can show what the last search actually did. */
+export interface MctsContext {
+  moveCount: number;
+  lastStats: EngineStats | null;
+}
+
 export type AiContext =
   | { difficulty: 'bot0' }
   | { difficulty: 'bot1'; bot1: Bot1Context }
   | { difficulty: 'bot2'; bot2: Bot2Context }
-  | { difficulty: 'extreme' };
+  | { difficulty: 'extreme' }
+  | { difficulty: 'mcts'; mcts: MctsContext };
 
 export function createAiContext(difficulty: BotDifficulty): AiContext {
   if (difficulty === 'bot0') {
@@ -34,6 +42,8 @@ export function createAiContext(difficulty: BotDifficulty): AiContext {
       difficulty: 'bot2',
       bot2: { moveCount: 0, openingPattern: null, openingStep: 0 },
     };
+  } else if (difficulty === 'mcts') {
+    return { difficulty: 'mcts', mcts: { moveCount: 0, lastStats: null } };
   }
   return { difficulty: 'extreme' };
 }

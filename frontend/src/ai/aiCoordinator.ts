@@ -2,6 +2,7 @@ import type { AiContext, AiDecision } from './aiTypes';
 import { makeBot0Move } from './bots/bot0';
 import { makeBot1Move } from './bots/bot1';
 import { makeBot2Move } from './bots/bot2';
+import { chooseEngineMove } from './mcts/engineSource';
 import type { GameState, Move } from '@/engine/gameTypes';
 import { config } from '@/lib/config';
 
@@ -136,6 +137,17 @@ export async function makeAiMove(
       },
     };
   }
+  if (context.difficulty === 'mcts') {
+    const { move, stats } = await chooseEngineMove(state, AI_PLAYER_INDEX, 'auto', signal);
+    return {
+      decision: { move, message: `Engine: ${stats.iterations} iterations (${stats.source})` },
+      nextContext: {
+        difficulty: 'mcts',
+        mcts: { moveCount: context.mcts.moveCount + 1, lastStats: stats },
+      },
+    };
+  }
+
   // extreme — backend PPO model
   const decision = await makeExtremeMove(state, signal);
   return { decision, nextContext: context };

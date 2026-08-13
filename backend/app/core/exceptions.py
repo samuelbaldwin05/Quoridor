@@ -32,3 +32,14 @@ class ValidationError(QuoridorError):
 
 class CooldownError(QuoridorError):
     """Action attempted before a required cooldown elapsed — surfaced as 429."""
+
+
+class EngineBusyError(QuoridorError):
+    """Search engine is at its concurrency limit — surfaced as 503 with Retry-After.
+
+    The client is expected to fall back to its own search rather than retry immediately.
+    """
+
+
+class EngineUnavailableError(QuoridorError):
+    """Search engine is not installed, or returned nothing playable — surfaced as 503."""

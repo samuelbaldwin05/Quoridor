@@ -1,5 +1,10 @@
 import type { AiDecision, Bot1Context } from '@/ai/aiTypes';
-import { dijkstraDistance, findBestMoveWithDijkstra, findWinningMove } from '@/ai/pathfinder';
+import {
+  dijkstraDistance,
+  findBestMoveWithDijkstra,
+  findWinningMove,
+  getShortestPathFromPosition,
+} from '@/ai/pathfinder';
 import { AI_CONFIG, BOARD_SIZE } from '@/engine/constants';
 import type { GameState, PlayerIndex, Position, Wall } from '@/engine/gameTypes';
 import { isValidWallPlacement } from '@/engine/moveValidation';
@@ -60,6 +65,67 @@ function getValidFencePlacements(state: GameState): Wall[] {
   return valid;
 }
 
+/**
+ * Walls that block a step of the route the opponent is currently taking. That route is the
+ * pathfinder's preferred path, which is the shortest one weighted by fence proximity, not
+ * strictly the shortest; for picking somewhere to inconvenience them that is close enough.
+ *
+ * One step is blocked by either of two walls, since a wall spans two cells: a vertical step is
+ * cut by an h-wall in the groove between the two rows, anchored at either column covering it,
+ * and a horizontal step by a v-wall, mirrored. Same index arithmetic as
+ * wallUtils.wallBlocksMovement, read backwards.
+ */
+function getPathBlockingFences(state: GameState, opponentIndex: PlayerIndex): Wall[] {
+  const { path } = getShortestPathFromPosition(state, opponentIndex);
+  const fences: Wall[] = [];
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const from = path[i]!;
+    const to = path[i + 1]!;
+
+    if (from.col === to.col) {
+      const row = Math.min(from.row, to.row);
+      for (const col of [from.col - 1, from.col]) {
+        if (row >= 0 && row <= 7 && col >= 0 && col <= 7) {
+          fences.push({ row, col, orientation: 'h' });
+        }
+      }
+    } else if (from.row === to.row) {
+      const col = Math.min(from.col, to.col);
+      for (const row of [from.row - 1, from.row]) {
+        if (row >= 0 && row <= 7 && col >= 0 && col <= 7) {
+          fences.push({ row, col, orientation: 'v' });
+        }
+      }
+    }
+    // A diagonal step only happens on a jump, which no single wall blocks; skip it.
+  }
+
+  return fences;
+}
+
+/** The legal wall from `candidates` that costs the opponent the most, or null if none does. */
+function bestDelayingFence(
+  state: GameState,
+  candidates: Wall[],
+  opponent: GameState['players'][number],
+): { wall: Wall; gain: number } | null {
+  const currentDist = dijkstraDistance(state, opponent.position, opponent.goalRow);
+  let best: { wall: Wall; gain: number } | null = null;
+
+  for (const wall of candidates) {
+    if (!isValidWallPlacement(state, wall)) continue;
+    const testState: GameState = { ...state, walls: [...state.walls, wall] };
+    const newDist = dijkstraDistance(testState, opponent.position, opponent.goalRow);
+    const gain = newDist - currentDist;
+    if (gain > 0 && (best === null || gain > best.gain)) {
+      best = { wall, gain };
+    }
+  }
+
+  return best;
+}
+
 function shuffle<T>(arr: T[]): T[] {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -102,25 +168,55 @@ export function makeBot1Move(
     return { move: { kind: 'pawn', to: randomMove }, message: 'Computer moved.' };
   }
 
-  // 3. High-impact fence
+  const opponentDist = dijkstraDistance(state, opponent.position, opponent.goalRow);
+  const opponentIsClose = opponentDist <= AI_CONFIG.BOT1_BLOCK_DISTANCE;
+
+  // 3. Stop a win in one. The opponent reaches their goal on their next move, so anything that
+  // delays them beats anything else on the board. Deliberately the one thing this bot plays
+  // well: losing to a bot that watched you walk in is what makes a tier feel like a gift.
+  if (player.wallsRemaining > 0 && opponentDist <= 1) {
+    const onPath = getPathBlockingFences(state, opponentIndex);
+    const stop =
+      bestDelayingFence(state, onPath, opponent) ??
+      bestDelayingFence(
+        state,
+        getDirectBlockingFences(opponent.position, opponent.goalRow),
+        opponent,
+      );
+    if (stop) {
+      return { move: { kind: 'wall', wall: stop.wall }, message: 'Computer blocked the goal.' };
+    }
+  }
+
+  // 4. High-impact fence
   if (player.wallsRemaining > 0) {
-    const currentDist = dijkstraDistance(state, opponent.position, opponent.goalRow);
     const candidates = shuffle(getValidFencePlacements(state));
     for (const wall of candidates) {
       const testState: GameState = { ...state, walls: [...state.walls, wall] };
       const newDist = dijkstraDistance(testState, opponent.position, opponent.goalRow);
-      if (newDist - currentDist >= AI_CONFIG.HIGH_IMPACT_THRESHOLD) {
+      if (newDist - opponentDist >= AI_CONFIG.HIGH_IMPACT_THRESHOLD) {
         return { move: { kind: 'wall', wall }, message: 'Computer placed a fence.' };
       }
     }
   }
 
-  // 4. Strategic fence when opponent is close
-  if (
-    player.wallsRemaining > 0 &&
-    opponent.position.row >= AI_CONFIG.BOT1_STRATEGIC_ROW_THRESHOLD
-  ) {
-    const currentDist = dijkstraDistance(state, opponent.position, opponent.goalRow);
+  // 5. Opponent is nearly home: put a wall somewhere on their shortest path. Shuffled rather
+  // than optimised, so it costs them a move or two without playing like the hard bot.
+  if (player.wallsRemaining > 0 && opponentIsClose) {
+    const onPath = shuffle(getPathBlockingFences(state, opponentIndex));
+    for (const wall of onPath) {
+      if (!isValidWallPlacement(state, wall)) continue;
+      const testState: GameState = { ...state, walls: [...state.walls, wall] };
+      if (dijkstraDistance(testState, opponent.position, opponent.goalRow) > opponentDist) {
+        return { move: { kind: 'wall', wall }, message: 'Computer placed a fence.' };
+      }
+    }
+  }
+
+  // 6. Fall back to the fences immediately around the opponent, for when nothing on the path
+  // is legal (already walled, or placing there would seal someone in).
+  if (player.wallsRemaining > 0 && opponentIsClose) {
+    const currentDist = opponentDist;
     const directFences = getDirectBlockingFences(opponent.position, opponent.goalRow);
     for (const wall of directFences) {
       if (isValidWallPlacement(state, wall)) {
@@ -132,7 +228,7 @@ export function makeBot1Move(
       }
     }
 
-    // 5. Side fence
+    // Then the fences beside them, which cost a step by forcing a detour.
     const sideFences = shuffle(getSideBlockingFences(opponent.position));
     for (const wall of sideFences) {
       if (isValidWallPlacement(state, wall)) {
@@ -145,7 +241,7 @@ export function makeBot1Move(
     }
   }
 
-  // 6. Dijkstra best move
+  // 7. Otherwise just race.
   const bestMove = findBestMoveWithDijkstra(state, playerIndex);
   if (bestMove) {
     return { move: { kind: 'pawn', to: bestMove }, message: 'Computer moved.' };

@@ -105,6 +105,35 @@ def _verify_jwt(token: str) -> dict:
     raise HTTPException(status_code=401, detail="Invalid token")
 
 
+async def get_optional_user_id(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> UUID | None:
+    """Verify a bearer token if one was sent, and return just the user id.
+
+    For endpoints that serve both guests and members, where the only question is whether the
+    caller is signed in. Deliberately does NOT touch the database: `get_current_user` upserts
+    the user row, which is the right thing on a profile route and pure overhead on a path
+    called once per bot move.
+
+    No token means anonymous. A token that is present but invalid still 401s, because that is
+    a broken client or a forgery attempt rather than a guest.
+    """
+    if credentials is None:
+        return None
+
+    token = credentials.credentials
+    if token == "dev-token":
+        if settings.environment != "development":
+            raise HTTPException(status_code=403, detail="Dev token not allowed outside development")
+        return DEV_USER_ID
+
+    payload = _verify_jwt(token)
+    raw_id: str = payload.get("sub", "")
+    if not raw_id:
+        raise HTTPException(status_code=401, detail="Token missing sub claim")
+    return UUID(raw_id)
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     supabase: Client = Depends(get_supabase),

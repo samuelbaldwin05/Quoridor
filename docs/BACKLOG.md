@@ -11,7 +11,7 @@ Open work only. Reasoning and deferral rationale live in [DECISIONS.md](DECISION
 [CRIT] [HIGH] [MED] [LOW]. Locations are `path` references; re-grep if they drift.
 History of completed work is in git.
 
-Both suites green as of 2026-08-06: backend 328, frontend 276.
+Both suites green as of 2026-08-11: backend 371, frontend 308.
 
 ## Needs verification (you are here to test)
 
@@ -39,6 +39,20 @@ A wrong Realtime authorization policy silently blocks ALL realtime (moves and pr
 with no error, and only shows up with two live clients. Confirm realtime still flows for
 the two participants and is denied to a third party. If it breaks, revert `private: true`
 in `frontend/src/hooks/useOnlineGame.ts` and drop the 015 policies together. See DECISIONS.
+
+Test with two real Google accounts, NOT two dev logins. `signInAsDev` in
+`frontend/src/hooks/useAuth.ts` sets a local dev token and calls `/auth/me` through
+`apiFetch`; it never creates a Supabase Auth session. So the realtime socket connects as
+`anon` with `auth.uid()` NULL, and both 015 policies fail on their `TO authenticated`
+clause before the participant check is even reached. Under dev auth a private channel is
+dead, not degraded, which looks identical to a broken policy. There is also no
+`supabase.realtime.setAuth()` call anywhere; that is fine for a real session, since
+supabase-js supplies the token from the auth session, but it is the second thing to check
+if a real-account test also fails.
+
+Consequence beyond the test: `private: true` makes online play unusable for dev logins.
+If dev auth is meant to keep working against a private channel, it needs a genuine
+Supabase session (or an explicit `realtime.setAuth()`), which is its own work item.
 
 ### [MED] Disconnect forfeit, end-to-end
 
@@ -75,9 +89,26 @@ Check all three on both the online and offline game views:
 
 ## Features (roadmap)
 
-- MCTS for stronger AI. Location: `backend/app/api/ai.py` (`time_budget_s` is reserved
-  but ignored; dispatch is solely `torch_agent.get_move`). Integrate Monte Carlo Tree
-  Search behind a difficulty flag in the `ai/` module.
+- MCTS bot: remaining work. The tier is implemented end to end and playable locally (see
+  docs/MCTS_INTEGRATION.md). Still open:
+  - [HIGH] Add the engine submodule at `backend/vendor/quoridor-mcts` and confirm the
+    two-stage image builds the wheel. Until then a deployed backend answers 503 for the tier
+    and every move falls back to the browser.
+  - [MED] Pick the iteration target from a measured strength curve rather than the current
+    placeholder of 8000 (`settings.mcts_target_iterations`). The engine repo's `main_sim`
+    already accepts `--max-iters`, so this is a scripted sweep. Note the flag gauntlet in the
+    engine repo ran at 800 iterations on 1 thread, an order of magnitude under the shipping
+    budget, and `--eval-depth` is the worked example of a result whose sign flips with budget.
+    That includes `pw-k 2`, which the app now runs.
+  - [MED] Unclaimed wins from that gauntlet: `race_eval` measured +27 Elo and is not in either
+    config dict, and `reuse_tree` measured +31.4 but needs per-game server state.
+  - [MED] Drive the browser engine end to end. The Embind contract and the worker bundling are
+    both verified, but nothing has run a real `new Worker` in a page.
+  - [LOW] Multi-threaded WASM needs COOP/COEP headers, which Azure Static Web Apps does not
+    send. Root parallelization is where most of the tuned strength came from, so this is the
+    largest available upgrade to the browser path.
+  - [LOW] Tree reuse and pondering. `reuse_tree` exists in the engine but needs either
+    client-side persistence or server-side per-game state; the endpoint is stateless today.
 - Puzzles. The `puzzles` table exists with public-read RLS but is never populated;
   `PuzzlesPage.tsx` shows a static dev-only bank. Remaining: a generation pipeline
   (pull finished online games, find positions with one clearly winning move, estimate

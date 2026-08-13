@@ -37,11 +37,38 @@ class MovePayload(BaseModel):
     wall: WallPayload | None = None
 
 
+AIEngine = Literal["extreme", "mcts"]
+
+
 class AIMoveRequest(BaseModel):
     state: GameStatePayload
-    # Reserved for the future C++ MCTS agent. Ignored by the torch model.
+    # Which opponent to ask. "extreme" is the trained PPO model, "mcts" the C++ search.
+    engine: AIEngine = "extreme"
+    # Ignored by both engines today. The PPO model is a single forward pass, and the MCTS
+    # agent budgets in iterations rather than time (see app/ai/mcts_agent.py). Kept so an
+    # older client that still sends it does not get a 422.
     time_budget_s: float = Field(default=1.0, ge=0.1, le=15.0)
+
+
+class SearchStatsPayload(BaseModel):
+    """What the search actually did. Shown in the client's dev stats panel."""
+
+    iterations: int
+    elapsed_ms: int
+    target_iterations: int
+    threads: int
+    cached: bool
+    engine_commit: str
 
 
 class AIMoveResponse(BaseModel):
     move: MovePayload
+    stats: SearchStatsPayload | None = None
+
+
+class EngineStatusResponse(BaseModel):
+    """Advertised capability, so the client does not have to discover a missing engine by
+    getting a 503 mid-game."""
+
+    mcts_available: bool
+    engine_commit: str

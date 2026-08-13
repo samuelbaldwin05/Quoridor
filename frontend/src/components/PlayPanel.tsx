@@ -2,16 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MatchmakingModal } from './MatchmakingModal';
 import { useAuth } from '@/hooks/useAuth';
+import { BOT_TIERS, selectableDifficulty } from '@/lib/botTiers';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
 
 type PlayMode = Settings['gameMode'] | 'online';
-
-const BOT_OPTIONS: { id: Settings['difficulty']; label: string; desc: string }[] = [
-  { id: 'bot0', label: 'Easy', desc: 'Random moves' },
-  { id: 'bot1', label: 'Medium', desc: 'Basic strategy' },
-  { id: 'bot2', label: 'Hard', desc: 'Advanced AI' },
-  { id: 'extreme', label: 'Extreme', desc: 'Trained neural net' },
-];
 
 const TIME_CONTROLS: { seconds: number; label: string; sub: string }[] = [
   { seconds: 180, label: '3 min', sub: 'Blitz' },
@@ -28,7 +22,11 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
   const { isGuest, profile } = useAuth();
   const navigate = useNavigate();
   const [mode, setMode] = useState<PlayMode>('vs-bot');
-  const [difficulty, setDifficulty] = useState<Settings['difficulty']>(currentDifficulty);
+  // A guest whose saved difficulty is members-only (or the retired 'bot0') starts on the
+  // nearest tier they can actually play, so Play is never a dead end.
+  const [difficulty, setDifficulty] = useState<Settings['difficulty']>(() =>
+    selectableDifficulty(currentDifficulty, isGuest),
+  );
   const [timeControl, setTimeControl] = useState(300);
   const [showMatchmaking, setShowMatchmaking] = useState(false);
 
@@ -46,6 +44,13 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
     }
     const gameMode: Settings['gameMode'] =
       mode === 'vs-bot' || mode === 'pass-and-play' ? mode : 'vs-bot';
+
+    // Covers signing out with a members-only tier still selected: same answer as the online
+    // button gives a guest, rather than starting a game the server will refuse to play.
+    if (gameMode === 'vs-bot' && selectableDifficulty(difficulty, isGuest) !== difficulty) {
+      navigate('/login');
+      return;
+    }
     onPlay(difficulty, gameMode);
   }
 
@@ -105,16 +110,26 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
             <div className="bot-difficulty">
               <p className="play-panel-heading">Difficulty</p>
               <div className="bot-option-list">
-                {BOT_OPTIONS.map((bot) => (
-                  <button
-                    key={bot.id}
-                    className={`bot-option${difficulty === bot.id ? ' bot-option-active' : ''}`}
-                    onClick={() => setDifficulty(bot.id)}
-                  >
-                    <span className="bot-option-label">{bot.label}</span>
-                    <span className="bot-option-desc">{bot.desc}</span>
-                  </button>
-                ))}
+                {BOT_TIERS.map((bot) => {
+                  const locked = bot.membersOnly === true && isGuest;
+                  return (
+                    <button
+                      key={bot.id}
+                      className={`bot-option${difficulty === bot.id ? ' bot-option-active' : ''}${
+                        locked ? ' bot-option-locked' : ''
+                      }`}
+                      onClick={() => (locked ? navigate('/login') : setDifficulty(bot.id))}
+                    >
+                      <span className="bot-option-label">
+                        {locked && <span className="bot-option-lock-icon">🔒</span>}
+                        {bot.label}
+                      </span>
+                      <span className="bot-option-desc">
+                        {locked ? 'Sign in to play' : bot.desc}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

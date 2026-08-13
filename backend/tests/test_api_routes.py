@@ -291,3 +291,144 @@ class TestSubmitMoveRoute:
             json={"winner_index": 0, "move_history": [], "reason": "disconnect"},
         )
         assert resp.status_code == 403
+
+
+class TestAiEngineRoutes:
+    """The AI endpoints are unauthenticated (guests play bots), so these use a bare client."""
+
+    def _state_payload(self) -> dict:
+        return {
+            "state": {
+                "players": [
+                    {"position": {"row": 8, "col": 4}, "walls_remaining": 10, "goal_row": 0},
+                    {"position": {"row": 0, "col": 4}, "walls_remaining": 10, "goal_row": 8},
+                ],
+                "walls": [],
+                "current_player_index": 1,
+            },
+            "engine": "mcts",
+        }
+
+    def test_engines_endpoint_reports_availability(self, client, monkeypatch):
+        from app.schemas.ai import EngineStatusResponse
+
+        monkeypatch.setattr(
+            "app.api.ai.ai_service.engine_status",
+            lambda: EngineStatusResponse(mcts_available=True, engine_commit="abc1234"),
+        )
+        resp = client.get("/api/ai/engines")
+        assert resp.status_code == 200
+        assert resp.json() == {"mcts_available": True, "engine_commit": "abc1234"}
+
+    def test_busy_engine_maps_to_503_with_retry_after(self, client, monkeypatch):
+        """A shed request has to be distinguishable from a broken one, and has to carry
+        Retry-After, because the client falls back to its own engine on this signal."""
+        from app.core.exceptions import EngineBusyError
+
+        async def raise_busy(body, *, authenticated):
+            raise EngineBusyError("MCTS engine is saturated")
+
+        monkeypatch.setattr("app.api.ai.ai_service.choose_move", raise_busy)
+        resp = client.post("/api/ai/move", json=self._state_payload())
+        assert resp.status_code == 503
+        assert resp.headers["retry-after"] == "2"
+
+    def test_missing_engine_maps_to_503(self, client, monkeypatch):
+        from app.core.exceptions import EngineUnavailableError
+
+        async def raise_unavailable(body, *, authenticated):
+            raise EngineUnavailableError("MCTS engine module is not installed")
+
+        monkeypatch.setattr("app.api.ai.ai_service.choose_move", raise_unavailable)
+        resp = client.post("/api/ai/move", json=self._state_payload())
+        assert resp.status_code == 503
+
+    def test_unknown_engine_is_rejected_at_the_schema(self, client):
+        body = self._state_payload()
+        body["engine"] = "nope"
+        resp = client.post("/api/ai/move", json=body)
+        assert resp.status_code == 422
+
+
+class TestAiEngineAuth:
+    """The route resolves identity itself, so the gate needs a test at this level too: a service
+    check that nothing calls is worthless."""
+
+    def _mcts_payload(self) -> dict:
+        return {
+            "state": {
+                "players": [
+                    {"position": {"row": 8, "col": 4}, "walls_remaining": 10, "goal_row": 0},
+                    {"position": {"row": 0, "col": 4}, "walls_remaining": 10, "goal_row": 8},
+                ],
+                "walls": [],
+                "current_player_index": 1,
+            },
+            "engine": "mcts",
+        }
+
+    def test_anonymous_caller_is_refused_the_search_engine(self, monkeypatch):
+        from app.core.auth import get_optional_user_id
+
+        app.dependency_overrides[get_optional_user_id] = lambda: None
+        try:
+            with TestClient(app) as c:
+                resp = c.post("/api/ai/move", json=self._mcts_payload())
+        finally:
+            app.dependency_overrides.clear()
+
+        assert resp.status_code == 403
+
+    def test_signed_in_caller_reaches_the_search_engine(self, monkeypatch):
+        from uuid import uuid4
+
+        from app.core.auth import get_optional_user_id
+        from app.schemas.ai import AIMoveResponse, MovePayload, PositionPayload
+
+        async def fake_choose(body, *, authenticated):
+            assert authenticated is True
+            return AIMoveResponse(
+                move=MovePayload(kind="pawn", to=PositionPayload(row=1, col=4)), stats=None
+            )
+
+        monkeypatch.setattr("app.api.ai.ai_service.choose_move", fake_choose)
+        app.dependency_overrides[get_optional_user_id] = lambda: uuid4()
+        try:
+            with TestClient(app) as c:
+                resp = c.post("/api/ai/move", json=self._mcts_payload())
+        finally:
+            app.dependency_overrides.clear()
+
+        assert resp.status_code == 200
+        assert resp.json()["move"]["to"] == {"row": 1, "col": 4}
+
+    def test_guest_can_still_reach_the_default_engine(self, monkeypatch):
+        from app.core.auth import get_optional_user_id
+        from app.schemas.ai import AIMoveResponse, MovePayload, PositionPayload
+
+        async def fake_choose(body, *, authenticated):
+            assert authenticated is False
+            return AIMoveResponse(
+                move=MovePayload(kind="pawn", to=PositionPayload(row=7, col=4)), stats=None
+            )
+
+        monkeypatch.setattr("app.api.ai.ai_service.choose_move", fake_choose)
+        app.dependency_overrides[get_optional_user_id] = lambda: None
+        try:
+            body = self._mcts_payload()
+            body.pop("engine")
+            with TestClient(app) as c:
+                resp = c.post("/api/ai/move", json=body)
+        finally:
+            app.dependency_overrides.clear()
+
+        assert resp.status_code == 200
+
+    def test_a_garbage_bearer_token_is_rejected_rather_than_treated_as_a_guest(self):
+        with TestClient(app) as c:
+            resp = c.post(
+                "/api/ai/move",
+                json=self._mcts_payload(),
+                headers={"Authorization": "Bearer not-a-jwt"},
+            )
+        assert resp.status_code == 401
