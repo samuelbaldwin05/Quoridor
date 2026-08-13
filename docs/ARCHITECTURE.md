@@ -147,10 +147,42 @@ Query target that the code has not adopted yet; this section describes the curre
 
 ## AI
 
-The `ai/` modules expose bot opponents. The backend `ai/` runs model inference
-(`torch_agent`); difficulty maps to different models or settings. Weights are not
-committed to git. See INFRASTRUCTURE for where weights are stored and loaded, and
-BACKLOG for the planned MCTS addition.
+The `ai/` modules expose bot opponents. Four selectable tiers, listed in
+`frontend/src/lib/botTiers.ts`: Easy (`bot1`) and Medium (`bot2`) are heuristic and run entirely
+in the browser, Hard (`extreme`) is the trained PPO model on the backend (`torch_agent`), and
+Extreme (`mcts`) is the C++ Monte Carlo Tree Search engine. Weights are not committed to git;
+see INFRASTRUCTURE for where they are stored and loaded.
+
+Ids are storage keys, not labels: they are written to `games.ai_difficulty` and to saved games,
+so the retired `bot0` still appears in the settings schema, the DB CHECK constraint and the
+label maps even though it can no longer be selected. See DECISIONS.
+
+The `mcts` tier is members-only. `POST /api/ai/move` serves guests for every other engine, but
+`engine: "mcts"` needs a signed-in caller and answers 403 otherwise, because it costs 2 to 3
+vCPU-seconds per move against 0.13s for a PPO forward pass. The UI renders that tier locked for
+guests rather than downgrading them silently.
+
+The `mcts` tier can run in either place, and asks the backend first so strength does not
+depend on the player's hardware. `frontend/src/ai/mcts/engineSource.ts` walks three rungs:
+`POST /api/ai/move` with `engine: "mcts"`, then the WASM build of the same engine in a web
+worker, then `bot2` so a bot turn can never hang. A 503 from the backend (search pool
+saturated, or the engine not installed in that deployment) is the signal to drop a rung.
+
+Two invariants hold this together, both easy to break silently:
+
+- **Player mapping.** The engine's player 1 starts on row 0 and runs to row 8; this app's
+  player 0 starts on row 8 and runs to row 0. The mapping keys on `goal_row`, not on list
+  position (`mcts_agent._to_engine_state`, `stateMapping.toEngineState`). Reverse it and the
+  bot races toward the wrong edge while still returning legal moves. Board geometry needs no
+  translation: a wall at `(row, col, 'h')` means the same groove in both codebases.
+- **Action decoding.** The engine returns an action index where 0 through 7 are *directions*,
+  not destinations, so a jump shares an index with the step in the same direction. Both
+  callers resolve an index by scanning their own legal moves for a matching delta sign, and
+  refuse anything their own engine calls illegal.
+
+Search budget is measured in iterations, not milliseconds, so a loaded server plays no worse
+than an idle one. Wall clock is capped separately. See docs/MCTS_INTEGRATION.md for the
+numbers and DECISIONS for why.
 
 ## Testing tiers
 

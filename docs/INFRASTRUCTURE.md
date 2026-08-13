@@ -48,11 +48,20 @@ Workflow: `.github/workflows/deploy-backend.yml`.
 - Builds the backend Docker image, pushes it to GHCR
   (`ghcr.io/samuelbaldwin05/quoridor-backend`), then updates the Azure Container App
   `quoridor-backend` in resource group `quoridor-rg` to the new image.
+- Checks out submodules, because the image's first stage compiles the C++ MCTS engine from
+  `backend/vendor/quoridor-mcts` into a wheel. The short commit of that submodule is passed
+  in as the `QMCTS_COMMIT` build arg and ends up reported by `GET /api/ai/engines`.
+- The engine is an optional dependency. With the submodule absent the image still builds, and
+  the MCTS bot tier answers 503 so clients search in the browser instead. To install it for
+  local development: `uv pip install ./vendor/quoridor-mcts` from `backend/`.
+- The MCTS tier spends real CPU per move (roughly a second, bounded by its own search pool),
+  so the Container App wants at least two vCPU and a minimum of one replica. Sizing is set
+  through `az containerapp`, not from this repo.
 - This workflow does not touch the database.
 
 ## Database and migrations
 
-Migrations live in `supabase/migrations/` (001 to 017).
+Migrations live in `supabase/migrations/` (001 to 018).
 
 - Migrations are applied to the hosted project AUTOMATICALLY on merge to `main` via
   Supabase's GitHub integration (configured in the Supabase dashboard, not in this

@@ -243,3 +243,107 @@ so it needs a human visual check on both game views.
 The repository-tests deferral stands for the thin CRUD wrappers, but the read-time name
 resolution added this round (`_attach_current_names`) carries real branching, so it is
 pinned directly in `backend/tests/test_game_repository.py` along with the bot-game lookup.
+
+## The MCTS bot runs on the backend, with the browser as its fallback
+
+The Insane tier asks `POST /api/ai/move` first and only searches in the browser when the
+backend cannot serve the move (network failure, 429, 503 from a saturated search pool, or a
+deployment without the engine wheel). `bot2` is the last rung so a bot turn can never hang.
+
+Why: engine strength should not depend on whose laptop is playing. The reverse ordering
+(browser first, server as relief for slow devices) was considered and rejected, because it
+makes the tier mean something different per device and because there is no reliable way to
+tell a slow device from a briefly busy one. Trying the server on every move rather than
+latching a failure is deliberate too: saturation is transient, and one shed request should not
+downgrade the rest of the game.
+
+The cost of that choice is real CPU per move on a single Container App. It is bounded by a
+process-wide search pool rather than by rate limiting: requests that cannot get a slot within
+`mcts_queue_timeout_s` are shed with 503 plus Retry-After, which is exactly the signal that
+sends the work to the client. A per-tier rate limit was skipped because slowapi cannot vary a
+limit by request body, and the pool already bounds total CPU.
+
+## Search strength is budgeted in iterations, not milliseconds
+
+`mcts_target_iterations` (and the same constant in `frontend/src/ai/mcts/budget.ts`) is the
+knob that defines how strong the tier is. Wall clock is only a ceiling.
+
+Why: measured on the engine's own harness, one thread completes about 1,250 to 2,250
+iterations in 500ms during the opening and midgame, and 14,209 in a decided endgame. A fixed
+time budget therefore over-searches positions that no longer matter and under-searches the
+ones that decide the game, and it makes the bot weaker exactly when the server is busy. An
+iteration budget also makes "the same engine everywhere" a testable claim rather than a hope.
+
+The engine ignores its own deadline once an iteration cap is set (`max_iters` is documented as
+deterministic and clock-independent, which the research harnesses depend on), so the cap has
+to be sized to fit the time budget rather than trusting the engine to stop. Both paths measure
+their own speed to do that, and the first search of a process runs a deliberately cheap
+calibration budget instead of trusting a hardcoded guess about the hardware. Its move is a
+real move, so nothing is wasted, but it is not cached.
+
+## WASM artifacts live in frontend/public/, not in src/
+
+`make -f Makefile.wasm app-update` copies `engine.js` and `engine.wasm` into
+`frontend/public/engine/`, and the worker loads `/engine/engine.js` at runtime.
+
+Why: importing them from `src/` would make the whole frontend build fail whenever the
+artifacts are absent, which is the normal state of a fresh checkout and of any deploy made
+before the engine has been built. Loading at runtime turns a missing engine into a fallback
+instead of a broken build. It also keeps the generated, minified `engine.js` out of eslint and
+prettier for free, since `public/` is already ignored by both. The trade-off is no content
+hashing on the artifact, which `engine-version.json` covers instead.
+
+## The engine's config surface is generated from one table
+
+`include/util/config_named.hpp` in the engine repo holds a single table of every MCTSConfig
+member, and both binding layers (Embind for the browser, pybind11 for the backend) drive
+`setConfig` from it. A `static_assert` on `sizeof(MCTSConfig)` fails the build if a member is
+added without being registered.
+
+Why: the previous hand-written Embind list exposed 7 of 20 fields, so most of the engine's
+tuning was unreachable from the app, silently. This is the same failure mode `util/cli.hpp`
+already warns about for the CLI harnesses: a flag wired into one surface but not another
+produces a configuration nobody actually measured. Both bindings also return the keys they did
+not recognize, so a typo is an error rather than a default.
+
+## The search-engine tier is members-only; every other bot stays open
+
+`POST /api/ai/move` still serves guests, but `engine: "mcts"` requires a signed-in caller and
+answers 403 without one. The route resolves identity through `get_optional_user_id`, a
+DB-free dependency that verifies the token and returns just the id, and the service raises
+`AuthorizationError`. In the UI the tier renders locked, exactly like the Play Online button,
+rather than silently downgrading.
+
+Why gate only that one: a PPO move is a single forward pass, about 0.13s warm, so the open
+endpoint costs nothing to abuse. An MCTS move is 2 to 3 vCPU-seconds, 20 to 30 times more, and
+an anonymous caller posting `engine: "mcts"` takes a search slot from a real game. Gating the
+whole endpoint would have taken the bot away from guests for no benefit; gating the expensive
+engine ties the cost to an account and gives the rate limiter a real key instead of an IP.
+
+Why locked rather than a silent fallback to the browser engine: a downgrade nobody can see is
+not an incentive to sign up, and it makes the tier mean two different things. A guest who ends
+up there anyway (signing out mid-game, an expired token) still gets the fallback, because 401
+and 403 join 429 and 503 as "use another source" signals in `serverEngine`.
+
+## Easy (bot0) retired, and the remaining tiers shifted down a name
+
+The ladder is now Easy (`bot1`), Medium (`bot2`), Hard (`extreme`, the PPO net) and Extreme
+(`mcts`). bot0 moved a pawn and never placed a wall, which is not a difficulty level so much as
+a sparring partner.
+
+The ids did not move, only the labels. They are storage keys, written to `games.ai_difficulty`
+and to saved games in localStorage, so renaming them would need a migration and would relabel
+history that already exists. `bot0` therefore stays in the settings schema, in the DB CHECK
+constraint and in the label maps: it can no longer be selected, but games recorded against it
+still load and still show a name. The selectable list and the guest rule live in
+`frontend/src/lib/botTiers.ts`.
+
+## bot1 blocks a player who is about to win
+
+bot1's "fence when the opponent is close" branch was gated on `opponent.position.row >= 6`.
+The human runs from row 8 to row 0, so that fired while they were still near their start and
+switched off exactly when they were one move from winning. It now keys on shortest-path
+distance, which reads the same from either side of the board, and gained two behaviours: a
+near-certain block when the opponent can win next move, and a random wall on their current
+route once they are within three. Random rather than optimal on purpose, so Easy costs you a
+couple of moves without playing like the Medium bot.
