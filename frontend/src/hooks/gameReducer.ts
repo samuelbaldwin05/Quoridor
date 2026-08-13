@@ -18,6 +18,12 @@ function getOpponentLabel(settings: Settings): string {
   return DIFFICULTY_LABELS[settings.difficulty];
 }
 
+// The bot level to tag a save with, so it can be persisted to the backend. Only
+// vs-bot games get one; pass-and-play saves stay local-only (undefined).
+function savedDifficulty(settings: Settings): Settings['difficulty'] | undefined {
+  return settings.gameMode === 'vs-bot' ? settings.difficulty : undefined;
+}
+
 export interface FullState {
   game: GameState;
   score: { player: number; computer: number };
@@ -110,7 +116,13 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
           newScore = { ...newScore, computer: newScore.computer + 1 };
           message = { text: 'Computer wins! Better luck next time.', kind: 'error' };
         }
-        lastSavedGameId = saveGame(newHistory, winner, getOpponentLabel(state.settings));
+        lastSavedGameId = saveGame(
+          newHistory,
+          winner,
+          getOpponentLabel(state.settings),
+          0,
+          savedDifficulty(state.settings),
+        );
       } else {
         message = null;
       }
@@ -152,7 +164,13 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
           newScore = { ...newScore, computer: newScore.computer + 1 };
           message = { text: 'Computer wins! Better luck next time.', kind: 'error' };
         }
-        lastSavedGameId = saveGame(newHistory, winner, getOpponentLabel(state.settings));
+        lastSavedGameId = saveGame(
+          newHistory,
+          winner,
+          getOpponentLabel(state.settings),
+          0,
+          savedDifficulty(state.settings),
+        );
       }
 
       return {
@@ -202,7 +220,13 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
         winner: 1,
       };
       const newScore = { ...state.score, computer: state.score.computer + 1 };
-      const lastSavedGameId = saveGame(state.moveHistory, 1, getOpponentLabel(state.settings));
+      const lastSavedGameId = saveGame(
+        state.moveHistory,
+        1,
+        getOpponentLabel(state.settings),
+        0,
+        savedDifficulty(state.settings),
+      );
       return {
         ...state,
         game: finishedGame,

@@ -3550,6 +3550,29 @@ body {
   text-align: right;
 }
 
+/* Inline opponent-presence note ("waiting…" / "reconnecting…") shown to the left of
+   the opponent's timer, replacing the old full-screen waiting overlay. */
+.online-status-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: clamp(11px, 1.3vmin, 13px);
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+}
+
+.online-status-cancel {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-style: normal;
+  color: var(--modal-accent);
+  text-decoration: underline;
+}
+
 /* ELO change after online game result */
 .online-elo-change {
   font-size: 18px;

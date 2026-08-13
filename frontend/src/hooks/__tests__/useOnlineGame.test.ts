@@ -227,6 +227,30 @@ describe('useOnlineGame submitResult', () => {
     expect(result.current.result).toEqual({ winner: 1, eloChange: 0, savedGameId: null });
   });
 
+  it('posts a disconnect-forfeit result with the caller as winner', async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      game_id: 'g1',
+      winner_id: MY_USER,
+      elo_change_p1: 8,
+      elo_change_p2: -9,
+      new_elo_p1: 1508,
+      new_elo_p2: 1491,
+    });
+    const { result } = renderHook(() => useOnlineGame(baseOpts()));
+
+    await act(async () => {
+      await result.current.submitResult(0, 'disconnect', ['e2']);
+    });
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/games/g1/result',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const body = JSON.parse(vi.mocked(apiFetch).mock.calls[0]![1]!.body as string);
+    expect(body).toMatchObject({ winner_index: 0, reason: 'disconnect', move_history: ['e2'] });
+    expect(result.current.result).toEqual({ winner: 0, eloChange: 8, savedGameId: null });
+  });
+
   it('observeResult shows the outcome without posting', () => {
     const { result } = renderHook(() => useOnlineGame(baseOpts()));
     act(() => result.current.observeResult(1, 'saved-9'));

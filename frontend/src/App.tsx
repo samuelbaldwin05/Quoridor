@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { useBotGameSync } from './hooks/useBotGameSync';
 import { ChallengeRedirector } from './components/ChallengeRedirector';
 import { GamePage } from './pages/GamePage';
 import { RulesPage } from './pages/RulesPage';
@@ -21,6 +22,13 @@ function UsernameGuard({ children }: { children: React.ReactNode }) {
   if (isLoading) return null;
   if (needsUsername) return <Navigate to="/setup" replace />;
   return <>{children}</>;
+}
+
+// Side-effect-only: backfills local bot-game history to the backend once the user
+// is authenticated. Renders nothing.
+function BotGameSyncer() {
+  useBotGameSync();
+  return null;
 }
 
 function LandscapeBlocker() {
@@ -48,6 +56,7 @@ function App() {
         <AuthProvider>
           <LandscapeBlocker />
           <ChallengeRedirector />
+          <BotGameSyncer />
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/setup" element={<UsernameSetupPage />} />
