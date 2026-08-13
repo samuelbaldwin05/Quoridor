@@ -11,6 +11,8 @@ from app.core.exceptions import (
     ConflictError,
     CooldownError,
     DatabaseError,
+    EngineBusyError,
+    EngineUnavailableError,
     GameAlreadyFinishedError,
     InvalidMoveError,
     NotFoundError,
@@ -54,13 +56,24 @@ _STATUS_BY_EXCEPTION: dict[type[QuoridorError], int] = {
     ValidationError: 422,
     CooldownError: 429,
     DatabaseError: 500,
+    EngineBusyError: 503,
+    EngineUnavailableError: 503,
 }
+
+# How long a client should wait before asking the search engine again. Short, because the
+# client is expected to play the move with its own engine now and only come back next turn.
+_ENGINE_RETRY_AFTER_S = "2"
 
 
 @app.exception_handler(QuoridorError)
 async def quoridor_exception_handler(_: Request, exc: QuoridorError) -> JSONResponse:
     status = _STATUS_BY_EXCEPTION.get(type(exc), 500)
-    return JSONResponse(status_code=status, content={"detail": str(exc) or exc.__class__.__name__})
+    headers = {"Retry-After": _ENGINE_RETRY_AFTER_S} if status == 503 else None
+    return JSONResponse(
+        status_code=status,
+        content={"detail": str(exc) or exc.__class__.__name__},
+        headers=headers,
+    )
 
 
 @app.exception_handler(RateLimitExceeded)
