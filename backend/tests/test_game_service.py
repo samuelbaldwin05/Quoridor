@@ -94,18 +94,21 @@ def _mock_client(
     p1_elo: int = 1500,
     p2_elo: int = 1500,
     rpc_raises: Exception | None = None,
+    p1_games: int = 50,
+    p2_games: int = 50,
 ) -> MagicMock:
-    """Minimal Supabase mock: games select returns `game`; user elo selects return
-    p1_elo/p2_elo; rpc succeeds (or raises rpc_raises)."""
+    """Minimal Supabase mock: games select returns `game`; user rating selects return
+    p1_elo/p2_elo with their game counts (defaulting past the provisional window);
+    rpc succeeds (or raises rpc_raises)."""
     client = MagicMock()
 
     game_exec = MagicMock()
     game_exec.data = [game]
 
     p1_exec = MagicMock()
-    p1_exec.data = [{"elo": p1_elo}]
+    p1_exec.data = [{"elo": p1_elo, "games_played": p1_games}]
     p2_exec = MagicMock()
-    p2_exec.data = [{"elo": p2_elo}]
+    p2_exec.data = [{"elo": p2_elo, "games_played": p2_games}]
 
     user_eq_mock = MagicMock()
     user_eq_mock.limit.return_value.execute.side_effect = [p1_exec, p2_exec]

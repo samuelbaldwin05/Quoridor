@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { MatchmakingModal } from './MatchmakingModal';
 import { useAuth } from '@/hooks/useAuth';
 import { BOT_TIERS, selectableDifficulty } from '@/lib/botTiers';
+import { STARTING_ELO } from '@/lib/elo';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
 
 type PlayMode = Settings['gameMode'] | 'online';
@@ -30,7 +31,7 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
   const [timeControl, setTimeControl] = useState(300);
   const [showMatchmaking, setShowMatchmaking] = useState(false);
 
-  const userElo = profile?.elo ?? 500;
+  const userElo = profile?.elo ?? STARTING_ELO;
   const displayName = profile?.username ?? 'You';
 
   function handlePlay() {
