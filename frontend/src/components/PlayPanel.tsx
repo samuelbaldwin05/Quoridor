@@ -3,15 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { MatchmakingModal } from './MatchmakingModal';
 import { useAuth } from '@/hooks/useAuth';
 import { BOT_TIERS, selectableDifficulty } from '@/lib/botTiers';
+import { STARTING_ELO } from '@/lib/elo';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
 
 type PlayMode = Settings['gameMode'] | 'online';
 
-const TIME_CONTROLS: { seconds: number; label: string; sub: string }[] = [
-  { seconds: 180, label: '3 min', sub: 'Blitz' },
-  { seconds: 300, label: '5 min', sub: 'Rapid' },
-  { seconds: 600, label: '10 min', sub: 'Classic' },
-];
+// Online is a single 5-minute pool for now. Three time controls split a small player
+// base into three thin queues, and one queue that fills beats three that don't:
+// match_in_queue partitions strictly on time_control. The retired options were 180
+// (Blitz) and 600 (Classic); bringing them back means restoring the picker here and
+// threading the choice through MatchmakingModal again. Finished games at those controls
+// still exist, so the label maps in MatchmakingModal and ProfileModal keep all three.
+const ONLINE_TIME_CONTROL = 300;
+const ONLINE_BLURB = '5 minute online rapid play';
+const PASS_AND_PLAY_BLURB = 'Play a friend on the same device';
 
 interface PlayPanelProps {
   currentDifficulty: Settings['difficulty'];
@@ -27,10 +32,9 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
   const [difficulty, setDifficulty] = useState<Settings['difficulty']>(() =>
     selectableDifficulty(currentDifficulty, isGuest),
   );
-  const [timeControl, setTimeControl] = useState(300);
   const [showMatchmaking, setShowMatchmaking] = useState(false);
 
-  const userElo = profile?.elo ?? 500;
+  const userElo = profile?.elo ?? STARTING_ELO;
   const displayName = profile?.username ?? 'You';
 
   function handlePlay() {
@@ -62,7 +66,7 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
   ) {
     setShowMatchmaking(false);
     navigate(
-      `/game/online/${gameId}?role=${playerRole}&opponent=${encodeURIComponent(opponentName)}&opponentElo=${opponentElo}&tc=${timeControl}`,
+      `/game/online/${gameId}?role=${playerRole}&opponent=${encodeURIComponent(opponentName)}&opponentElo=${opponentElo}&tc=${ONLINE_TIME_CONTROL}`,
     );
   }
 
@@ -134,23 +138,9 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
             </div>
           )}
 
-          {mode === 'online' && !isGuest && (
-            <div className="bot-difficulty">
-              <p className="play-panel-heading">Time Control</p>
-              <div className="bot-option-list">
-                {TIME_CONTROLS.map((tc) => (
-                  <button
-                    key={tc.seconds}
-                    className={`bot-option${timeControl === tc.seconds ? ' bot-option-active' : ''}`}
-                    onClick={() => setTimeControl(tc.seconds)}
-                  >
-                    <span className="bot-option-label">{tc.label}</span>
-                    <span className="bot-option-desc">{tc.sub}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {mode === 'pass-and-play' && <p className="play-panel-note">{PASS_AND_PLAY_BLURB}</p>}
+
+          {mode === 'online' && !isGuest && <p className="play-panel-note">{ONLINE_BLURB}</p>}
         </div>
 
         <div className="play-panel-footer">
@@ -166,7 +156,7 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
 
       {showMatchmaking && (
         <MatchmakingModal
-          timeControl={timeControl}
+          timeControl={ONLINE_TIME_CONTROL}
           displayName={displayName}
           elo={userElo}
           onMatchFound={handleMatchFound}

@@ -139,8 +139,11 @@ def record_game_result(
     else:
         winner_index = 1 if caller_str == p1_id else 0
 
-    p1_resp = supabase.table("users").select("elo").eq("id", p1_id).limit(1).execute()
-    p2_resp = supabase.table("users").select("elo").eq("id", p2_id).limit(1).execute()
+    # games_played drives the provisional K taper. Read before the finalize RPC, which
+    # is what increments it, so these are correctly the pre-game counts.
+    cols = "elo, games_played"
+    p1_resp = supabase.table("users").select(cols).eq("id", p1_id).limit(1).execute()
+    p2_resp = supabase.table("users").select(cols).eq("id", p2_id).limit(1).execute()
     p1 = p1_resp.data[0] if p1_resp.data else None
     p2 = p2_resp.data[0] if p2_resp.data else None
     if not p1 or not p2:
@@ -149,11 +152,13 @@ def record_game_result(
     if winner_index == 0:
         winner_id, loser_id = p1_id, p2_id
         winner_elo, loser_elo = p1["elo"], p2["elo"]
+        winner_games, loser_games = p1.get("games_played", 0), p2.get("games_played", 0)
     else:
         winner_id, loser_id = p2_id, p1_id
         winner_elo, loser_elo = p2["elo"], p1["elo"]
+        winner_games, loser_games = p2.get("games_played", 0), p1.get("games_played", 0)
 
-    new_winner_elo, new_loser_elo = update_elos(winner_elo, loser_elo)
+    new_winner_elo, new_loser_elo = update_elos(winner_elo, loser_elo, winner_games, loser_games)
 
     is_p1_winner = winner_index == 0
     elo_change_p1 = (new_winner_elo - winner_elo) if is_p1_winner else (new_loser_elo - loser_elo)

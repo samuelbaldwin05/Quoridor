@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { STARTING_ELO } from '@/lib/elo';
 
 interface MatchmakingModalProps {
   timeControl: number; // 180 | 300 | 600
@@ -92,7 +93,7 @@ export function MatchmakingModal({
         if (data.status === 'matched' && data.matched_game_id) {
           setMatchInfo({
             opponentName: data.opponent_name ?? 'Opponent',
-            opponentElo: data.opponent_elo ?? 500,
+            opponentElo: data.opponent_elo ?? STARTING_ELO,
             gameId: data.matched_game_id,
             playerRole: data.player_role ?? 0,
           });
@@ -128,7 +129,7 @@ export function MatchmakingModal({
           if (pollRef.current) clearInterval(pollRef.current);
           setMatchInfo({
             opponentName: data.opponent_name ?? 'Opponent',
-            opponentElo: data.opponent_elo ?? 500,
+            opponentElo: data.opponent_elo ?? STARTING_ELO,
             gameId: data.matched_game_id,
             playerRole: data.player_role ?? 0,
           });

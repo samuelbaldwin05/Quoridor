@@ -379,3 +379,55 @@ importing torch on first hit is exactly the kind of hang that produces it.
 The tradeoff on the shorter profile deadline is that giving up leaves `profile` null, so a
 brand-new user skips the /setup redirect for that load and the Elo label shows a placeholder.
 Both recover on a reload, and neither is a blank screen.
+
+## Ratings are on a doubled scale with a provisional K taper
+
+Every player starts at 1000, bounded to [200, 5000]. The expected-score divisor is 800
+and K runs from 128 down to 64 across a player's first 20 ranked games (`games_played`,
+which counts ranked online games only). Losses are still scaled by a `LOSS_MULTIPLIER`,
+reduced from 1.1 to 1.05. Migration 019 carries the durable schema half (the `users.elo`
+default and the bounds inside `submit_game_result`, which clamps the deltas it applies
+and would otherwise pin every rescaled rating back to 2500). The one-time re-denomination
+of existing rows, `new = 1000 + 2 * (old - 500)` plus doubled `games.elo_change_*`, queue
+ratings, and puzzle estimates, was run by hand against the database after this deployed,
+and is not in the repo: a single historical data edit is not something every future
+`db reset` should replay. The matchmaking bands and the `eloColor` tiers doubled in the
+same change because they are measured in rating units.
+
+Why the doubling: divisor and K were scaled together, so this is the identical rating
+system in new units. Nothing about the ordering or the predictions changed. It buys
+legibility only, a +32 for an even game instead of a +16, and a ladder that reads like
+one. Rescaling the base alone would not have held: the old K=32 updates would have
+compressed the spread back toward its natural width within a few hundred games.
+
+Why the taper: K was previously a flat 32 for everyone, so a first-game player and a
+500-game veteran moved at identical speed and a newcomer needed ~30 games to reach their
+real level. Per-player K means the two deltas in a game are no longer mirror images (a
+settled player beating a brand-new one gains on K=64 while the newcomer drops on K=128),
+so points leave the pool somewhat faster than `LOSS_MULTIPLIER` alone implies.
+
+Why 1.05 rather than 1.1: the multiplier is a sink against inflation, but with a fixed
+start and no bonuses, floors, or decay refunds, there is nothing injecting points to
+offset. 1.1 drained ~5% of every loss out of the pool with nothing balancing it. 1.05 is
+the hedge: the pool drifts slightly down rather than slightly up. Dropping it to 1.0 was
+considered and deferred, not rejected.
+
+## Online play is a single 5-minute pool
+
+Matchmaking offers one time control. The 3 min and 10 min options are gone from
+`PlayPanel`, and where the picker used to be there is now a plain line reading "5 minute
+online rapid play", with the same treatment for pass and play. `ONLINE_TIME_CONTROL`
+still threads the value through to `MatchmakingModal` and the game URL.
+
+Why: `match_in_queue` partitions strictly on `time_control`, so three options are three
+separate queues. At the current player count that is three queues that rarely fill rather
+than one that does, and a queue nobody matches in is worse than a format nobody picked.
+Friend challenges already default to 300, so they don't dilute it either.
+
+Why a line of text and not a single button: a one-option picker that is permanently
+active and can't be deselected reads as a broken control. The retired seconds values are
+recorded in a comment above `ONLINE_TIME_CONTROL`, and finished games at 3 and 10 min
+still exist, so the label maps in `MatchmakingModal` and `ProfileModal` keep all three.
+
+Not enforced server-side: nothing rejects a crafted queue join at another time control.
+That player would simply never match, which is harmless, so it stayed a client concern.

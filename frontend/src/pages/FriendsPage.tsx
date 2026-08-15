@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { NavSidebar } from '@/components/NavSidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { apiFetch } from '@/lib/api';
-import { eloColor } from '@/lib/elo';
+import { eloColor, STARTING_ELO } from '@/lib/elo';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -215,7 +215,7 @@ export function FriendsPage() {
       if (result.game_id) {
         // The accepter is the challenged player, so the opponent is the challenger.
         navigate(
-          `/game/online/${result.game_id}?role=1&opponent=${encodeURIComponent(challengerName ?? 'Opponent')}&opponentElo=${challengerElo ?? 500}&tc=${timeControl}`,
+          `/game/online/${result.game_id}?role=1&opponent=${encodeURIComponent(challengerName ?? 'Opponent')}&opponentElo=${challengerElo ?? STARTING_ELO}&tc=${timeControl}`,
         );
       }
     } finally {

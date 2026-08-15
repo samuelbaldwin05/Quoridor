@@ -1780,6 +1780,17 @@ body {
   margin: 0 0 4px;
 }
 
+/* Standing-in-for-a-picker line: says what the mode gives you when there is nothing
+   left to choose. Deliberately not styled like .bot-option, so it never reads as a
+   button that has stopped working. */
+.play-panel-note {
+  font-size: 12px;
+  color: var(--text-primary);
+  opacity: 0.5;
+  margin: 6px 0 0;
+  padding: 0 2px;
+}
+
 .play-mode-list {
   display: flex;
   flex-direction: column;

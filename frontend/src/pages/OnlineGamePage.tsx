@@ -20,6 +20,7 @@ import { useOnlineGame } from '@/hooks/useOnlineGame';
 import { useTheme } from '@/hooks/useTheme';
 import { useAudio } from '@/hooks/useAudio';
 import { apiFetch } from '@/lib/api';
+import { STARTING_ELO } from '@/lib/elo';
 import { saveGame } from '@/lib/gameStorage';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -47,7 +48,7 @@ export function OnlineGamePage() {
 
   const myRole = parseInt(searchParams.get('role') ?? '0') as 0 | 1;
   const opponentName = searchParams.get('opponent') ?? 'Opponent';
-  const opponentElo = parseInt(searchParams.get('opponentElo') ?? '500');
+  const opponentElo = parseInt(searchParams.get('opponentElo') ?? String(STARTING_ELO));
   const timeControl = parseInt(searchParams.get('tc') ?? '300');
   const myUserId = profile?.id ?? '';
 
@@ -475,7 +476,7 @@ export function OnlineGamePage() {
 
   const opponentIndex: 0 | 1 = myRole === 0 ? 1 : 0;
   const myName = profile?.username ?? 'You';
-  const myElo = profile?.elo ?? 500;
+  const myElo = profile?.elo ?? STARTING_ELO;
 
   const topLabel = `${opponentName} · ${opponentElo}`;
   const bottomLabel = `${myName} · ${myElo}`;

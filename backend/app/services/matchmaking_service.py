@@ -12,13 +12,15 @@ from app.schemas.user import UserRead
 
 logger = logging.getLogger(__name__)
 
-ELO_BAND_BASE = 100  # band at t=0
-ELO_BAND_SCALE = 0.5  # coefficient for quadratic growth (50 ELO after 10s)
-ELO_BAND_MAX = 2500  # hard cap (~70s to reach)
+# Band widths are in rating units, so they scale with the rating system (see
+# elo_service.ELO_DIVISOR) — these are double their pre-rescale values.
+ELO_BAND_BASE = 200  # band at t=0
+ELO_BAND_SCALE = 1.0  # coefficient for quadratic growth (100 ELO after 10s)
+ELO_BAND_MAX = 5000  # hard cap (~70s to reach)
 
 
 def _compute_elo_band(joined_at_iso: str) -> int:
-    """ELO band grows quadratically — barely widens in the first 10s (~50),
+    """ELO band grows quadratically — barely widens in the first 10s (~100),
     then accelerates, capping at ELO_BAND_MAX around 70s of waiting."""
     try:
         joined_at = datetime.fromisoformat(joined_at_iso.replace("Z", "+00:00"))

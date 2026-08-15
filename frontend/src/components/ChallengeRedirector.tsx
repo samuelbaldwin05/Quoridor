@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { apiFetch } from '@/lib/api';
+import { STARTING_ELO } from '@/lib/elo';
 
 interface ChallengeEntry {
   id: string;
@@ -55,7 +56,7 @@ export function ChallengeRedirector() {
         // The challenger is player 0; the opponent is the challenged player.
         const opponent = encodeURIComponent(accepted.challenged_name ?? 'Opponent');
         navigate(
-          `/game/online/${accepted.game_id}?role=0&opponent=${opponent}&opponentElo=${accepted.challenged_elo ?? 500}&tc=${accepted.time_control}`,
+          `/game/online/${accepted.game_id}?role=0&opponent=${opponent}&opponentElo=${accepted.challenged_elo ?? STARTING_ELO}&tc=${accepted.time_control}`,
         );
       } catch {
         // ignore poll failures
