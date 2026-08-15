@@ -411,3 +411,23 @@ start and no bonuses, floors, or decay refunds, there is nothing injecting point
 offset. 1.1 drained ~5% of every loss out of the pool with nothing balancing it. 1.05 is
 the hedge: the pool drifts slightly down rather than slightly up. Dropping it to 1.0 was
 considered and deferred, not rejected.
+
+## Online play is a single 5-minute pool
+
+Matchmaking offers one time control. The 3 min and 10 min options are gone from
+`PlayPanel`, and where the picker used to be there is now a plain line reading "5 minute
+online rapid play", with the same treatment for pass and play. `ONLINE_TIME_CONTROL`
+still threads the value through to `MatchmakingModal` and the game URL.
+
+Why: `match_in_queue` partitions strictly on `time_control`, so three options are three
+separate queues. At the current player count that is three queues that rarely fill rather
+than one that does, and a queue nobody matches in is worse than a format nobody picked.
+Friend challenges already default to 300, so they don't dilute it either.
+
+Why a line of text and not a single button: a one-option picker that is permanently
+active and can't be deselected reads as a broken control. The retired seconds values are
+recorded in a comment above `ONLINE_TIME_CONTROL`, and finished games at 3 and 10 min
+still exist, so the label maps in `MatchmakingModal` and `ProfileModal` keep all three.
+
+Not enforced server-side: nothing rejects a crafted queue join at another time control.
+That player would simply never match, which is harmless, so it stayed a client concern.
