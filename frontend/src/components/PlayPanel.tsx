@@ -58,6 +58,15 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
     onPlay(difficulty, gameMode);
   }
 
+  // Offered when a search ends with an empty pool. Starts the currently selected bot tier
+  // rather than dropping the player back on the panel to click twice more. Only reachable
+  // while signed in (online play is), so the members-only tiers are all fair game.
+  function handlePlayBotInstead() {
+    setShowMatchmaking(false);
+    setMode('vs-bot');
+    onPlay(selectableDifficulty(difficulty, isGuest), 'vs-bot');
+  }
+
   function handleMatchFound(
     gameId: string,
     opponentName: string,
@@ -161,6 +170,7 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
           elo={userElo}
           onMatchFound={handleMatchFound}
           onCancel={() => setShowMatchmaking(false)}
+          onPlayBot={handlePlayBotInstead}
         />
       )}
     </>

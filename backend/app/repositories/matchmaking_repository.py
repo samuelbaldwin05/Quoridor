@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import logging
+from datetime import UTC, datetime
+
 from supabase import Client
 
 from app.core.exceptions import DatabaseError
 from app.repositories._pg_errors import is_unique_violation
+
+logger = logging.getLogger(__name__)
 
 
 def get_queue_entry(client: Client, player_key: str) -> dict | None:
@@ -31,6 +36,34 @@ def insert_queue_entry(client: Client, entry: dict) -> bool:
             return False
         raise DatabaseError("queue insert failed") from exc
     return True
+
+
+def touch_queue_entry(client: Client, player_key: str, restart_wait: bool = False) -> None:
+    """Refresh a waiting row's heartbeat so the sweep leaves it alone. `restart_wait`
+    also resets joined_at, which restarts both the search cap and the ELO band widening
+    for a player starting a new search. Best-effort: a missed heartbeat only risks an
+    early sweep, and failing the poll it rides on would be worse."""
+    patch: dict[str, str] = {"last_polled_at": datetime.now(UTC).isoformat()}
+    if restart_wait:
+        patch["joined_at"] = patch["last_polled_at"]
+    try:
+        client.table("matchmaking_queue").update(patch).eq("player_key", player_key).execute()
+    except Exception:
+        logger.debug("queue heartbeat failed for %s", player_key, exc_info=True)
+
+
+def cleanup_stale_entries(client: Client, idle_seconds: int, max_wait_seconds: int) -> None:
+    """Drop waiting rows whose client stopped polling or that outstayed the search cap,
+    so nobody is matched into a game the opponent already walked away from. Best-effort
+    for the same reason the challenge cleanup is: it is housekeeping on someone else's
+    request."""
+    try:
+        client.rpc(
+            "cleanup_stale_queue_entries",
+            {"p_idle_seconds": idle_seconds, "p_max_wait_seconds": max_wait_seconds},
+        ).execute()
+    except Exception:
+        logger.debug("queue cleanup failed", exc_info=True)
 
 
 def delete_queue_entry(client: Client, player_key: str) -> None:

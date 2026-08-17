@@ -3426,6 +3426,11 @@ body {
   font-size: 36px;
 }
 
+/* Search ended without a match: capped out, or paused when the tab went away. */
+.matchmaking-idle-icon {
+  font-size: 36px;
+}
+
 /* ── Login Page ─────────────────────────────────────────────────────────────── */
 .login-card {
   background: var(--secondary-bg);

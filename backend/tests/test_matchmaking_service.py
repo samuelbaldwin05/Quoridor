@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from app.repositories import challenge_repository, matchmaking_repository
@@ -49,15 +49,39 @@ class TestComputeEloBand:
 class TestJoinQueue:
     def test_existing_waiting_returns_waiting_without_inserting(self, monkeypatch) -> None:
         inserted: list = []
+        restarted: list = []
         monkeypatch.setattr(
             matchmaking_repository, "get_queue_entry", lambda c, k: {"matched_game_id": None}
         )
         monkeypatch.setattr(
             matchmaking_repository, "insert_queue_entry", lambda c, e: inserted.append(e)
         )
+        monkeypatch.setattr(
+            matchmaking_repository,
+            "touch_queue_entry",
+            lambda c, k, restart_wait=False: restarted.append(restart_wait),
+        )
         status = matchmaking_service.join_queue(CLIENT, _user(), 300)
         assert status.status == "waiting"
         assert inserted == []
+        assert restarted == [True], "a new Find Match restarts the surviving row's clock"
+
+    def test_join_sweeps_before_reading_the_caller_row(self, monkeypatch) -> None:
+        calls: list = []
+        monkeypatch.setattr(
+            matchmaking_repository,
+            "cleanup_stale_entries",
+            lambda c, idle, max_wait: calls.append("sweep"),
+        )
+        monkeypatch.setattr(
+            matchmaking_repository, "get_queue_entry", lambda c, k: calls.append("read") or None
+        )
+        monkeypatch.setattr(matchmaking_repository, "insert_queue_entry", lambda c, e: True)
+        monkeypatch.setattr(challenge_repository, "cancel_challenges_for_user", lambda c, u: None)
+        monkeypatch.setattr(matchmaking_repository, "match_in_queue", lambda *a: None)
+
+        matchmaking_service.join_queue(CLIENT, _user(), 300)
+        assert calls[:2] == ["sweep", "read"]
 
     def test_no_existing_inserts_and_matches(self, monkeypatch) -> None:
         monkeypatch.setattr(matchmaking_repository, "get_queue_entry", lambda c, k: None)
@@ -135,6 +159,82 @@ class TestQueueStatus:
             lambda c, k: {
                 "matched_game_id": None,
                 "joined_at": datetime.now(UTC).isoformat(),
+                "time_control": 300,
+            },
+        )
+        monkeypatch.setattr(matchmaking_repository, "match_in_queue", lambda *a: None)
+        assert matchmaking_service.queue_status(CLIENT, _user()).status == "waiting"
+
+    def test_waiting_poll_beats_the_heartbeat_and_sweeps(self, monkeypatch) -> None:
+        touched: list = []
+        swept: list = []
+        monkeypatch.setattr(
+            matchmaking_repository,
+            "get_queue_entry",
+            lambda c, k: {
+                "matched_game_id": None,
+                "joined_at": datetime.now(UTC).isoformat(),
+                "time_control": 300,
+            },
+        )
+        monkeypatch.setattr(
+            matchmaking_repository,
+            "touch_queue_entry",
+            lambda c, k, restart_wait=False: touched.append(k),
+        )
+        monkeypatch.setattr(
+            matchmaking_repository,
+            "cleanup_stale_entries",
+            lambda c, idle, max_wait: swept.append((idle, max_wait)),
+        )
+        monkeypatch.setattr(matchmaking_repository, "match_in_queue", lambda *a: None)
+
+        user = _user()
+        assert matchmaking_service.queue_status(CLIENT, user).status == "waiting"
+        assert touched == [str(user.id)], "a live poll must refresh the row's heartbeat"
+        assert swept == [
+            (
+                matchmaking_service.QUEUE_IDLE_TIMEOUT_SECONDS,
+                matchmaking_service.QUEUE_MAX_WAIT_SECONDS,
+            )
+        ]
+
+    def test_past_the_cap_expires_the_row(self, monkeypatch) -> None:
+        deleted: list = []
+        matched: list = []
+        stale = datetime.now(UTC) - timedelta(
+            seconds=matchmaking_service.QUEUE_MAX_WAIT_SECONDS + 1
+        )
+        monkeypatch.setattr(
+            matchmaking_repository,
+            "get_queue_entry",
+            lambda c, k: {
+                "matched_game_id": None,
+                "joined_at": stale.isoformat(),
+                "time_control": 300,
+            },
+        )
+        monkeypatch.setattr(
+            matchmaking_repository, "delete_queue_entry", lambda c, k: deleted.append(k)
+        )
+        monkeypatch.setattr(matchmaking_repository, "match_in_queue", lambda *a: matched.append(a))
+
+        user = _user()
+        status = matchmaking_service.queue_status(CLIENT, user)
+        assert status.status == "expired"
+        assert deleted == [str(user.id)]
+        assert matched == [], "an expired search must not be paired with anyone"
+
+    def test_just_under_the_cap_keeps_searching(self, monkeypatch) -> None:
+        fresh = datetime.now(UTC) - timedelta(
+            seconds=matchmaking_service.QUEUE_MAX_WAIT_SECONDS - 10
+        )
+        monkeypatch.setattr(
+            matchmaking_repository,
+            "get_queue_entry",
+            lambda c, k: {
+                "matched_game_id": None,
+                "joined_at": fresh.isoformat(),
                 "time_control": 300,
             },
         )
