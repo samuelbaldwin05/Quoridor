@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from supabase import Client
 
-from app.repositories import challenge_repository, matchmaking_repository
+from app.repositories import challenge_repository, game_repository, matchmaking_repository
 from app.schemas.matchmaking import QueueStatus
 from app.schemas.user import UserRead
 
@@ -25,6 +25,10 @@ QUEUE_IDLE_TIMEOUT_SECONDS = 45
 # The search cap, and the only definition of it. The client does not carry its own copy;
 # it is told how long it has left on each join and poll (QueueStatus.expires_in_seconds).
 QUEUE_MAX_WAIT_SECONDS = 300
+
+# How long a game may sit in 'playing' with no move before it is treated as abandoned by
+# both players. No real game runs anywhere near this, so nothing live is ever retired.
+ABANDONED_GAME_IDLE_HOURS = 12
 
 
 def _waited_seconds(joined_at_iso: str) -> float:
@@ -97,6 +101,10 @@ def join_queue(client: Client, user: UserRead, time_control: int) -> QueueStatus
     # closed tab would otherwise answer "waiting" to a player who is standing right here
     # asking to search, and it would keep its original deadline while doing it.
     _sweep(client)
+    # Retiring abandoned games has nothing to do with matchmaking, but someone starting a
+    # search is the closest thing this app has to a regular tick, and there is no cron. It
+    # is one indexed UPDATE that normally touches nothing.
+    game_repository.cleanup_abandoned_games(client, ABANDONED_GAME_IDLE_HOURS)
 
     existing = matchmaking_repository.get_queue_entry(client, player_key)
     if existing:
