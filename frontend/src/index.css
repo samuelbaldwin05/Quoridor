@@ -1607,9 +1607,26 @@ body {
   padding-top: 8px;
 }
 
-/* Right-side slot in header/footer (timer card) */
+/* Left-side name slot: gives up width first so the right slot always fits. */
+.game-card-header > span:first-child,
+.game-card-footer > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Right-side slot in header/footer: fence chip, status note, timer card. A flex row,
+   not an inline span — the timer row inside is a block, so inline layout broke it onto
+   its own line and stacked the chip above the clock on mobile. */
 .game-card-header-right {
   opacity: 1; /* override the parent 0.75 opacity */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  gap: 6px;
+  margin-left: 8px;
 }
 
 .game-card-body {
@@ -3870,13 +3887,14 @@ body {
   background: var(--secondary-bg);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 7px;
-  padding: 3px 10px;
+  /* Padding and size track .online-timer-card so the chip and the clock sit as one
+     row of equal-height boxes rather than two mismatched blocks. */
+  padding: 4px 12px;
   font-family: 'Courier New', monospace;
-  font-size: 13px;
+  font-size: clamp(12px, 1.5vmin, 16px);
   font-weight: 700;
   color: rgba(255, 255, 255, 0.85);
   letter-spacing: 0.04em;
-  margin-right: 6px;
   white-space: nowrap;
   opacity: 1;
 }
