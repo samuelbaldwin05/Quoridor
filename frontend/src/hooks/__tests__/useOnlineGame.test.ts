@@ -6,7 +6,11 @@ import type { Move } from '@/engine/gameTypes';
 // The hook talks to Supabase Realtime and the REST API — mock both at the module
 // boundary so the socket/turn flow can be driven deterministically in jsdom.
 vi.mock('@/lib/supabase', () => ({
-  supabase: { channel: vi.fn(), removeChannel: vi.fn() },
+  supabase: {
+    channel: vi.fn(),
+    removeChannel: vi.fn(),
+    realtime: { setAuth: vi.fn(async () => {}) },
+  },
 }));
 vi.mock('@/lib/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/api')>()),
@@ -80,11 +84,19 @@ afterEach(() => {
 });
 
 describe('useOnlineGame subscription', () => {
-  it('subscribes to the per-game topic with self-broadcast disabled', () => {
+  it('subscribes to the per-game topic privately, with self-broadcast disabled', () => {
+    // private: true is half of a pair. The other half is migration 024, whose policies
+    // restrict topic game:{id} to the two players; without the flag they do nothing, and
+    // without the policies the flag blocks everything.
     renderHook(() => useOnlineGame(baseOpts()));
     expect(supabase.channel).toHaveBeenCalledWith('game:g1', {
-      config: { broadcast: { self: false } },
+      config: { private: true, broadcast: { self: false } },
     });
+  });
+
+  it('hands Realtime the session token, without which a private channel is dead', () => {
+    renderHook(() => useOnlineGame(baseOpts()));
+    expect(supabase.realtime.setAuth).toHaveBeenCalled();
   });
 
   it('removes the channel on unmount', () => {

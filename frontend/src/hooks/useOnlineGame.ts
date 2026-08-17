@@ -138,15 +138,24 @@ export function useOnlineGame({
   });
 
   useEffect(() => {
-    // NOTE: this channel is not private. The backend is authoritative over every
-    // move + the result (see /games/{id}/move and /result), so a forged broadcast
-    // can't fabricate a ranked outcome — but it can still grief (fake resign/abort,
-    // desync). To close that, enable a private channel: add `private: true` here
-    // AND apply a Realtime authorization policy restricting topic game:{id} to the
-    // two participants. Left off until that policy is verified live (a wrong policy
-    // silently blocks ALL realtime).
+    // Private channel: Realtime checks RLS on realtime.messages for both receiving and
+    // sending, and migration 024 restricts topic game:{id} to the game's two players.
+    // The backend is already authoritative over moves and results, so this is not what
+    // stops a forged ranked outcome; it stops griefing (a fake resign or abort, a junk
+    // move that desyncs both clients) and reading a live position.
+    //
+    // The flag and the migration are coupled: a private channel with no policy, or a
+    // policy with a public channel, silently does nothing useful. Failure mode to know:
+    // if the policy is wrong, ALL realtime stops with no error, so moves stop arriving
+    // and both players look permanently absent to each other.
+    //
+    // setAuth hands Realtime the current session's token. supabase-js normally does this
+    // itself on auth changes, but a private channel is dead without it, so it is made
+    // explicit here rather than assumed. A caller with no session (nobody, in practice:
+    // online play requires signing in) simply gets no authorization and no traffic.
+    void supabase.realtime.setAuth();
     const channel = supabase.channel(`game:${gameId}`, {
-      config: { broadcast: { self: false } },
+      config: { private: true, broadcast: { self: false } },
     });
     channelRef.current = channel;
 
