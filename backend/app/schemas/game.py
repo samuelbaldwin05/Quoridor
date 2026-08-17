@@ -161,6 +161,11 @@ class GameDetail(BaseModel):
     player2_name: str | None
     winner_index: int | None
     move_history: list[str]
+    # Null until the game finalizes. Carried here so the winner of a forfeit can read the
+    # delta it earned them: only the forfeiting player may submit that result, so the
+    # winner's client never gets a response with the numbers in it.
+    elo_change_p1: int | None = None
+    elo_change_p2: int | None = None
     completed_at: datetime | None
     created_at: datetime
 

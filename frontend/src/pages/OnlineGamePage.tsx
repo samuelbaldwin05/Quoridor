@@ -16,7 +16,7 @@ import type { GameState, Move, PlayerIndex, Position, Wall } from '@/engine/game
 import { useAuth } from '@/hooks/useAuth';
 import { useGame } from '@/hooks/useGame';
 import { useKeyboard, type KeyAction } from '@/hooks/useKeyboard';
-import { useOnlineGame } from '@/hooks/useOnlineGame';
+import { useOnlineGame, type ResultReason } from '@/hooks/useOnlineGame';
 import { useTheme } from '@/hooks/useTheme';
 import { useAudio } from '@/hooks/useAudio';
 import { apiFetch } from '@/lib/api';
@@ -90,7 +90,7 @@ export function OnlineGamePage() {
   // For "disconnect" the present player submits and the backend awards them the win,
   // but only if it is genuinely the absent player's turn (server turn-guard).
   const terminalRef = useRef<{
-    reason: 'win' | 'resign' | 'timeout' | 'disconnect';
+    reason: ResultReason;
     mine: boolean;
   } | null>(null);
 
@@ -108,6 +108,7 @@ export function OnlineGamePage() {
     broadcastTimeout,
     broadcastAbort,
     submitResult,
+    retrySubmitResult,
     observeResult,
   } = useOnlineGame({
     gameId: gameId ?? '',
@@ -171,8 +172,9 @@ export function OnlineGamePage() {
 
   // Submit result when game finishes (skipped if aborted — no ELO change either way).
   // Board win: send the full move history so the backend can replay + confirm the
-  // winner. Resign/timeout: only the forfeiting player submits (caller = loser);
-  // the winner just observes and lets refreshProfile() pick up the new ELO.
+  // winner. Resign/timeout: only the forfeiting player submits (caller = loser); the
+  // winner observes instead, and observeResult reads the delta back off the game once
+  // that write lands.
   useEffect(() => {
     if (aborted) return;
     if (state.game.status === 'finished' && result === null) {
@@ -637,6 +639,23 @@ export function OnlineGamePage() {
               <p className="online-elo-change">
                 ELO {result.eloChange > 0 ? '+' : ''}
                 {result.eloChange}
+              </p>
+            )}
+            {result.recordStatus === 'recording' && (
+              <p className="online-result-note">Recording result…</p>
+            )}
+            {/* A failed recording is not a cosmetic gap: the game is not in the database
+                at all, so no rating moved and it will not appear in history. Say so. */}
+            {result.recordStatus === 'failed' && (
+              <p className="online-result-note online-result-note-warn">
+                Couldn&apos;t record this game, so no rating changed.{' '}
+                <button
+                  type="button"
+                  className="online-result-retry"
+                  onClick={() => void retrySubmitResult()}
+                >
+                  Try again
+                </button>
               </p>
             )}
             <div className="win-lose-buttons">

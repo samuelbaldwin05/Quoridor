@@ -373,6 +373,8 @@ def get_game_detail(supabase: Client, game_id: UUID) -> GameDetail:
         player2_name=row.get("player2_name"),
         winner_index=row.get("winner_index"),
         move_history=row.get("move_history") or [],
+        elo_change_p1=row.get("elo_change_p1"),
+        elo_change_p2=row.get("elo_change_p2"),
         completed_at=row.get("completed_at"),
         created_at=row["created_at"],
     )

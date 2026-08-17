@@ -3672,6 +3672,28 @@ body {
   text-decoration: underline;
 }
 
+/* Whether the result actually reached the backend, under the win/lose title. */
+.online-result-note {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+  text-align: center;
+}
+
+.online-result-note-warn {
+  color: var(--hover-danger);
+}
+
+.online-result-retry {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: var(--modal-accent);
+  text-decoration: underline;
+}
+
 /* ELO change after online game result */
 .online-elo-change {
   font-size: 18px;
