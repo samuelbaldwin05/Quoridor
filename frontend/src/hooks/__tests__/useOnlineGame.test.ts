@@ -66,6 +66,7 @@ const baseOpts = () => ({
   onOpponentResigned: vi.fn(),
   onOpponentTimeout: vi.fn(),
   onOpponentAborted: vi.fn(),
+  onOpponentClaimedWin: vi.fn(),
 });
 
 beforeEach(() => {
@@ -192,6 +193,27 @@ describe('useOnlineGame outbound broadcasts', () => {
       event: 'abort',
       payload: {},
     });
+  });
+});
+
+describe('useOnlineGame forfeit broadcast', () => {
+  it('sends a forfeit event that says nothing about who won', () => {
+    const { result } = renderHook(() => useOnlineGame(baseOpts()));
+    act(() => result.current.broadcastForfeit());
+    expect(channel.send).toHaveBeenCalledWith({
+      type: 'broadcast',
+      event: 'forfeit',
+      payload: {},
+    });
+  });
+
+  it('hands a received forfeit to the caller to verify', () => {
+    // The receiver checks the server rather than believing the broadcast, so all the
+    // hook does is pass the nudge along.
+    const opts = baseOpts();
+    renderHook(() => useOnlineGame(opts));
+    act(() => channel.fire('forfeit'));
+    expect(opts.onOpponentClaimedWin).toHaveBeenCalledTimes(1);
   });
 });
 

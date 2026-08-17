@@ -153,6 +153,14 @@ The server, not the client, decides outcomes. This is the anti-cheat core.
   fit the local history now asks the server for the authoritative one (twice at most)
   before aborting, and broadcasts that arrive during the bootstrap are queued rather than
   judged against a board this client has not loaded yet.
+- A player who claims the win (disconnect forfeit or flag) also broadcasts `forfeit`. The
+  other client does not believe it: it re-reads the game from the server, a few times,
+  since the claim only becomes true once the server has it. A tab returning from the
+  background re-reads too, which is how the player who was flagged while asleep finds out
+  at all. The flag claim waits `FLAG_CLAIM_GRACE_MS` after the clock reads zero, because
+  the server will not honour it until its own reconstruction is past zero by
+  `FLAG_CLAIM_MARGIN_SECONDS`; the same shape as the disconnect grace sitting above the
+  server's dwell.
 - The frontend is confirm-then-apply: a move is sent to the backend and only applied
   locally and broadcast once the backend accepts it. A double-submit guard prevents
   duplicates.

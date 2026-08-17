@@ -35,6 +35,14 @@ const WAITING_DEBOUNCE_MS = 4000;
 // How many times a broadcast this client cannot apply may send it back to the server for
 // the authoritative history before the game is written off as genuinely desynced.
 const MAX_RESYNCS = 2;
+// How long the opponent's clock must sit at zero before this client claims the flag. The
+// server only honours a claim once its own reconstruction puts them FLAG_CLAIM_MARGIN_
+// SECONDS past zero, and at 0:00 the two clocks agree, so claiming on the tick would be
+// rejected. Same shape as the disconnect grace sitting above the server's dwell.
+const FLAG_CLAIM_GRACE_MS = 14000;
+// A claim the other side made is verified against the server, not believed. It may take a
+// moment to land there (the claimant retries a failed POST), so ask more than once.
+const FORFEIT_CHECK_DELAYS_MS = [0, 2000, 5000];
 
 // Why a game ended with no result. The overlay used to say "no move within 20 seconds"
 // whatever had happened, which was the wrong story for three of these four.
@@ -154,6 +162,7 @@ export function OnlineGamePage() {
     broadcastMove,
     broadcastResign,
     broadcastTimeout,
+    broadcastForfeit,
     broadcastAbort,
     submitResult,
     retrySubmitResult,
@@ -199,6 +208,11 @@ export function OnlineGamePage() {
       // The other client could not reconcile with ours. Same event, other side of it.
       abortGame('desync');
     }, [abortGame]),
+    onOpponentClaimedWin: useCallback(() => {
+      // They say they have won on our clock or our absence. Go and read the game rather
+      // than take their word for it: if the server agrees, the snapshot says so.
+      void checkForForfeitRef.current();
+    }, []),
   });
 
   // Adopt the server's copy of the game. This is the difference between opening a game
@@ -238,9 +252,20 @@ export function OnlineGamePage() {
     [dispatch, myUserId, timeControl, observeResult, abortGame],
   );
 
-  // Re-read the server's history when a broadcast doesn't fit ours, then replay anything
-  // that queued up while we were asking. Bounded: a client that cannot be reconciled twice
-  // is genuinely desynced and falls through to the abort.
+  // Read the server's copy of the game and adopt it. Returns its status so a caller can
+  // tell "still going" from "over", or null if the server could not be reached.
+  const refreshFromServer = useCallback(async (): Promise<GameSnapshot['status'] | null> => {
+    try {
+      const snapshot = await apiFetch<GameSnapshot>(`/games/${gameId}`);
+      applySnapshot(snapshot);
+      return snapshot.status;
+    } catch {
+      return null;
+    }
+  }, [gameId, applySnapshot]);
+
+  // Re-read the server's history when a broadcast doesn't fit ours. Bounded: a client that
+  // cannot be reconciled twice is genuinely desynced and falls through to the abort.
   const resyncCountRef = useRef(0);
   const resyncRef = useRef<() => Promise<void>>(async () => {});
   const resync = useCallback(async () => {
@@ -250,19 +275,45 @@ export function OnlineGamePage() {
       return;
     }
     resyncCountRef.current += 1;
-    try {
-      const snapshot = await apiFetch<GameSnapshot>(`/games/${gameId}`);
-      applySnapshot(snapshot);
-      // Whatever queued is either already in that history or older than it.
-      queuedMovesRef.current = [];
-    } catch {
+    const status = await refreshFromServer();
+    if (status === null) {
       broadcastAbortRef.current();
       abortGame('desync');
+      return;
     }
-  }, [gameId, applySnapshot, abortGame]);
+    // Whatever queued is either already in that history or older than it.
+    queuedMovesRef.current = [];
+  }, [refreshFromServer, abortGame]);
   useEffect(() => {
     resyncRef.current = resync;
   }, [resync]);
+
+  // The opponent says they have claimed the win. Their claim is only true once the server
+  // has it, and they may still be retrying a failed POST, so ask a few times before
+  // letting it go. If the server never agrees, nothing here changes and play continues.
+  const checkForForfeitRef = useRef<() => Promise<void>>(async () => {});
+  const checkForForfeit = useCallback(async () => {
+    for (const delay of FORFEIT_CHECK_DELAYS_MS) {
+      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+      const status = await refreshFromServer();
+      if (status !== null && status !== 'playing') return;
+    }
+  }, [refreshFromServer]);
+  useEffect(() => {
+    checkForForfeitRef.current = checkForForfeit;
+  }, [checkForForfeit]);
+
+  // Coming back to a tab that was away: it may have missed moves, or the game may have
+  // ended without it (a flag claim it never received). Ask instead of assuming. This is
+  // the recovery for the case the flag claim exists to handle, seen from the losing side.
+  useEffect(() => {
+    if (state.game.status !== 'playing' || aborted || result !== null) return;
+    const onVisibilityChange = () => {
+      if (!document.hidden) void refreshFromServer();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [state.game.status, aborted, result, refreshFromServer]);
 
   // Guarded so the one-time side effects (DELETE, start sound) fire exactly once even
   // under StrictMode's dev double-invoke. Held until auth settles, because the snapshot
@@ -405,23 +456,32 @@ export function OnlineGamePage() {
   // claim on trust: it checks its own per-move clock reconstruction and that the opponent
   // owes the move (see game_service._resolve_flag_claim).
   const opponentRole: 0 | 1 = myRole === 0 ? 1 : 0;
+  // A boolean, not the times array: the array is rebuilt every tick, and depending on it
+  // would clear and re-arm the grace timer once a second, so it would never fire.
+  const opponentOutOfTime = times[opponentRole] <= 0;
   useEffect(() => {
     if (state.game.status !== 'playing') return;
-    if (aborted) return;
-    if (times[opponentRole] > 0) return;
+    if (aborted || result !== null) return;
+    if (!opponentOutOfTime) return;
     if (state.moveHistory.length === 0) return; // clocks are held until the game is under way
     if (state.game.currentPlayerIndex !== opponentRole) return;
-    terminalRef.current = { reason: 'opponent_timeout', mine: true };
-    dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
+    const t = setTimeout(() => {
+      terminalRef.current = { reason: 'opponent_timeout', mine: true };
+      broadcastForfeit();
+      dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
+    }, FLAG_CLAIM_GRACE_MS);
+    return () => clearTimeout(t);
   }, [
-    times,
+    opponentOutOfTime,
     myRole,
     opponentRole,
+    result,
     state.game.status,
     state.game.currentPlayerIndex,
     state.moveHistory.length,
     aborted,
     dispatch,
+    broadcastForfeit,
   ]);
 
   // Sustained opponent disconnect -> forfeit. If the opponent stays absent for
@@ -444,6 +504,7 @@ export function OnlineGamePage() {
     if (state.game.currentPlayerIndex === myRole) return;
     const t = setTimeout(() => {
       terminalRef.current = { reason: 'disconnect', mine: true };
+      broadcastForfeit();
       dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
     }, DISCONNECT_GRACE_MS);
     return () => clearTimeout(t);
@@ -457,6 +518,7 @@ export function OnlineGamePage() {
     opponentConnected,
     myRole,
     dispatch,
+    broadcastForfeit,
   ]);
 
   // Drive the debounced waiting flag: arm a timer while the opponent is absent, clear

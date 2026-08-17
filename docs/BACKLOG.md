@@ -11,7 +11,7 @@ Open work only. Reasoning and deferral rationale live in [DECISIONS.md](DECISION
 [CRIT] [HIGH] [MED] [LOW]. Locations are `path` references; re-grep if they drift.
 History of completed work is in git.
 
-Both suites green as of 2026-08-16: backend 393, frontend 368.
+Both suites green as of 2026-08-16: backend 393, frontend 370.
 
 ## Needs verification (you are here to test)
 
@@ -98,6 +98,9 @@ Check all three on both the online and offline game views:
   that the opponent sees nothing at all. Then the same on a phone by locking the screen.
   Note the restored clocks are the server's, which do not pause while an opponent is
   disconnected, so they can come back lower than the screen showed.
+- [LOW] Test files are excluded from the typecheck (`tsconfig.app.json`), so a test can
+  call a hook with the wrong arguments and only fail at runtime, if at all. Including them
+  means fixing whatever it turns up first.
 - [HIGH] Confirm unfinalized games actually stopped. The three holes that let a finished
   online game never reach the backend are closed (result POST retries with backoff and
   reports failure; `opponent_timeout` lets the player still watching claim a flag, server

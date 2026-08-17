@@ -71,6 +71,12 @@ interface UseOnlineGameOptions {
   onOpponentTimeout: () => void;
   /** Called when the opponent's grace period expired — neither side should record a result */
   onOpponentAborted: () => void;
+  /**
+   * Called when the opponent says they have claimed the win (a disconnect forfeit or a
+   * flag). Not to be believed on its own: the claim is checked by the server, so the
+   * handler should go and read the game rather than accept the broadcast.
+   */
+  onOpponentClaimedWin: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +91,7 @@ export function useOnlineGame({
   onOpponentResigned,
   onOpponentTimeout,
   onOpponentAborted,
+  onOpponentClaimedWin,
 }: UseOnlineGameOptions) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [opponentConnected, setOpponentConnected] = useState(false);
@@ -114,11 +121,13 @@ export function useOnlineGame({
   const onOpponentResignedRef = useRef(onOpponentResigned);
   const onOpponentTimeoutRef = useRef(onOpponentTimeout);
   const onOpponentAbortedRef = useRef(onOpponentAborted);
+  const onOpponentClaimedWinRef = useRef(onOpponentClaimedWin);
   useEffect(() => {
     onMoveReceivedRef.current = onMoveReceived;
     onOpponentResignedRef.current = onOpponentResigned;
     onOpponentTimeoutRef.current = onOpponentTimeout;
     onOpponentAbortedRef.current = onOpponentAborted;
+    onOpponentClaimedWinRef.current = onOpponentClaimedWin;
   });
 
   useEffect(() => {
@@ -150,6 +159,9 @@ export function useOnlineGame({
       })
       .on('broadcast', { event: 'abort' }, () => {
         onOpponentAbortedRef.current();
+      })
+      .on('broadcast', { event: 'forfeit' }, () => {
+        onOpponentClaimedWinRef.current();
       })
       .on('presence', { event: 'sync' }, () => {
         const presenceState = channel.presenceState<{ userId: string }>();
@@ -206,6 +218,17 @@ export function useOnlineGame({
       type: 'broadcast',
       event: 'timeout',
       payload: { playerIndex: myRole },
+    });
+  }
+
+  // Tell the other side we have claimed the win, so a player whose tab was asleep or
+  // backgrounded finds out instead of waking to a board that is still "playing". Says
+  // nothing about who won: the receiver reads the game from the server.
+  function broadcastForfeit() {
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'forfeit',
+      payload: {},
     });
   }
 
@@ -340,6 +363,7 @@ export function useOnlineGame({
     broadcastMove,
     broadcastResign,
     broadcastTimeout,
+    broadcastForfeit,
     broadcastAbort,
     submitResult,
     retrySubmitResult,

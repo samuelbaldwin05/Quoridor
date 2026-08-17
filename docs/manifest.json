@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-17T03:04:52Z",
-  "head": "aa9c51a",
+  "generated_at": "2026-08-17T03:10:15Z",
+  "head": "5697cfd",
   "docs": {
     "docs/ARCHITECTURE.md": {
       "title": "Architecture",
@@ -10,11 +10,12 @@
         "frontend/src/engine",
         "supabase/migrations"
       ],
-      "content_sha": "09f171322621",
-      "last_edit_commit": "aa9c51a",
+      "content_sha": "406d9da6e544",
+      "last_edit_commit": "5697cfd",
       "last_edit_date": "2026-08-16",
       "stale": true,
       "unreviewed_code_commits": [
+        "1346f4a",
         "ed474f2",
         "d52ac3f",
         "2ce84f2",
@@ -41,7 +42,7 @@
       "reviewed_at": "0e3abee",
       "covers": [],
       "content_sha": "9b626526011a",
-      "last_edit_commit": "aa9c51a",
+      "last_edit_commit": "5697cfd",
       "last_edit_date": "2026-08-16",
       "stale": null,
       "unreviewed_code_commits": []
@@ -51,7 +52,7 @@
       "reviewed_at": "0e3abee",
       "covers": [],
       "content_sha": "68750233a8d8",
-      "last_edit_commit": "aa9c51a",
+      "last_edit_commit": "5697cfd",
       "last_edit_date": "2026-08-16",
       "stale": null,
       "unreviewed_code_commits": []
@@ -71,6 +72,7 @@
       "last_edit_date": "2026-08-12",
       "stale": true,
       "unreviewed_code_commits": [
+        "e846852",
         "daf6427",
         "76d133a"
       ]
