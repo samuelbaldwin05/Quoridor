@@ -2189,11 +2189,35 @@ body {
 .result-lose {
   color: var(--hover-danger);
 }
+/* Neither: a game that stopped without an ending is not a defeat. */
+.result-unfinished {
+  color: var(--text-primary);
+  opacity: 0.5;
+}
 
 .history-item-meta {
   font-size: 11px;
   color: var(--text-primary);
   opacity: 0.45;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Marks a friend challenge in the list; ladder games carry no tag. */
+.history-item-tag {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.history-item-elo {
+  font-weight: 700;
+  opacity: 1;
+  margin-left: auto;
 }
 
 /* Back button in move-list view */
