@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-17T02:15:08Z",
-  "head": "ba8b43b",
+  "generated_at": "2026-08-17T03:04:52Z",
+  "head": "aa9c51a",
   "docs": {
     "docs/ARCHITECTURE.md": {
       "title": "Architecture",
@@ -10,11 +10,16 @@
         "frontend/src/engine",
         "supabase/migrations"
       ],
-      "content_sha": "2ec2d8f5484e",
-      "last_edit_commit": "e3ca21d",
-      "last_edit_date": "2026-08-12",
+      "content_sha": "09f171322621",
+      "last_edit_commit": "aa9c51a",
+      "last_edit_date": "2026-08-16",
       "stale": true,
       "unreviewed_code_commits": [
+        "ed474f2",
+        "d52ac3f",
+        "2ce84f2",
+        "43d9089",
+        "a8affcf",
         "65100ef",
         "f861807",
         "daf6427",
@@ -35,9 +40,9 @@
       "title": "Backlog",
       "reviewed_at": "0e3abee",
       "covers": [],
-      "content_sha": "ebce41ffd375",
-      "last_edit_commit": "e3ca21d",
-      "last_edit_date": "2026-08-12",
+      "content_sha": "9b626526011a",
+      "last_edit_commit": "aa9c51a",
+      "last_edit_date": "2026-08-16",
       "stale": null,
       "unreviewed_code_commits": []
     },
@@ -45,9 +50,9 @@
       "title": "Decisions",
       "reviewed_at": "0e3abee",
       "covers": [],
-      "content_sha": "c9a24d1b4716",
-      "last_edit_commit": "ba8b43b",
-      "last_edit_date": "2026-08-15",
+      "content_sha": "68750233a8d8",
+      "last_edit_commit": "aa9c51a",
+      "last_edit_date": "2026-08-16",
       "stale": null,
       "unreviewed_code_commits": []
     },

@@ -144,6 +144,15 @@ The server, not the client, decides outcomes. This is the anti-cheat core.
   `GET /games/{id}` once the forfeiting side's write lands.
 - Games both players walked away from are retired by `cleanup_abandoned_games` (status
   `resigned`, no winner) so `playing` keeps meaning live.
+- A client rejoins rather than restarts. `GET /games/{id}` returns a finished game to
+  anyone (the replay viewer) and a game in progress only to its two players, who also get
+  `time_used_p1/p2` and `last_move_at`. `OnlineGamePage` reads that snapshot on mount and
+  adopts it: the move history via `RESTORE_ONLINE_GAME`, which side it is playing, the
+  opponent's name, and both clocks. So a reload, a crash or a phone waking up rejoins the
+  game in progress instead of playing on from an empty board. A broadcast that does not
+  fit the local history now asks the server for the authoritative one (twice at most)
+  before aborting, and broadcasts that arrive during the bootstrap are queued rather than
+  judged against a board this client has not loaded yet.
 - The frontend is confirm-then-apply: a move is sent to the backend and only applied
   locally and broadcast once the backend accepts it. A double-submit guard prevents
   duplicates.

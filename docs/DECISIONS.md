@@ -460,3 +460,19 @@ first, and it does not pay off until aiming is fixed anyway. Also deferred: reso
 touch to the nearest slot by coordinate through an overlay layer. Same goal as the
 enlarged targets, more machinery, and worth revisiting only if enlargement proves not to
 be enough in real use.
+
+## A live game is readable only by the two people playing it
+
+`GET /games/{id}` used to be flatly public, including for games still in progress, so
+anyone with a game id could follow a live match move by move. It is now optional-auth:
+a finished game is public, because the replay viewer is used by signed out visitors,
+while a game in progress answers "not found" to everyone except its two players.
+
+Why not simply keep it public: rejoining a game after a reload needs the same endpoint to
+hand back the clocks (`time_used_p1/p2`, `last_move_at`) and the current position, and
+neither belongs to a spectator. Not found rather than forbidden, so it does not confirm
+that a given id exists.
+
+The URL a game is opened with is now only an opener. Role, opponent name, time control
+and both clocks all come from that snapshot, so a hand-edited `?role=` or a stale link no
+longer decides what the client believes it is playing.

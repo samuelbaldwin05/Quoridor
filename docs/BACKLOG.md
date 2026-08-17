@@ -11,7 +11,7 @@ Open work only. Reasoning and deferral rationale live in [DECISIONS.md](DECISION
 [CRIT] [HIGH] [MED] [LOW]. Locations are `path` references; re-grep if they drift.
 History of completed work is in git.
 
-Both suites green as of 2026-08-16: backend 389, frontend 361.
+Both suites green as of 2026-08-16: backend 393, frontend 368.
 
 ## Needs verification (you are here to test)
 
@@ -91,6 +91,13 @@ Check all three on both the online and offline game views:
 
 ## Open follow-ups
 
+- [HIGH] Two-client check of the rejoin path. Reloading mid-game used to void the game
+  for both players; the client now adopts the server's snapshot instead of assuming a
+  fresh board. Worth proving by hand: reload mid-game and confirm the board, the side you
+  are playing, the opponent's name and both clocks come back, that play continues, and
+  that the opponent sees nothing at all. Then the same on a phone by locking the screen.
+  Note the restored clocks are the server's, which do not pause while an opponent is
+  disconnected, so they can come back lower than the screen showed.
 - [HIGH] Confirm unfinalized games actually stopped. The three holes that let a finished
   online game never reach the backend are closed (result POST retries with backoff and
   reports failure; `opponent_timeout` lets the player still watching claim a flag, server
