@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-17T03:10:15Z",
-  "head": "5697cfd",
+  "generated_at": "2026-08-17T18:22:46Z",
+  "head": "eba70ef",
   "docs": {
     "docs/ARCHITECTURE.md": {
       "title": "Architecture",
@@ -10,8 +10,8 @@
         "frontend/src/engine",
         "supabase/migrations"
       ],
-      "content_sha": "406d9da6e544",
-      "last_edit_commit": "5697cfd",
+      "content_sha": "86793cbeea78",
+      "last_edit_commit": "eba70ef",
       "last_edit_date": "2026-08-16",
       "stale": true,
       "unreviewed_code_commits": [
@@ -41,8 +41,8 @@
       "title": "Backlog",
       "reviewed_at": "0e3abee",
       "covers": [],
-      "content_sha": "9b626526011a",
-      "last_edit_commit": "5697cfd",
+      "content_sha": "66ec8c40b459",
+      "last_edit_commit": "eba70ef",
       "last_edit_date": "2026-08-16",
       "stale": null,
       "unreviewed_code_commits": []
@@ -51,7 +51,7 @@
       "title": "Decisions",
       "reviewed_at": "0e3abee",
       "covers": [],
-      "content_sha": "68750233a8d8",
+      "content_sha": "9d89be43aa64",
       "last_edit_commit": "5697cfd",
       "last_edit_date": "2026-08-16",
       "stale": null,
@@ -67,7 +67,7 @@
         "backend/app/core/config.py",
         "backend/Dockerfile"
       ],
-      "content_sha": "40dff49c9621",
+      "content_sha": "477c090a5ea8",
       "last_edit_commit": "e3ca21d",
       "last_edit_date": "2026-08-12",
       "stale": true,

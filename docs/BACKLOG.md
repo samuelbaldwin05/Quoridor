@@ -11,7 +11,7 @@ Open work only. Reasoning and deferral rationale live in [DECISIONS.md](DECISION
 [CRIT] [HIGH] [MED] [LOW]. Locations are `path` references; re-grep if they drift.
 History of completed work is in git.
 
-Both suites green as of 2026-08-16: backend 393, frontend 370.
+Both suites green as of 2026-08-17: backend 397, frontend 390.
 
 ## Needs verification (you are here to test)
 
@@ -33,26 +33,23 @@ two accounts:
 5. Retry or double-submit a move or result: idempotent, no duplicate Elo.
 6. DevTools forgery: a result claiming a win over a losing history is rejected.
 
-### [HIGH] Realtime private channel (migration 015 + `private: true`)
+### [HIGH] Realtime private channel (migration 024 + `private: true`)
 
 A wrong Realtime authorization policy silently blocks ALL realtime (moves and presence)
 with no error, and only shows up with two live clients. Confirm realtime still flows for
 the two participants and is denied to a third party. If it breaks, revert `private: true`
-in `frontend/src/hooks/useOnlineGame.ts` and drop the 015 policies together. See DECISIONS.
+in `frontend/src/hooks/useOnlineGame.ts` and drop the 024 policies together.
 
-Test with two real Google accounts, NOT two dev logins. `signInAsDev` in
-`frontend/src/hooks/useAuth.ts` sets a local dev token and calls `/auth/me` through
-`apiFetch`; it never creates a Supabase Auth session. So the realtime socket connects as
-`anon` with `auth.uid()` NULL, and both 015 policies fail on their `TO authenticated`
-clause before the participant check is even reached. Under dev auth a private channel is
-dead, not degraded, which looks identical to a broken policy. There is also no
-`supabase.realtime.setAuth()` call anywhere; that is fine for a real session, since
-supabase-js supplies the token from the auth session, but it is the second thing to check
-if a real-account test also fails.
+What is already checked: the policy logic itself, exercised directly against the database
+by setting role, `request.jwt.claims` and `realtime.topic` (participant reads and sends,
+authenticated non-participant blocked on both, anon blocked, participant on another game's
+topic sees nothing). What is not: that the Realtime server sets those two settings the way
+the policies assume, which needs real sockets.
 
-Consequence beyond the test: `private: true` makes online play unusable for dev logins.
-If dev auth is meant to keep working against a private channel, it needs a genuine
-Supabase session (or an explicit `realtime.setAuth()`), which is its own work item.
+Test with two browsers. Either two dev logins (each is now an anonymous Supabase session,
+so they are distinct users with real tokens, which is what the private channel needs) or
+two Google accounts. Two dev logins used to be impossible to match, since they shared one
+hard-coded user id.
 
 ### [MED] Disconnect forfeit, end-to-end
 
@@ -91,6 +88,13 @@ Check all three on both the online and offline game views:
 
 ## Open follow-ups
 
+- [LOW] Set the refresh token reuse interval to 30s in the hosted project's dashboard
+  (Auth, Sessions) to match `supabase/config.toml`. The client now survives a lost rotation
+  race by adopting whatever session the other context wrote, so this is the second line of
+  defence rather than the fix. Symptom it addresses: signed out on a phone that has both
+  the installed app and a browser tab open.
+
+
 - [HIGH] Two-client check of the rejoin path. Reloading mid-game used to void the game
   for both players; the client now adopts the server's snapshot instead of assuming a
   fresh board. Worth proving by hand: reload mid-game and confirm the board, the side you
@@ -98,9 +102,6 @@ Check all three on both the online and offline game views:
   that the opponent sees nothing at all. Then the same on a phone by locking the screen.
   Note the restored clocks are the server's, which do not pause while an opponent is
   disconnected, so they can come back lower than the screen showed.
-- [LOW] Test files are excluded from the typecheck (`tsconfig.app.json`), so a test can
-  call a hook with the wrong arguments and only fail at runtime, if at all. Including them
-  means fixing whatever it turns up first.
 - [HIGH] Confirm unfinalized games actually stopped. The three holes that let a finished
   online game never reach the backend are closed (result POST retries with backoff and
   reports failure; `opponent_timeout` lets the player still watching claim a flag, server

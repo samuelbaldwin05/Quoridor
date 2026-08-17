@@ -165,10 +165,22 @@ The server, not the client, decides outcomes. This is the anti-cheat core.
   locally and broadcast once the backend accepts it. A double-submit guard prevents
   duplicates.
 - Supabase Realtime is used for broadcast and presence only, not as a source of truth.
-  The channel is now private (`private: true`) with authorization policies on
-  `realtime.messages` (migration 015) restricting topic `game:{id}` to its two
-  participants. This is DONE-UNVERIFIED: a wrong policy silently blocks all realtime, so
-  the private flip needs a live two-client smoke test. See DECISIONS.
+  The channel is private (`private: true`) with authorization policies on
+  `realtime.messages` (migration 024) restricting topic `game:{id}` to its two
+  participants, and `supabase.realtime.setAuth()` hands it the session token. The policy
+  logic is verified directly against the database; what still needs two live clients is
+  that the Realtime server populates topic and claims the way the policies assume. A wrong
+  policy blocks all realtime silently, so that check matters. See DECISIONS.
+- Session restore distinguishes "signed out" from "could not restore". A failed token
+  refresh arrives as an `INITIAL_SESSION` event with a null session, which is why
+  `useAuth` keeps a `quoridor-had-session` marker: with it, a failed restore retries (on
+  backoff, on `online`, on becoming visible) and reports `sessionRecovering` instead of
+  quietly becoming a guest. See DECISIONS.
+- Online play therefore requires a real Supabase session. The local dev login signs in
+  anonymously for that reason (and because it gives each browser a distinct user, so two
+  dev logins can be matched against each other); the old hand-rolled `dev-token` is gone
+  from the frontend. Anonymous tokens carry no email claim, so `core/auth.py` synthesizes
+  one per user id, `users.email` being NOT NULL UNIQUE.
 - Reconnect uses capped exponential backoff; the clock pauses while the opponent is
   disconnected; an illegal received move aborts both clients so they converge.
 
@@ -180,6 +192,17 @@ row carries `last_polled_at`, refreshed by every `/matchmaking/status` poll, and
 nobody is ever paired with a player who already closed the tab. The client mirrors the
 same two deadlines for immediate feedback: it stops at the search cap, and stops after a
 minute of the tab being hidden. Neither client deadline is load-bearing.
+
+Game history has two sources and one list. Online games come from
+`GET /api/users/{id}/games`, so they are the same on any device; bot and pass-and-play
+games only ever existed in this browser's local storage. An online game's local save
+carries `serverGameId`, which is how the list shows the backend's copy instead of both.
+Saves written before that field existed can still appear twice until they age out.
+
+Friend challenges are rated. `accept_challenge` creates them with mode `casual`, but
+`submit_game_result` does not look at mode, so they move Elo and the per-format stats
+exactly like a ladder game. The name is historical; the UI now says "rated" where a
+challenge is offered or accepted, and history tags the row.
 
 ## Frontend
 

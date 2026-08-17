@@ -476,3 +476,111 @@ that a given id exists.
 The URL a game is opened with is now only an opener. Role, opponent name, time control
 and both clocks all come from that snapshot, so a hand-edited `?role=` or a stale link no
 longer decides what the client believes it is playing.
+
+## Friend challenges stay rated, and say so
+
+A challenge creates a `casual` game, and `submit_game_result` ignores mode, so it has
+always moved both players' Elo and stats like any other game. Rather than change that,
+the naming is treated as the bug: the Friends UI calls a challenge a rated game, and both
+the profile's recent games and the history list tag the row as a Challenge.
+
+Why not make them unrated: every challenge played so far counted, so switching would
+leave existing ratings partly built on games that no longer exist as far as the app is
+concerned, and it would split an already small pool of games into two ladders. A
+rated/unrated toggle stays available later; it needs a column on `challenges` and
+`games`, not a rethink.
+
+## History is one list from two sources
+
+The Game History page read localStorage only, so a player's own online games were missing
+on any other device and gone if they cleared site data, while the real record sat in the
+backend and was reachable only through a profile page. It now merges: online games from
+`GET /api/users/{id}/games`, bot and pass-and-play from local storage, sorted together.
+
+De-duplication is by `serverGameId` on the local save rather than by matching names and
+timestamps, which is why online games now record it. The known gap is saves made before
+that field existed: they have nothing to match on and can appear twice until the fifty-
+game local cap pushes them out. A failed fetch leaves the list local, which is exactly
+what it was before.
+
+## The private game channel is applied, and the dev login now has a real session
+
+Settles "Realtime game channel is now private", which had been recorded as done while the
+code sat reverted and the migration was never committed. Migration 024 (written as an
+uncommitted 015) carries the two `realtime.messages` policies, and `useOnlineGame` opens
+the channel with `private: true` and calls `supabase.realtime.setAuth()`.
+
+Renumbered to the end because the hosted database is already past 019 and the CLI skips
+pending migrations older than the last applied version; at 015 it would never have run.
+Local databases had been applying it all along, since the CLI reads the directory rather
+than git, which is why nothing looked wrong locally.
+
+The policies are `TO authenticated`, so a client without a Supabase session gets no
+realtime at all: no moves, no presence, no error. The old dev login had exactly that
+shape, a hand-rolled `dev-token` the backend accepted with no Supabase session behind it,
+so it now signs in anonymously instead. Two consequences worth having: a dev login gets a
+real token, and each one is a distinct user, where before every dev login shared one
+hard-coded id and so could never be matched against another. The token path in the
+frontend is now single: the bearer header always comes from the Supabase session, and
+`lib/dev.ts` is gone. The backend still accepts `dev-token` in development for curl and
+tests.
+
+Anonymous sign-in is enabled in `supabase/config.toml` (local) and left off in the hosted
+project, where the dev button is not rendered. Anonymous tokens carry no email claim, so
+`core/auth.py` synthesizes `{uid}@anonymous.local`: `users.email` is NOT NULL UNIQUE, and
+the empty string would have been taken by whichever anonymous user arrived first.
+
+## A failed session restore is not a sign-out
+
+Reported symptom: opening the home-screen web app on a phone sometimes came up signed out,
+browsing as a guest. Cause, in our code rather than the platform's: an access token lasts
+an hour, so any open after that refreshes before the session is usable, and supabase-js
+reports a FAILED refresh as `INITIAL_SESSION` with a null session (`__loadSession` returns
+`{ session: null, error }` when the refresh errors, and `_emitInitialSession` turns that
+error into a null-session event). `useAuth` ignored the event name and read any null
+session as signed out, so a phone whose radio had not come up yet became a guest with a
+perfectly good refresh token still in storage, and stayed one until something else emitted
+an event.
+
+The fix keeps a `quoridor-had-session` marker in localStorage, written whenever a session
+is seen and removed only on a real sign-out or a 4xx from the refresh endpoint. With it,
+"no session" splits into three: never signed in (guest, as before), signed out
+(`SIGNED_OUT`, forget the marker), and could not restore (retry). Retries run on a short
+backoff plus coming back online or returning to the tab, and only while a restore is
+outstanding: refreshing on every tab focus would spend a refresh token each time, which
+with rotation enabled invalidates the one another tab is about to use. `sessionRecovering`
+is surfaced so the login page and the online button say "reconnecting" instead of offering
+to sign in, which reads as a bug when the account is one working request away.
+
+Two related causes are NOT fixed by this, and both now read correctly instead of silently:
+a 4xx from refresh-token rotation (two contexts refreshing at once, for example the
+installed app and a Safari tab) is a genuine sign-out, and iOS clearing script-writable
+storage takes the marker with it, so the app correctly shows a signed-out state.
+
+## A lost refresh-token race is not a sign-out either, and storage asks to be kept
+
+Follows "A failed session restore is not a sign-out", which fixed the network case and
+left two related ones reading correctly but unfixed.
+
+Rotation makes a refresh token single-use, so when two contexts on one device restore
+seconds apart, the slower one presents a token the faster one already rotated and gets a
+4xx. Its own refresh really is dead, so treating that as final was right, but the session
+the other context wrote is sitting in storage and works. Three changes: before declaring a
+sign-out on a 4xx, `useAuth` re-reads storage and adopts a session if it finds one; a
+`storage` event on the Supabase auth key adopts a session another context writes while this
+one sits signed out; and the local refresh token reuse interval goes from 10s to 30s, with
+the hosted equivalent recorded in INFRASTRUCTURE as a dashboard setting.
+
+Adopting only, never signing out, on those storage events. A cleared key can be the loser
+of that same race wiping it on the way down, and following that would throw away a working
+session. If ours has genuinely gone stale, its next refresh returns a 4xx and the path
+above handles it.
+
+Storage eviction is asked about rather than solved. `requestPersistentStorage()` runs at
+startup: on Chromium an installed app is granted persistent storage, which takes the
+session and the local game history out of the pool evicted under storage pressure. It does
+nothing for Safari's seven-day cap on script-writable storage, which is not eviction and
+which Safari's missing `persist()` cannot be asked about. Beating that needs the session in
+a server-set cookie, and the frontend is a static bundle with no server to set one, so the
+mitigation stands where it is: a wipe now costs a re-tap of Sign in with Google rather than
+a player's history, because the backend holds the games.
