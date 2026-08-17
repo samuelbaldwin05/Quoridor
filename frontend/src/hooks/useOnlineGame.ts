@@ -97,6 +97,13 @@ export function useOnlineGame({
   const [opponentConnected, setOpponentConnected] = useState(false);
   const [result, setResult] = useState<OnlineResult | null>(null);
 
+  // Presence identity. Normally the user id, but a profile that failed to load leaves
+  // that empty, and two clients both announcing "" each filter the other out as
+  // themselves and sit there believing they are alone. A per-client fallback keeps them
+  // distinguishable; presence only has to answer "is somebody else here".
+  const fallbackPresenceId = useRef(`anon-${Math.random().toString(36).slice(2)}`);
+  const presenceId = myUserId || fallbackPresenceId.current;
+
   const channelRef = useRef<RealtimeChannel | null>(null);
   const resultSubmittedRef = useRef(false);
   // What was last sent, so Try again can send exactly the same thing.
@@ -166,11 +173,11 @@ export function useOnlineGame({
       .on('presence', { event: 'sync' }, () => {
         const presenceState = channel.presenceState<{ userId: string }>();
         const users = Object.values(presenceState).flat();
-        setOpponentConnected(users.some((u) => u.userId !== myUserId));
+        setOpponentConnected(users.some((u) => u.userId !== presenceId));
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          await channel.track({ userId: myUserId });
+          await channel.track({ userId: presenceId });
           setConnectionStatus('ready');
           backoffRef.current = 0;
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
@@ -186,7 +193,7 @@ export function useOnlineGame({
       if (reconnectTimer) clearTimeout(reconnectTimer);
       supabase.removeChannel(channel);
     };
-  }, [gameId, myUserId, myRole, resubscribeNonce]);
+  }, [gameId, presenceId, myRole, resubscribeNonce]);
 
   // Server-authoritative move: the backend validates against stored state and
   // records it. Throws (via apiFetch) on rejection — caller must not apply locally.
