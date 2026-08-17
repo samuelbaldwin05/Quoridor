@@ -11,7 +11,7 @@ Open work only. Reasoning and deferral rationale live in [DECISIONS.md](DECISION
 [CRIT] [HIGH] [MED] [LOW]. Locations are `path` references; re-grep if they drift.
 History of completed work is in git.
 
-Both suites green as of 2026-08-11: backend 371, frontend 308.
+Both suites green as of 2026-08-16: backend 389, frontend 361.
 
 ## Needs verification (you are here to test)
 
@@ -72,8 +72,46 @@ Check all three on both the online and offline game views:
 - `MoveListPanel` extracted and shared by `GameRightPanel` and `OnlineGamePage`: scroll
   behavior and the move list read correctly in both.
 
+## Mobile
+
+- [MED] Confirm fence aiming is actually fixed on a real phone. The touch target now
+  extends `--wall-touch-slop` past the groove into the neighbouring squares, and every
+  tap is a proposal (see DECISIONS). What needs a human with a phone: whether the starting
+  4px is enough (it takes an 8px groove to 16px, still under a fingertip), whether the
+  squares still feel tappable for pawn moves, and whether the proposed-move ring reads
+  clearly under a finger. The slop is one CSS variable on `.board`, so tuning it is a
+  one-line change.
+- [MED] Verify queue expiry on a phone. The hidden-tab grace (60s) ends a search when the
+  screen locks or the browser is backgrounded, which is far more common on mobile than on
+  a desktop. Confirm the paused message reads sensibly on return and that Search again
+  re-queues cleanly. Location: `frontend/src/components/MatchmakingModal.tsx`.
+- [MED] Re-check the online game card header on a phone after the row alignment fix
+  (fence chip, presence note and clock now share one flex row). Confirm nothing wraps or
+  clips with a long opponent name plus a visible "waiting…" note.
+
 ## Open follow-ups
 
+- [HIGH] Confirm unfinalized games actually stopped. The three holes that let a finished
+  online game never reach the backend are closed (result POST retries with backoff and
+  reports failure; `opponent_timeout` lets the player still watching claim a flag, server
+  clock-checked; `cleanup_abandoned_games` retires walked-away games). Two clients are
+  needed to prove it: background one tab until its clock passes zero and confirm the
+  other resolves the win, and kill the network at the moment of a resign and confirm the
+  retry lands it. Then re-run `supabase/snippets/diagnose_missing_game_stats.sql` and
+  check no new rows are piling up in `playing`.
+- [MED] Server-verified clocks are a reconstruction, not the real thing.
+  `games.time_used_p1/p2` count wall-clock per move, while the clients pause on opponent
+  disconnect, so the server's figure runs ahead of what a player sees. That is why the
+  flag claim needs `FLAG_CLAIM_MARGIN_SECONDS`. A long disconnect could in principle let
+  a claim through slightly early, bounded by the margin and by the fact that a
+  disconnected opponent is already forfeit territory. Closing it properly means
+  server-side presence, which is the item below.
+- [MED] Confirm the stats repair landed. Migration 020 restores the `user_time_stats`
+  write that 010 dropped and rebuilds both counters from the games ledger. After it
+  deploys, check a profile card with real history: per-format games and win rate should
+  match the ranked and casual games actually finished, and `users.games_played` should
+  equal the sum across formats. Bot games stay excluded by design, so a player whose
+  history is mostly vs-AI will still read low.
 - [MED] Server-authoritative presence or heartbeat to fully harden the disconnect
   forfeit. The turn and dwell guard is a proxy: it closes the casual tab-close dodge and
   the instant-claim exploit, but a crafted direct API call can still steal a win from a

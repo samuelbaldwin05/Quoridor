@@ -431,3 +431,32 @@ still exist, so the label maps in `MatchmakingModal` and `ProfileModal` keep all
 
 Not enforced server-side: nothing rejects a crafted queue join at another time control.
 That player would simply never match, which is harmless, so it stayed a client concern.
+
+## Mobile fence placement: grow the target, not the gesture
+
+A fence slot is the groove between two squares, `--gap-size` wide, which is 8px on a
+phone against a fingertip nearer 40px. On touch pointers the slot's hit area now extends
+past its visual into the squares either side, the way a phone keyboard accepts presses
+beyond the drawn key, and only perpendicular to the groove: an h slot and a v slot still
+overlap only where they already crossed, so a stretched target can never resolve to the
+wrong orientation. Pointer-precise devices are untouched, since any slop would fire hover
+previews from off the groove. The slop starts at a conservative 4px (an 8px groove becomes
+16px) rather than the ~10px it would take to reach a full fingertip, because the area comes
+out of the squares and it is easier to raise after trying it than to defend having taken
+too much.
+
+Confirm mode was extended from fences to pawn moves in the same change, and the two are
+load-bearing for each other. A stretched fence target takes a bite out of the squares;
+that is affordable only because every tap is now a proposal, so a stolen tap costs one
+extra tap, not a move. It also fixes the worse half of the original bug: a mis-aimed
+fence tap that landed on a square used to play a pawn move instantly, and the legal
+destinations are exactly the squares around the pawns, which is where fences get placed.
+The setting is renamed `confirmMoves` ("Double-tap to Confirm Moves").
+
+Deferred: dragging a fence from a rack onto the board. It is the nicest-feeling option
+and matches the physical game, but there is no fence panel on mobile to drag from
+(`.fence-panel` is `display: none` at phone widths), so it needs a new affordance built
+first, and it does not pay off until aiming is fixed anyway. Also deferred: resolving a
+touch to the nearest slot by coordinate through an overlay layer. Same goal as the
+enlarged targets, more machinery, and worth revisiting only if enlargement proves not to
+be enough in real use.

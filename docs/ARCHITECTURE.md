@@ -70,10 +70,18 @@ Postgres via Supabase, with Row Level Security. Core tables:
 - `users` (id, email, display_name, elo, games_played, timestamps)
 - `games` (players, winner, mode, time_control, move_history, status, timestamps)
 - `friendships` (requester, receiver, status) with an unordered-pair unique index
-- `matchmaking_queue`
+- `matchmaking_queue` (one waiting row per player; `last_polled_at` is the client's
+  heartbeat, and rows expire, see below)
 - `puzzles` (position, solution, source game, estimated elo)
 - `user_time_stats` (per-format stats; the dead `elo` column was dropped in migration
   014, `users.elo` is the single rating)
+
+`users.games_played` and every `user_time_stats` row are derived counters over finished
+`games` rows, and `submit_game_result` is their only writer: it increments both in the
+same transaction that finishes the game. Keep them together. Migration 010 rewrote that
+function and silently dropped the `user_time_stats` half, which left profile win rates
+reading a frozen numerator over a live denominator until 020 restored the write and
+rebuilt both counters from the games ledger.
 
 RLS: users read their own data and public leaderboard data. All writes go through the
 service-role backend or SECURITY DEFINER RPCs, so direct client writes are locked down:
@@ -122,6 +130,20 @@ The server, not the client, decides outcomes. This is the anti-cheat core.
   history; a win is confirmed against that record, a resign or timeout records the
   caller as the loser, and a `disconnect` claim awards the caller the win only if the
   replay shows it is the opponent's turn (turn-guarded, so it is not a bare assertion).
+  An `opponent_timeout` claim is the same shape, checked against the server's own clock:
+  `games.time_used_p1/p2` accumulate each player's think time as `append_game_move`
+  records their moves (migration 022), so the server can confirm the opponent is past
+  zero rather than take the claim on trust. It exists because `timeout` can only be
+  reported by the player who ran out, which a closed or throttled tab cannot do.
+- A result is the one request that cannot be dropped: unrecorded means no Elo, no
+  games played, no history, and nothing retries it later. `submitResult` retries
+  transient failures with backoff (the endpoint is idempotent, so a retry can duplicate
+  the request but never the Elo) and reports `recordStatus` to the overlay, which says
+  so plainly when a game could not be recorded instead of showing a zero delta. The
+  winner of a forfeit cannot submit at all, so it reads its Elo delta back off
+  `GET /games/{id}` once the forfeiting side's write lands.
+- Games both players walked away from are retired by `cleanup_abandoned_games` (status
+  `resigned`, no winner) so `playing` keeps meaning live.
 - The frontend is confirm-then-apply: a move is sent to the backend and only applied
   locally and broadcast once the backend accepts it. A double-submit guard prevents
   duplicates.
@@ -132,6 +154,15 @@ The server, not the client, decides outcomes. This is the anti-cheat core.
   the private flip needs a live two-client smoke test. See DECISIONS.
 - Reconnect uses capped exponential backoff; the clock pauses while the opponent is
   disconnected; an illegal received move aborts both clients so they converge.
+
+Matchmaking rows expire, and the server is what enforces it (migration 021). A waiting
+row carries `last_polled_at`, refreshed by every `/matchmaking/status` poll, and
+`cleanup_stale_queue_entries` drops any row that has gone quiet for
+`QUEUE_IDLE_TIMEOUT_SECONDS` or has been waiting past `QUEUE_MAX_WAIT_SECONDS` (both in
+`matchmaking_service`). The sweep runs on join and on every poll, before matching, so
+nobody is ever paired with a player who already closed the tab. The client mirrors the
+same two deadlines for immediate feedback: it stops at the search cap, and stops after a
+minute of the tab being hidden. Neither client deadline is load-bearing.
 
 ## Frontend
 
