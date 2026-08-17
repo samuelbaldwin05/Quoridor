@@ -155,7 +155,12 @@ class GameSummary(BaseModel):
 
 
 class GameDetail(BaseModel):
-    """Full record for replaying a finished game (public — no per-player view)."""
+    """Full record of a game.
+
+    Public for a finished game, so anyone can replay it. A game still in progress is
+    visible only to its two players, who need it to rejoin after a reload; the clock
+    fields at the bottom come with that and are never filled in for anyone else.
+    """
 
     id: UUID
     mode: GameMode
@@ -174,6 +179,12 @@ class GameDetail(BaseModel):
     elo_change_p2: int | None = None
     completed_at: datetime | None
     created_at: datetime
+    # Participants only, and only worth reading while the game is live: the seconds each
+    # player has already spent (migration 022) and when the last move landed. Together
+    # with time_control they rebuild both clocks on a client that reloaded mid-game.
+    time_used_p1: int | None = None
+    time_used_p2: int | None = None
+    last_move_at: datetime | None = None
 
 
 class MoveSubmitRequest(BaseModel):

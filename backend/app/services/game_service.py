@@ -407,11 +407,23 @@ def list_user_games(
     return [_to_summary(row, uid) for row in rows]
 
 
-def get_game_detail(supabase: Client, game_id: UUID) -> GameDetail:
-    """Full record for replaying a finished game (public view)."""
+def get_game_detail(supabase: Client, game_id: UUID, viewer_id: UUID | None = None) -> GameDetail:
+    """A finished game for anyone, a live game only for the two people playing it.
+
+    The public half is the replay viewer. The participant half is what a client that
+    reloaded mid-game reads to rejoin, which is why it also carries the clocks. A live
+    game answers "not found" to everyone else rather than admitting it exists, since the
+    position of a game in progress is nobody else's business.
+    """
     row = game_repository.get_game(supabase, game_id)
     if row is None:
         raise NotFoundError("game not found")
+
+    viewer = str(viewer_id) if viewer_id else None
+    is_participant = viewer is not None and viewer in (row.get("player1_id"), row.get("player2_id"))
+    if row.get("status") != "finished" and not is_participant:
+        raise NotFoundError("game not found")
+
     return GameDetail(
         id=UUID(row["id"]),
         mode=row["mode"],
@@ -427,4 +439,7 @@ def get_game_detail(supabase: Client, game_id: UUID) -> GameDetail:
         elo_change_p2=row.get("elo_change_p2"),
         completed_at=row.get("completed_at"),
         created_at=row["created_at"],
+        time_used_p1=row.get("time_used_p1") if is_participant else None,
+        time_used_p2=row.get("time_used_p2") if is_participant else None,
+        last_move_at=row.get("last_move_at") if is_participant else None,
     )
