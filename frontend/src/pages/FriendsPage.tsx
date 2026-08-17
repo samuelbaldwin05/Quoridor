@@ -186,6 +186,8 @@ export function FriendsPage() {
     }
   }
 
+  // Challenges are rated: they go through the same result path as a ladder game, so
+  // both players' Elo and stats move. The UI says so rather than leaving it a surprise.
   async function handleChallenge(friendId: string, timeControl = 300) {
     setPending(`challenge-${friendId}`, true);
     try {
@@ -386,7 +388,7 @@ export function FriendsPage() {
                                 {c.challenger_name ?? 'Unknown'}
                               </span>
                               <span className="friend-item-elo">
-                                {tcLabel(c.time_control)} game
+                                {tcLabel(c.time_control)} rated game
                               </span>
                             </div>
                             <div className="friend-item-actions">
@@ -433,7 +435,7 @@ export function FriendsPage() {
                                 {c.challenged_name ?? 'Unknown'}
                               </span>
                               <span className="friend-item-elo">
-                                {tcLabel(c.time_control)} game
+                                {tcLabel(c.time_control)} rated game
                               </span>
                             </div>
                             <div className="friend-item-actions">
@@ -579,7 +581,7 @@ export function FriendsPage() {
                               <div className="friend-item-actions">
                                 <button
                                   className="btn friend-challenge-btn"
-                                  title="Challenge"
+                                  title="Challenge to a rated game"
                                   disabled={pendingActions.has(`challenge-${f.friend_id}`)}
                                   onClick={() => handleChallenge(f.friend_id)}
                                 >
