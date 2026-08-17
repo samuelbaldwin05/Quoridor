@@ -43,6 +43,9 @@ const FLAG_CLAIM_GRACE_MS = 14000;
 // A claim the other side made is verified against the server, not believed. It may take a
 // moment to land there (the claimant retries a failed POST), so ask more than once.
 const FORFEIT_CHECK_DELAYS_MS = [0, 2000, 5000];
+// How often a live game re-reads the server's clocks. Rare enough to be invisible in
+// load terms, often enough that the two clients cannot wander far apart.
+const CLOCK_RECONCILE_MS = 30000;
 
 // Why a game ended with no result. The overlay used to say "no move within 20 seconds"
 // whatever had happened, which was the wrong story for three of these four.
@@ -303,6 +306,28 @@ export function OnlineGamePage() {
     checkForForfeitRef.current = checkForForfeit;
   }, [checkForForfeit]);
 
+  // The winner of a forfeit does not submit the result, so the refreshProfile() fired
+  // alongside observeResult runs before the loser's write lands and picks up the old
+  // rating. Once the delta is read back, the rating behind it is real: ask again, so the
+  // header and the overlay stop disagreeing.
+  const eloRefreshedRef = useRef(false);
+  useEffect(() => {
+    if (eloRefreshedRef.current) return;
+    if (result?.recordStatus !== 'observed' || result.eloChange === 0) return;
+    eloRefreshedRef.current = true;
+    void refreshProfile();
+  }, [result, refreshProfile]);
+
+  // Keep the clocks honest during a long game. Each client counts down on its own, so
+  // they drift apart, and the server's copy is the one a flag claim is judged against.
+  // Cheap: one read, and it doubles as a catch-up for any move a client missed.
+  useEffect(() => {
+    if (state.game.status !== 'playing' || aborted || result !== null) return;
+    if (state.moveHistory.length === 0) return;
+    const t = setInterval(() => void refreshFromServer(), CLOCK_RECONCILE_MS);
+    return () => clearInterval(t);
+  }, [state.game.status, state.moveHistory.length, aborted, result, refreshFromServer]);
+
   // Coming back to a tab that was away: it may have missed moves, or the game may have
   // ended without it (a flag claim it never received). Ask instead of assuming. This is
   // the recovery for the case the flag claim exists to handle, seen from the losing side.
@@ -379,7 +404,9 @@ export function OnlineGamePage() {
     if (state.game.status === 'finished' && result === null) {
       const winner = state.game.winner as 0 | 1;
       const terminal = terminalRef.current ?? { reason: 'win' as const, mine: true };
-      const savedId = saveGame(state.moveHistory, winner, opponentName, myRole);
+      // The server id rides along so the history list can show the backend's copy of
+      // this game instead of listing it twice.
+      const savedId = saveGame(state.moveHistory, winner, opponentName, myRole, undefined, gameId);
       if (terminal.reason === 'win' || terminal.mine) {
         const history = state.moveHistory.map((sm) => serializeMove(sm.move));
         void submitResult(winner, terminal.reason, history, timesRef.current, savedId).then(() =>
