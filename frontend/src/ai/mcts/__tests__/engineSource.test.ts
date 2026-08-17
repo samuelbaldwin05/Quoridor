@@ -141,7 +141,7 @@ describe('identifying the caller', () => {
 
     await chooseEngineMove(playingState(), 1);
 
-    const init = fetchSpy.mock.calls[0][1] as RequestInit;
+    const init = (fetchSpy.mock.calls[0] as unknown as [string, RequestInit])[1];
     expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer test-token');
   });
 
@@ -154,7 +154,7 @@ describe('identifying the caller', () => {
 
     await chooseEngineMove(playingState(), 1);
 
-    const init = fetchSpy.mock.calls[0][1] as RequestInit;
+    const init = (fetchSpy.mock.calls[0] as unknown as [string, RequestInit])[1];
     expect((init.headers as Record<string, string>)['Authorization']).toBeUndefined();
   });
 
