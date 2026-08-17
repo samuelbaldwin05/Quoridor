@@ -6,12 +6,19 @@ import type { Move } from '@/engine/gameTypes';
 // The hook talks to Supabase Realtime and the REST API — mock both at the module
 // boundary so the socket/turn flow can be driven deterministically in jsdom.
 vi.mock('@/lib/supabase', () => ({
-  supabase: { channel: vi.fn(), removeChannel: vi.fn() },
+  supabase: {
+    channel: vi.fn(),
+    removeChannel: vi.fn(),
+    realtime: { setAuth: vi.fn(async () => {}) },
+  },
 }));
-vi.mock('@/lib/api', () => ({ apiFetch: vi.fn(async () => ({})) }));
+vi.mock('@/lib/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/api')>()),
+  apiFetch: vi.fn(async () => ({})),
+}));
 
 import { supabase } from '@/lib/supabase';
-import { apiFetch } from '@/lib/api';
+import { ApiHttpError, apiFetch } from '@/lib/api';
 import { useOnlineGame } from '@/hooks/useOnlineGame';
 
 type BroadcastArg = { payload: { move?: Move; playerIndex?: number } };
@@ -63,6 +70,7 @@ const baseOpts = () => ({
   onOpponentResigned: vi.fn(),
   onOpponentTimeout: vi.fn(),
   onOpponentAborted: vi.fn(),
+  onOpponentClaimedWin: vi.fn(),
 });
 
 beforeEach(() => {
@@ -76,11 +84,19 @@ afterEach(() => {
 });
 
 describe('useOnlineGame subscription', () => {
-  it('subscribes to the per-game topic with self-broadcast disabled', () => {
+  it('subscribes to the per-game topic privately, with self-broadcast disabled', () => {
+    // private: true is half of a pair. The other half is migration 024, whose policies
+    // restrict topic game:{id} to the two players; without the flag they do nothing, and
+    // without the policies the flag blocks everything.
     renderHook(() => useOnlineGame(baseOpts()));
     expect(supabase.channel).toHaveBeenCalledWith('game:g1', {
-      config: { broadcast: { self: false } },
+      config: { private: true, broadcast: { self: false } },
     });
+  });
+
+  it('hands Realtime the session token, without which a private channel is dead', () => {
+    renderHook(() => useOnlineGame(baseOpts()));
+    expect(supabase.realtime.setAuth).toHaveBeenCalled();
   });
 
   it('removes the channel on unmount', () => {
@@ -192,6 +208,27 @@ describe('useOnlineGame outbound broadcasts', () => {
   });
 });
 
+describe('useOnlineGame forfeit broadcast', () => {
+  it('sends a forfeit event that says nothing about who won', () => {
+    const { result } = renderHook(() => useOnlineGame(baseOpts()));
+    act(() => result.current.broadcastForfeit());
+    expect(channel.send).toHaveBeenCalledWith({
+      type: 'broadcast',
+      event: 'forfeit',
+      payload: {},
+    });
+  });
+
+  it('hands a received forfeit to the caller to verify', () => {
+    // The receiver checks the server rather than believing the broadcast, so all the
+    // hook does is pass the nudge along.
+    const opts = baseOpts();
+    renderHook(() => useOnlineGame(opts));
+    act(() => channel.fire('forfeit'));
+    expect(opts.onOpponentClaimedWin).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('useOnlineGame submitResult', () => {
   it('posts the result once and exposes the caller-side elo delta', async () => {
     vi.mocked(apiFetch).mockResolvedValueOnce({
@@ -207,7 +244,12 @@ describe('useOnlineGame submitResult', () => {
     await act(async () => {
       await result.current.submitResult(0, 'win', ['e2', 'e8']);
     });
-    expect(result.current.result).toEqual({ winner: 0, eloChange: 12, savedGameId: null });
+    expect(result.current.result).toEqual({
+      winner: 0,
+      eloChange: 12,
+      savedGameId: null,
+      recordStatus: 'recorded',
+    });
     expect(apiFetch).toHaveBeenCalledTimes(1);
 
     // A second submit is a no-op (guards double ELO writes).
@@ -217,14 +259,92 @@ describe('useOnlineGame submitResult', () => {
     expect(apiFetch).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to a zero delta if the result POST fails', async () => {
-    vi.mocked(apiFetch).mockRejectedValueOnce(new Error('network'));
+  it('reports a rejected result as unrecorded rather than a zero delta', async () => {
+    // A 4xx is the server's verdict on this payload: no retry will change it.
+    vi.mocked(apiFetch).mockRejectedValue(new ApiHttpError(422, 'nope'));
     const { result } = renderHook(() => useOnlineGame(baseOpts()));
 
     await act(async () => {
       await result.current.submitResult(1, 'resign', []);
     });
-    expect(result.current.result).toEqual({ winner: 1, eloChange: 0, savedGameId: null });
+    expect(result.current.result).toEqual({
+      winner: 1,
+      eloChange: 0,
+      savedGameId: null,
+      recordStatus: 'failed',
+    });
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a transient failure until the result lands', async () => {
+    vi.useFakeTimers();
+    vi.mocked(apiFetch)
+      .mockRejectedValueOnce(new ApiHttpError(503, 'cold start'))
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce({
+        game_id: 'g1',
+        winner_id: MY_USER,
+        elo_change_p1: 15,
+        elo_change_p2: -16,
+        new_elo_p1: 1515,
+        new_elo_p2: 1484,
+      });
+    const { result } = renderHook(() => useOnlineGame(baseOpts()));
+
+    let pending: Promise<void>;
+    await act(async () => {
+      pending = result.current.submitResult(0, 'win', ['e2', 'e8']);
+    });
+    // The overlay goes up straight away rather than after the retries settle.
+    expect(result.current.result?.recordStatus).toBe('recording');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20000);
+      await pending;
+    });
+    expect(result.current.result).toEqual({
+      winner: 0,
+      eloChange: 15,
+      savedGameId: null,
+      recordStatus: 'recorded',
+    });
+    expect(apiFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('gives up after the retries and offers the failure back to the caller', async () => {
+    vi.useFakeTimers();
+    vi.mocked(apiFetch).mockRejectedValue(new Error('network'));
+    const { result } = renderHook(() => useOnlineGame(baseOpts()));
+
+    let pending: Promise<void>;
+    await act(async () => {
+      pending = result.current.submitResult(0, 'win', ['e2']);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+      await pending;
+    });
+
+    expect(result.current.result?.recordStatus).toBe('failed');
+    // One attempt per retry delay, plus the first.
+    expect(apiFetch).toHaveBeenCalledTimes(4);
+
+    // Try again re-sends exactly the same claim.
+    vi.mocked(apiFetch).mockResolvedValue({
+      game_id: 'g1',
+      winner_id: MY_USER,
+      elo_change_p1: 9,
+      elo_change_p2: -10,
+      new_elo_p1: 1509,
+      new_elo_p2: 1490,
+    });
+    await act(async () => {
+      await result.current.retrySubmitResult();
+    });
+    expect(result.current.result?.recordStatus).toBe('recorded');
+    expect(result.current.result?.eloChange).toBe(9);
+    const lastBody = JSON.parse(vi.mocked(apiFetch).mock.calls.at(-1)![1]!.body as string);
+    expect(lastBody).toMatchObject({ winner_index: 0, reason: 'win', move_history: ['e2'] });
   });
 
   it('posts a disconnect-forfeit result with the caller as winner', async () => {
@@ -248,13 +368,46 @@ describe('useOnlineGame submitResult', () => {
     );
     const body = JSON.parse(vi.mocked(apiFetch).mock.calls[0]![1]!.body as string);
     expect(body).toMatchObject({ winner_index: 0, reason: 'disconnect', move_history: ['e2'] });
-    expect(result.current.result).toEqual({ winner: 0, eloChange: 8, savedGameId: null });
+    expect(result.current.result).toEqual({
+      winner: 0,
+      eloChange: 8,
+      savedGameId: null,
+      recordStatus: 'recorded',
+    });
   });
 
-  it('observeResult shows the outcome without posting', () => {
+  it('observeResult shows the outcome without posting a result', () => {
     const { result } = renderHook(() => useOnlineGame(baseOpts()));
     act(() => result.current.observeResult(1, 'saved-9'));
-    expect(result.current.result).toEqual({ winner: 1, eloChange: 0, savedGameId: 'saved-9' });
-    expect(apiFetch).not.toHaveBeenCalled();
+    expect(result.current.result).toEqual({
+      winner: 1,
+      eloChange: 0,
+      savedGameId: 'saved-9',
+      recordStatus: 'observed',
+    });
+    expect(apiFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/result'),
+      expect.anything(),
+    );
+  });
+
+  it('observeResult reads the delta back once the other side records it', async () => {
+    // The winner of a forfeit cannot submit the result, so without this read they are
+    // shown no rating change at all despite their rating having moved.
+    vi.useFakeTimers();
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({ elo_change_p1: null, elo_change_p2: null })
+      .mockResolvedValueOnce({ elo_change_p1: 11, elo_change_p2: -12 });
+    const { result } = renderHook(() => useOnlineGame(baseOpts()));
+
+    act(() => result.current.observeResult(0, 'saved-1'));
+    expect(result.current.result?.eloChange).toBe(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(apiFetch).toHaveBeenCalledWith('/games/g1');
+    expect(result.current.result?.eloChange).toBe(11);
+    expect(result.current.result?.recordStatus).toBe('observed');
   });
 });

@@ -19,6 +19,10 @@ export interface SavedGame {
   // Set only for vs-bot games: the bot level played. Its presence marks a game as a
   // bot game, and it is sent as ai_difficulty when persisting to the backend.
   difficulty?: BotDifficulty;
+  // Set only for online games: the backend's id for the same game. It marks this save as
+  // a local copy of a record the server also holds, which is what lets the history list
+  // show the server's version rather than both.
+  serverGameId?: string;
   // Whether this bot game has been persisted to the backend. Undefined/false means
   // the login backfill still needs to upload it.
   synced?: boolean;
@@ -45,10 +49,12 @@ export function saveGame(
   opponentLabel = 'Bot',
   userRole: 0 | 1 = 0,
   difficulty?: BotDifficulty,
+  serverGameId?: string,
 ): string {
   const id = `game_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const game: SavedGame = { id, date: Date.now(), moves, winner, opponentLabel, userRole };
   if (difficulty) game.difficulty = difficulty; // vs-bot games only
+  if (serverGameId) game.serverGameId = serverGameId; // online games only
   const existing = loadAll();
   saveAll([game, ...existing].slice(0, 50)); // keep last 50 games
   return id;
@@ -59,18 +65,33 @@ export function loadGame(id: string): SavedGame | null {
 }
 
 export function listGames(): Omit<SavedGame, 'moves'>[] {
-  return loadAll().map(({ id, date, winner, opponentLabel, userRole }) => ({
-    id,
-    date,
-    winner,
-    opponentLabel,
-    userRole,
-  }));
+  return loadAll().map(
+    ({ id, date, winner, opponentLabel, userRole, difficulty, serverGameId }) => ({
+      id,
+      date,
+      winner,
+      opponentLabel,
+      userRole,
+      difficulty,
+      serverGameId,
+    }),
+  );
+}
+
+/**
+ * A game with no winner never reached an ending: an abort, or a session that went away
+ * mid-game. Calling that a loss (which is what a plain win/lose split does) puts defeats
+ * in a player's history they never actually suffered.
+ */
+export type GameOutcome = 'win' | 'loss' | 'unfinished';
+
+export function gameOutcome(game: Pick<SavedGame, 'winner' | 'userRole'>): GameOutcome {
+  if (game.winner === null) return 'unfinished';
+  return game.winner === (game.userRole ?? 0) ? 'win' : 'loss';
 }
 
 export function didUserWin(game: Pick<SavedGame, 'winner' | 'userRole'>): boolean {
-  if (game.winner === null) return false;
-  return game.winner === (game.userRole ?? 0);
+  return gameOutcome(game) === 'win';
 }
 
 // Finished bot games saved locally but not yet persisted to the backend. Full

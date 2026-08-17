@@ -57,6 +57,9 @@ export function WallSlot({
 
   const classes = [
     'wall-slot',
+    // Orientation is in the class because the touch target grows perpendicular to the
+    // groove, and only CSS knows how big a groove is (see --wall-touch-slop).
+    wall.orientation === 'h' ? 'wall-slot-h' : 'wall-slot-v',
     isPlaced ? 'placed' : '',
     !isPlaced && previewState === 'valid' ? 'preview-valid' : '',
     !isPlaced && previewState === 'invalid' ? 'preview-invalid' : '',

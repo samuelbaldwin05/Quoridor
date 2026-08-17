@@ -131,7 +131,7 @@ test-backend: ## Run pytest
 
 # ── Frontend ─────────────────────────────────────────────────────────────────
 lint-frontend: ## tsc + ESLint + Prettier check
-	cd frontend && bun run tsc --noEmit && bun run lint && bun run format:check
+	cd frontend && bun run tsc -b --noEmit && bun run lint && bun run format:check
 
 format-frontend: ## Auto-format with Prettier
 	cd frontend && bun run format

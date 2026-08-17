@@ -157,12 +157,16 @@ async def get_current_user(
             raise HTTPException(status_code=401, detail="Token missing sub claim")
 
         user_id = UUID(raw_id)
-        email = payload.get("email", "")
+        # An anonymous session (the local dev login) carries no email claim, and
+        # users.email is NOT NULL UNIQUE, so a synthesized one per id is needed: left
+        # empty, the first anonymous user would take "" and every one after it would
+        # collide with them.
+        email = payload.get("email") or f"{raw_id}@anonymous.local"
         user_metadata: dict = payload.get("user_metadata", {})
         display_name = (
             user_metadata.get("full_name")
             or user_metadata.get("display_name")
-            or email.split("@")[0]
+            or (email.split("@")[0] if payload.get("email") else "Dev Player")
             or "Player"
         )
 

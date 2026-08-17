@@ -18,9 +18,9 @@ interface SettingsModalProps {
   onResetScore?: () => void;
   /** Hide AI delay + keyboard-move settings that only apply to offline games. */
   showOfflineSettings?: boolean;
-  /** Session-scoped: when true, placing a wall requires a second click to confirm. */
-  confirmWallPlacement?: boolean;
-  onConfirmWallPlacementChange?: (value: boolean) => void;
+  /** Session-scoped: when true, a move (fence or pawn) needs a second tap to confirm. */
+  confirmMoves?: boolean;
+  onConfirmMovesChange?: (value: boolean) => void;
 }
 
 export function SettingsModal({
@@ -29,8 +29,8 @@ export function SettingsModal({
   settings,
   onUpdateSettings,
   showOfflineSettings = true,
-  confirmWallPlacement,
-  onConfirmWallPlacementChange,
+  confirmMoves,
+  onConfirmMovesChange,
 }: SettingsModalProps) {
   const [touch] = useState(isTouchDevice);
   if (!isOpen) return null;
@@ -75,14 +75,14 @@ export function SettingsModal({
             <span>Sound Effects</span>
           </label>
 
-          {onConfirmWallPlacementChange && touch && (
+          {onConfirmMovesChange && touch && (
             <label className="settings-row">
               <input
                 type="checkbox"
-                checked={!!confirmWallPlacement}
-                onChange={(e) => onConfirmWallPlacementChange(e.target.checked)}
+                checked={!!confirmMoves}
+                onChange={(e) => onConfirmMovesChange(e.target.checked)}
               />
-              <span>Double-tap to Place Fence</span>
+              <span>Double-tap to Confirm Moves</span>
             </label>
           )}
 

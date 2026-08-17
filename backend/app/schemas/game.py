@@ -72,7 +72,13 @@ class MoveCreate(BaseModel):
 #                      replay shows it is currently the opponent's turn (i.e. the caller
 #                      has already made their move and the absent player owes the next
 #                      one). See game_service.record_game_result.
-ResultReason = Literal["win", "resign", "timeout", "disconnect"]
+#   "opponent_timeout" the caller reports that the OPPONENT's clock ran out. Also a claim
+#                      for the win, and also checked rather than trusted: it needs the
+#                      opponent to owe the move and the server's own clock reconstruction
+#                      to agree they are out of time. Exists because "timeout" can only
+#                      be reported by the player who ran out, which a closed or
+#                      backgrounded tab cannot do.
+ResultReason = Literal["win", "resign", "timeout", "disconnect", "opponent_timeout"]
 
 
 class GameResultRequest(BaseModel):
@@ -149,7 +155,12 @@ class GameSummary(BaseModel):
 
 
 class GameDetail(BaseModel):
-    """Full record for replaying a finished game (public — no per-player view)."""
+    """Full record of a game.
+
+    Public for a finished game, so anyone can replay it. A game still in progress is
+    visible only to its two players, who need it to rejoin after a reload; the clock
+    fields at the bottom come with that and are never filled in for anyone else.
+    """
 
     id: UUID
     mode: GameMode
@@ -161,8 +172,19 @@ class GameDetail(BaseModel):
     player2_name: str | None
     winner_index: int | None
     move_history: list[str]
+    # Null until the game finalizes. Carried here so the winner of a forfeit can read the
+    # delta it earned them: only the forfeiting player may submit that result, so the
+    # winner's client never gets a response with the numbers in it.
+    elo_change_p1: int | None = None
+    elo_change_p2: int | None = None
     completed_at: datetime | None
     created_at: datetime
+    # Participants only, and only worth reading while the game is live: the seconds each
+    # player has already spent (migration 022) and when the last move landed. Together
+    # with time_control they rebuild both clocks on a client that reloaded mid-game.
+    time_used_p1: int | None = None
+    time_used_p2: int | None = None
+    last_move_at: datetime | None = None
 
 
 class MoveSubmitRequest(BaseModel):

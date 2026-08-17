@@ -1,11 +1,24 @@
 from __future__ import annotations
 
+import logging
 from uuid import UUID
 
 from supabase import Client
 
 from app.core.exceptions import ConflictError, DatabaseError
 from app.repositories._pg_errors import is_unique_violation
+
+logger = logging.getLogger(__name__)
+
+
+def cleanup_abandoned_games(client: Client, idle_hours: int) -> None:
+    """Retire games both players walked away from (migration 022). Best-effort: it is
+    housekeeping riding on somebody else's request, and a failure only means the rows
+    stay for the next sweep."""
+    try:
+        client.rpc("cleanup_abandoned_games", {"p_idle_hours": idle_hours}).execute()
+    except Exception:
+        logger.debug("abandoned game cleanup failed", exc_info=True)
 
 
 def _attach_current_names(client: Client, rows: list[dict]) -> list[dict]:

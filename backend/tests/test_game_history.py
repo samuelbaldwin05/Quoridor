@@ -92,3 +92,42 @@ class TestGetGameDetail:
         monkeypatch.setattr(game_repository, "get_game", lambda c, gid: None)
         with pytest.raises(NotFoundError):
             game_service.get_game_detail(CLIENT, uuid4())
+
+    def test_finished_game_is_public(self, monkeypatch) -> None:
+        row = _row()
+        monkeypatch.setattr(game_repository, "get_game", lambda c, gid: row)
+        detail = game_service.get_game_detail(CLIENT, UUID(row["id"]), viewer_id=None)
+        assert detail.move_history == ["e2", "e8", "e3"]
+
+    def test_live_game_is_hidden_from_outsiders(self, monkeypatch) -> None:
+        # Not "forbidden": a live game does not admit it exists to a non-participant.
+        row = _row(status="playing", completed_at=None)
+        monkeypatch.setattr(game_repository, "get_game", lambda c, gid: row)
+        with pytest.raises(NotFoundError):
+            game_service.get_game_detail(CLIENT, UUID(row["id"]), viewer_id=None)
+        with pytest.raises(NotFoundError):
+            game_service.get_game_detail(CLIENT, UUID(row["id"]), viewer_id=uuid4())
+
+    def test_live_game_gives_its_players_the_clocks(self, monkeypatch) -> None:
+        row = _row(
+            status="playing",
+            completed_at=None,
+            winner_index=None,
+            time_used_p1=42,
+            time_used_p2=17,
+            last_move_at="2026-07-01T00:05:00+00:00",
+        )
+        monkeypatch.setattr(game_repository, "get_game", lambda c, gid: row)
+        detail = game_service.get_game_detail(
+            CLIENT, UUID(row["id"]), viewer_id=UUID(row["player2_id"])
+        )
+        assert detail.status == "playing"
+        assert (detail.time_used_p1, detail.time_used_p2) == (42, 17)
+        assert detail.last_move_at is not None
+
+    def test_finished_game_withholds_the_clocks_from_outsiders(self, monkeypatch) -> None:
+        row = _row(time_used_p1=42, time_used_p2=17, last_move_at="2026-07-01T00:05:00+00:00")
+        monkeypatch.setattr(game_repository, "get_game", lambda c, gid: row)
+        detail = game_service.get_game_detail(CLIENT, UUID(row["id"]), viewer_id=None)
+        assert detail.time_used_p1 is None
+        assert detail.last_move_at is None

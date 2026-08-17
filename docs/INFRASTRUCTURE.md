@@ -39,6 +39,16 @@ Workflow: `.github/workflows/azure-static-web-apps-yellow-sand-062e4010f.yml`.
 - Build-time env (from repo secrets): `VITE_ENVIRONMENT=production`,
   `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_API_URL`.
 
+`frontend/public/staticwebapp.config.json` is deploy-critical. Azure serves the contents of
+`dist`, so a request for a client-side route (`/leaderboard`, `/history/<id>`) is a request
+for a file that does not exist, and without a `navigationFallback` it returns Azure's own
+404 page. That is what a phone hits when it reloads a page it was left on, which is how the
+missing file was found. Vite copies `public/` verbatim, which is why the file lives there
+rather than in the repo root. The exclude list deliberately leaves real files to 404 on
+their own: a missing bundle answering with index.html reads as a JavaScript parse error
+instead. `frontend/src/lib/__tests__/staticwebappConfig.test.ts` guards it, since nothing
+else fails until a deploy.
+
 ## Backend deploy
 
 Workflow: `.github/workflows/deploy-backend.yml`.
@@ -79,10 +89,21 @@ Deploy coupling: the multiplayer work is a breaking change. Backend, frontend, a
 migrations 009 and 010 must be live together. Because migrations auto-apply on merge
 and the deploys trigger on the same merge, a single merge to `main` lands all three;
 do not deploy pieces out of band. The 2026-08-06 hardening migrations 012 to 017 are
-coupled the same way: 015 (private realtime) must land with the frontend `private: true`
+coupled the same way: 024 (private realtime) must land with the frontend `private: true`
 flag and needs a live two-client check first, and 016 (client write lockdown) assumes all
 writes go through the service-role backend. Review these before merging, as they apply to
 production automatically. See [BACKLOG.md](BACKLOG.md) "Needs verification".
+
+Dashboard settings that are NOT in this repo, and that the code assumes:
+
+- Refresh token reuse interval. `supabase/config.toml` sets 30s for local; the hosted
+  project needs the same under Auth, Sessions. The default 10s is short enough that an
+  installed web app and a browser tab restoring their sessions seconds apart can have the
+  second refresh rejected, which signs the player out for real. Inside the interval the
+  same token returns a valid session instead. The client also adopts a session another
+  context wrote, so this is belt and braces (see DECISIONS).
+- Anonymous sign-ins stay OFF in the hosted project. They are on locally, where the dev
+  login uses one; the dev button is not rendered outside development.
 
 ## CI workflows
 

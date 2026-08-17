@@ -1094,6 +1094,14 @@ body {
   filter: brightness(1.1);
 }
 
+/* Proposed but not played: the first tap of a double-tap move. Reads as a target that
+   has been picked up rather than one that is merely available. */
+.pending-move {
+  background: var(--valid-move) !important;
+  box-shadow: inset 0 0 0 3px var(--preview-valid);
+  filter: brightness(1.15);
+}
+
 /* Players */
 .player1 {
   background: var(--player1-color) !important;
@@ -1151,6 +1159,42 @@ body {
 .wall-slot.preview-invalid {
   background: var(--preview-invalid);
   cursor: not-allowed;
+}
+
+/* Touch targets. A groove is --gap-size wide (8px on a phone) and a fingertip is nearer
+   40px, so on a touch screen the slot's TARGET is grown past its visual, the way a phone
+   keyboard's keys accept presses beyond the drawn key. The extra area only reaches across
+   the groove, into the tiles either side of it, never along it: an h slot and a v slot
+   therefore still only compete where they already crossed, so the growth can never turn a
+   tap into the wrong ORIENTATION. It does take a bite out of the squares, which is
+   affordable precisely because confirm mode is on by default here: the worst a stolen tap
+   costs is one extra tap to correct a preview, not a move you did not mean to play.
+   Pointer-precise devices are left exactly as they were, since hover previews would then
+   fire from off the groove. */
+@media (pointer: coarse) {
+  .board {
+    /* Deliberately conservative: 4px takes the groove from 8px to 16px, which is still
+       under a fingertip but leaves most of a square intact for pawn taps. Raise it if
+       aiming still misses in real use. */
+    --wall-touch-slop: 4px;
+  }
+
+  .wall-slot {
+    position: relative;
+  }
+
+  .wall-slot:not(.placed)::before {
+    content: '';
+    position: absolute;
+  }
+
+  .wall-slot-h:not(.placed)::before {
+    inset: calc(-1 * var(--wall-touch-slop)) 0;
+  }
+
+  .wall-slot-v:not(.placed)::before {
+    inset: 0 calc(-1 * var(--wall-touch-slop));
+  }
 }
 
 /* UI Panel */
@@ -1607,9 +1651,26 @@ body {
   padding-top: 8px;
 }
 
-/* Right-side slot in header/footer (timer card) */
+/* Left-side name slot: gives up width first so the right slot always fits. */
+.game-card-header > span:first-child,
+.game-card-footer > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Right-side slot in header/footer: fence chip, status note, timer card. A flex row,
+   not an inline span — the timer row inside is a block, so inline layout broke it onto
+   its own line and stacked the chip above the clock on mobile. */
 .game-card-header-right {
   opacity: 1; /* override the parent 0.75 opacity */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  gap: 6px;
+  margin-left: 8px;
 }
 
 .game-card-body {
@@ -2128,11 +2189,35 @@ body {
 .result-lose {
   color: var(--hover-danger);
 }
+/* Neither: a game that stopped without an ending is not a defeat. */
+.result-unfinished {
+  color: var(--text-primary);
+  opacity: 0.5;
+}
 
 .history-item-meta {
   font-size: 11px;
   color: var(--text-primary);
   opacity: 0.45;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Marks a friend challenge in the list; ladder games carry no tag. */
+.history-item-tag {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.history-item-elo {
+  font-weight: 700;
+  opacity: 1;
+  margin-left: auto;
 }
 
 /* Back button in move-list view */
@@ -3409,6 +3494,11 @@ body {
   font-size: 36px;
 }
 
+/* Search ended without a match: capped out, or paused when the tab went away. */
+.matchmaking-idle-icon {
+  font-size: 36px;
+}
+
 /* ── Login Page ─────────────────────────────────────────────────────────────── */
 .login-card {
   background: var(--secondary-bg);
@@ -3650,6 +3740,28 @@ body {
   text-decoration: underline;
 }
 
+/* Whether the result actually reached the backend, under the win/lose title. */
+.online-result-note {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+  text-align: center;
+}
+
+.online-result-note-warn {
+  color: var(--hover-danger);
+}
+
+.online-result-retry {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: var(--modal-accent);
+  text-decoration: underline;
+}
+
 /* ELO change after online game result */
 .online-elo-change {
   font-size: 18px;
@@ -3870,13 +3982,14 @@ body {
   background: var(--secondary-bg);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 7px;
-  padding: 3px 10px;
+  /* Padding and size track .online-timer-card so the chip and the clock sit as one
+     row of equal-height boxes rather than two mismatched blocks. */
+  padding: 4px 12px;
   font-family: 'Courier New', monospace;
-  font-size: 13px;
+  font-size: clamp(12px, 1.5vmin, 16px);
   font-weight: 700;
   color: rgba(255, 255, 255, 0.85);
   letter-spacing: 0.04em;
-  margin-right: 6px;
   white-space: nowrap;
   opacity: 1;
 }

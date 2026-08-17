@@ -34,6 +34,14 @@ from app.services.elo_service import update_elos
 # frontend's 15s grace so a legitimate claim after that grace reliably passes.
 DISCONNECT_FORFEIT_MIN_SECONDS = 12
 
+# How far past zero the server's clock reconstruction must put the opponent before an
+# "opponent_timeout" claim is honored. The reconstruction (games.time_used_p1/p2, charged
+# per move) counts wall-clock, while the clients pause on opponent disconnect, so the
+# server's figure is an upper bound on what a client shows. The margin keeps a claim from
+# being honored on that discrepancy alone; a genuine flag clears it comfortably, since the
+# claimant only makes the claim once their own view of the opponent's clock hit zero.
+FLAG_CLAIM_MARGIN_SECONDS = 10
+
 
 def _seconds_since(iso_timestamp: str | None) -> float | None:
     """Seconds elapsed since an ISO8601 timestamp (server clock), or None if unparseable."""
@@ -46,6 +54,44 @@ def _seconds_since(iso_timestamp: str | None) -> float | None:
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=UTC)
     return (datetime.now(UTC) - ts).total_seconds()
+
+
+def _resolve_flag_claim(game: dict, stored_history: list[str], caller_role: int) -> int:
+    """Winner index for an "opponent_timeout" claim, or raise if it does not hold up.
+
+    The claim is that the opponent's clock ran out. Three things have to agree before the
+    caller is handed the win, none of them supplied by the caller:
+
+    1. The game is actually on a clock and under way. Before the first move both clocks
+       are held (the 20 second start grace covers that window instead), so there is no
+       flag to fall.
+    2. The opponent owes the move. A player cannot flag on someone else's turn, and this
+       is the same guard the disconnect claim uses.
+    3. The server's own reconstruction puts them past zero by FLAG_CLAIM_MARGIN_SECONDS:
+       their consumed time plus the current turn's elapsed time exceeds the time control.
+    """
+    opponent_role = 1 - caller_role
+
+    time_control = game.get("time_control")
+    if not time_control:
+        raise AuthorizationError("game has no clock to flag")
+    if not stored_history:
+        raise AuthorizationError("clocks do not start until the first move")
+
+    state = replay(stored_history)
+    if state.current_player_index != opponent_role:
+        raise AuthorizationError("cannot claim a timeout while it is your move to make")
+
+    used = game.get("time_used_p1" if opponent_role == 0 else "time_used_p2") or 0
+    elapsed_this_turn = _seconds_since(game.get("last_move_at"))
+    if elapsed_this_turn is None:
+        raise AuthorizationError("cannot establish how long the current turn has run")
+
+    remaining = time_control - used - elapsed_this_turn
+    if remaining > -FLAG_CLAIM_MARGIN_SECONDS:
+        raise AuthorizationError("opponent still has time on their clock")
+
+    return caller_role
 
 
 def record_game_result(
@@ -113,6 +159,8 @@ def record_game_result(
     #     but only if replaying the stored history shows it is the opponent's turn —
     #     i.e. the caller has already played and the absent player owes the next move.
     #     This keeps the outcome tied to server state rather than trusting the claim.
+    #   - "opponent_timeout": the caller reports the OPPONENT flagged. Same shape as
+    #     disconnect, checked against the server's own clock instead of a dwell.
     caller_role = 0 if caller_str == p1_id else 1
     stored_history = game.get("move_history") or []
     if body.reason == "win":
@@ -136,6 +184,8 @@ def record_game_result(
                 "opponent has not been idle long enough to forfeit by disconnect"
             )
         winner_index = caller_role
+    elif body.reason == "opponent_timeout":
+        winner_index = _resolve_flag_claim(game, stored_history, caller_role)
     else:
         winner_index = 1 if caller_str == p1_id else 0
 
@@ -357,11 +407,23 @@ def list_user_games(
     return [_to_summary(row, uid) for row in rows]
 
 
-def get_game_detail(supabase: Client, game_id: UUID) -> GameDetail:
-    """Full record for replaying a finished game (public view)."""
+def get_game_detail(supabase: Client, game_id: UUID, viewer_id: UUID | None = None) -> GameDetail:
+    """A finished game for anyone, a live game only for the two people playing it.
+
+    The public half is the replay viewer. The participant half is what a client that
+    reloaded mid-game reads to rejoin, which is why it also carries the clocks. A live
+    game answers "not found" to everyone else rather than admitting it exists, since the
+    position of a game in progress is nobody else's business.
+    """
     row = game_repository.get_game(supabase, game_id)
     if row is None:
         raise NotFoundError("game not found")
+
+    viewer = str(viewer_id) if viewer_id else None
+    is_participant = viewer is not None and viewer in (row.get("player1_id"), row.get("player2_id"))
+    if row.get("status") != "finished" and not is_participant:
+        raise NotFoundError("game not found")
+
     return GameDetail(
         id=UUID(row["id"]),
         mode=row["mode"],
@@ -373,6 +435,11 @@ def get_game_detail(supabase: Client, game_id: UUID) -> GameDetail:
         player2_name=row.get("player2_name"),
         winner_index=row.get("winner_index"),
         move_history=row.get("move_history") or [],
+        elo_change_p1=row.get("elo_change_p1"),
+        elo_change_p2=row.get("elo_change_p2"),
         completed_at=row.get("completed_at"),
         created_at=row["created_at"],
+        time_used_p1=row.get("time_used_p1") if is_participant else None,
+        time_used_p2=row.get("time_used_p2") if is_participant else None,
+        last_move_at=row.get("last_move_at") if is_participant else None,
     )

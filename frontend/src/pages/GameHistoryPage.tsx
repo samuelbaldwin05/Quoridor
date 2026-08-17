@@ -8,9 +8,44 @@ import { createInitialState } from '@/engine/gameEngine';
 import { replayToIndex, moveIcon } from '@/engine/moveDisplay';
 import { serializeMove, parseMove } from '@/engine/notation';
 import type { StoredMove } from '@/engine/gameTypes';
-import { loadGame, listGames, didUserWin, type SavedGame } from '@/lib/gameStorage';
+import {
+  loadGame,
+  listGames,
+  gameOutcome,
+  type GameOutcome,
+  type SavedGame,
+} from '@/lib/gameStorage';
 import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { useHoldRepeat } from '@/hooks/useHoldRepeat';
+
+/** One row of GET /api/users/{id}/games: an online game as the backend recorded it. */
+interface ServerGameSummary {
+  id: string;
+  mode: 'pass_and_play' | 'vs_ai' | 'ranked' | 'casual';
+  time_control: number | null;
+  opponent_name: string | null;
+  result: 'win' | 'loss';
+  elo_change: number | null;
+  move_count: number;
+  completed_at: string | null;
+}
+
+/**
+ * A row in the history list, from either side of the split: online games come from the
+ * backend so they are there on any device, bot and pass-and-play games only ever existed
+ * on this one. `id` is what the viewer should be opened with, which is the server's id
+ * for an online game and the local save's id otherwise.
+ */
+interface HistoryEntry {
+  id: string;
+  date: number;
+  outcome: GameOutcome;
+  opponentLabel: string;
+  isBot: boolean;
+  eloChange: number | null;
+  casual: boolean;
+}
 
 // Public replay record from GET /games/{id} (online games).
 interface OnlineGameDetail {
@@ -41,6 +76,17 @@ function adaptOnlineGame(d: OnlineGameDetail): SavedGame {
   };
 }
 
+const RESULT_LABEL: Record<GameOutcome, string> = {
+  win: 'Win',
+  loss: 'Loss',
+  unfinished: 'Unfinished',
+};
+const RESULT_CLASS: Record<GameOutcome, string> = {
+  win: 'result-win',
+  loss: 'result-lose',
+  unfinished: 'result-unfinished',
+};
+
 export function GameHistoryPage() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
@@ -54,7 +100,57 @@ export function GameHistoryPage() {
   const [filterOpponent, setFilterOpponent] = useState<'all' | 'bot' | 'human'>('all');
   const filterPanelRef = useRef<HTMLDivElement>(null);
 
-  const games = useMemo(() => listGames(), []);
+  const { profile } = useAuth();
+  const myId = profile?.id ?? '';
+
+  // Online games as the backend has them, so history is the same on any device rather
+  // than whatever this browser happens to remember. A failure leaves the list local,
+  // which is what it always was.
+  const [serverGames, setServerGames] = useState<ServerGameSummary[] | null>(null);
+  useEffect(() => {
+    if (!myId) return;
+    let cancelled = false;
+    apiFetch<ServerGameSummary[]>(`/api/users/${myId}/games?limit=50`)
+      .then((rows) => {
+        if (!cancelled) setServerGames(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setServerGames(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [myId]);
+
+  const games = useMemo<HistoryEntry[]>(() => {
+    // A local copy of a game the server also has would otherwise appear twice. Saves
+    // written before online games carried a server id have nothing to match on, so they
+    // can still double up until they age out of the fifty the browser keeps.
+    const hideLocalOnline = serverGames !== null;
+    const localEntries: HistoryEntry[] = listGames()
+      .filter((g) => !(hideLocalOnline && g.serverGameId))
+      .map((g) => ({
+        id: g.id,
+        date: g.date,
+        outcome: gameOutcome(g),
+        opponentLabel: g.opponentLabel ?? 'Bot',
+        isBot: g.difficulty != null,
+        eloChange: null,
+        casual: false,
+      }));
+
+    const serverEntries: HistoryEntry[] = (serverGames ?? []).map((g) => ({
+      id: g.id,
+      date: g.completed_at ? new Date(g.completed_at).getTime() : 0,
+      outcome: g.result,
+      opponentLabel: g.opponent_name ?? 'Opponent',
+      isBot: false,
+      eloChange: g.elo_change,
+      casual: g.mode === 'casual',
+    }));
+
+    return [...serverEntries, ...localEntries].sort((a, b) => b.date - a.date);
+  }, [serverGames]);
 
   // A selected game is either a local (offline) save (derived synchronously) or,
   // failing that, an online game fetched from the backend for replay (e.g. opened
@@ -98,16 +194,15 @@ export function GameHistoryPage() {
     // Sort
     if (sortOrder === 'oldest') list.sort((a, b) => a.date - b.date);
     // Filter by result (relative to the logged-in user, not player 0)
-    if (filterResult === 'win') list = list.filter((g) => didUserWin(g));
-    else if (filterResult === 'lose') list = list.filter((g) => !didUserWin(g));
-    // Filter by opponent type
-    if (filterOpponent === 'bot')
-      list = list.filter((g) => (g.opponentLabel ?? '').includes('Bot'));
-    else if (filterOpponent === 'human')
-      list = list.filter((g) => !(g.opponentLabel ?? '').includes('Bot'));
+    if (filterResult === 'win') list = list.filter((g) => g.outcome === 'win');
+    else if (filterResult === 'lose') list = list.filter((g) => g.outcome === 'loss');
+    // Filter by opponent type, on the flag the save carries rather than on the name: a
+    // human called Robotnik was being counted as a bot game.
+    if (filterOpponent === 'bot') list = list.filter((g) => g.isBot);
+    else if (filterOpponent === 'human') list = list.filter((g) => !g.isBot);
     // Search
     const q = gameSearch.trim().toLowerCase();
-    if (q) list = list.filter((g) => (g.opponentLabel ?? 'Bot').toLowerCase().includes(q));
+    if (q) list = list.filter((g) => g.opponentLabel.toLowerCase().includes(q));
     return list;
   }, [games, gameSearch, sortOrder, filterResult, filterOpponent]);
 
@@ -311,11 +406,9 @@ export function GameHistoryPage() {
                         onClick={() => selectGame(g.id)}
                       >
                         <div className="history-item-row">
-                          <span className="history-item-who">{g.opponentLabel ?? 'Bot'}</span>
-                          <span
-                            className={`history-item-result ${didUserWin(g) ? 'result-win' : 'result-lose'}`}
-                          >
-                            {didUserWin(g) ? 'Win' : 'Loss'}
+                          <span className="history-item-who">{g.opponentLabel}</span>
+                          <span className={`history-item-result ${RESULT_CLASS[g.outcome]}`}>
+                            {RESULT_LABEL[g.outcome]}
                           </span>
                         </div>
                         <div className="history-item-row history-item-meta">
@@ -329,6 +422,16 @@ export function GameHistoryPage() {
                               minute: '2-digit',
                             })}
                           </span>
+                          {g.casual && <span className="history-item-tag">Challenge</span>}
+                          {g.eloChange !== null && (
+                            <span
+                              className="history-item-elo"
+                              style={{ color: g.eloChange >= 0 ? '#2ecc71' : '#e74c3c' }}
+                            >
+                              {g.eloChange >= 0 ? '+' : ''}
+                              {g.eloChange}
+                            </span>
+                          )}
                         </div>
                       </button>
                     ))

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-13T02:10:55Z",
-  "head": "31e3bd1",
+  "generated_at": "2026-08-17T18:49:30Z",
+  "head": "4203b38",
   "docs": {
     "docs/ARCHITECTURE.md": {
       "title": "Architecture",
@@ -10,11 +10,23 @@
         "frontend/src/engine",
         "supabase/migrations"
       ],
-      "content_sha": "d8549de2e0ad",
-      "last_edit_commit": "76d133a",
-      "last_edit_date": "2026-08-08",
+      "content_sha": "86793cbeea78",
+      "last_edit_commit": "4203b38",
+      "last_edit_date": "2026-08-17",
       "stale": true,
       "unreviewed_code_commits": [
+        "0a51451",
+        "809a016",
+        "1346f4a",
+        "ed474f2",
+        "d52ac3f",
+        "2ce84f2",
+        "43d9089",
+        "a8affcf",
+        "65100ef",
+        "f861807",
+        "daf6427",
+        "713e4bf",
         "7196344",
         "ab0ee31",
         "e8d2222",
@@ -31,9 +43,9 @@
       "title": "Backlog",
       "reviewed_at": "0e3abee",
       "covers": [],
-      "content_sha": "3e4e5e39bf99",
-      "last_edit_commit": "31e3bd1",
-      "last_edit_date": "2026-08-09",
+      "content_sha": "bd112c5604c4",
+      "last_edit_commit": "4203b38",
+      "last_edit_date": "2026-08-17",
       "stale": null,
       "unreviewed_code_commits": []
     },
@@ -41,9 +53,9 @@
       "title": "Decisions",
       "reviewed_at": "0e3abee",
       "covers": [],
-      "content_sha": "108321708587",
-      "last_edit_commit": "76d133a",
-      "last_edit_date": "2026-08-08",
+      "content_sha": "9d89be43aa64",
+      "last_edit_commit": "4203b38",
+      "last_edit_date": "2026-08-17",
       "stale": null,
       "unreviewed_code_commits": []
     },
@@ -57,11 +69,15 @@
         "backend/app/core/config.py",
         "backend/Dockerfile"
       ],
-      "content_sha": "40dff49c9621",
-      "last_edit_commit": "76d133a",
-      "last_edit_date": "2026-08-08",
+      "content_sha": "403cccf348ca",
+      "last_edit_commit": "4203b38",
+      "last_edit_date": "2026-08-17",
       "stale": true,
       "unreviewed_code_commits": [
+        "6267280",
+        "0a51451",
+        "e846852",
+        "daf6427",
         "76d133a"
       ]
     },
@@ -73,10 +89,15 @@
         "frontend/src/ai/mcts"
       ],
       "content_sha": "bd795e14bd68",
-      "last_edit_commit": null,
-      "last_edit_date": null,
-      "stale": false,
-      "unreviewed_code_commits": []
+      "last_edit_commit": "e3ca21d",
+      "last_edit_date": "2026-08-12",
+      "stale": true,
+      "unreviewed_code_commits": [
+        "6683376",
+        "958cf92",
+        "d65457c",
+        "daf6427"
+      ]
     }
   }
 }

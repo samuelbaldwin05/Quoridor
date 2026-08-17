@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from supabase import Client
 
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, get_optional_user_id
 from app.core.dependencies import get_supabase
 from app.schemas.game import (
     BotGameCreate,
@@ -30,10 +30,15 @@ router = APIRouter(prefix="/games", tags=["games"])
 @router.get("/{game_id}", response_model=GameDetail)
 def read_game(
     game_id: UUID,
+    viewer_id: UUID | None = Depends(get_optional_user_id),
     supabase: Client = Depends(get_supabase),
 ) -> GameDetail:
-    """Public: full record for replaying a finished game."""
-    return get_game_detail(supabase, game_id)
+    """A finished game for anyone; a game in progress only for the two players in it.
+
+    Optional auth rather than required: the replay viewer is public and is used by signed
+    out visitors, while rejoining a live game after a reload needs the caller identified.
+    """
+    return get_game_detail(supabase, game_id, viewer_id)
 
 
 @router.post("/bot", response_model=BotGameRead)

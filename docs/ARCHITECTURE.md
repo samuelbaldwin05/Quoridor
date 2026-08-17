@@ -70,10 +70,18 @@ Postgres via Supabase, with Row Level Security. Core tables:
 - `users` (id, email, display_name, elo, games_played, timestamps)
 - `games` (players, winner, mode, time_control, move_history, status, timestamps)
 - `friendships` (requester, receiver, status) with an unordered-pair unique index
-- `matchmaking_queue`
+- `matchmaking_queue` (one waiting row per player; `last_polled_at` is the client's
+  heartbeat, and rows expire, see below)
 - `puzzles` (position, solution, source game, estimated elo)
 - `user_time_stats` (per-format stats; the dead `elo` column was dropped in migration
   014, `users.elo` is the single rating)
+
+`users.games_played` and every `user_time_stats` row are derived counters over finished
+`games` rows, and `submit_game_result` is their only writer: it increments both in the
+same transaction that finishes the game. Keep them together. Migration 010 rewrote that
+function and silently dropped the `user_time_stats` half, which left profile win rates
+reading a frozen numerator over a live denominator until 020 restored the write and
+rebuilt both counters from the games ledger.
 
 RLS: users read their own data and public leaderboard data. All writes go through the
 service-role backend or SECURITY DEFINER RPCs, so direct client writes are locked down:
@@ -122,16 +130,79 @@ The server, not the client, decides outcomes. This is the anti-cheat core.
   history; a win is confirmed against that record, a resign or timeout records the
   caller as the loser, and a `disconnect` claim awards the caller the win only if the
   replay shows it is the opponent's turn (turn-guarded, so it is not a bare assertion).
+  An `opponent_timeout` claim is the same shape, checked against the server's own clock:
+  `games.time_used_p1/p2` accumulate each player's think time as `append_game_move`
+  records their moves (migration 022), so the server can confirm the opponent is past
+  zero rather than take the claim on trust. It exists because `timeout` can only be
+  reported by the player who ran out, which a closed or throttled tab cannot do.
+- A result is the one request that cannot be dropped: unrecorded means no Elo, no
+  games played, no history, and nothing retries it later. `submitResult` retries
+  transient failures with backoff (the endpoint is idempotent, so a retry can duplicate
+  the request but never the Elo) and reports `recordStatus` to the overlay, which says
+  so plainly when a game could not be recorded instead of showing a zero delta. The
+  winner of a forfeit cannot submit at all, so it reads its Elo delta back off
+  `GET /games/{id}` once the forfeiting side's write lands.
+- Games both players walked away from are retired by `cleanup_abandoned_games` (status
+  `resigned`, no winner) so `playing` keeps meaning live.
+- A client rejoins rather than restarts. `GET /games/{id}` returns a finished game to
+  anyone (the replay viewer) and a game in progress only to its two players, who also get
+  `time_used_p1/p2` and `last_move_at`. `OnlineGamePage` reads that snapshot on mount and
+  adopts it: the move history via `RESTORE_ONLINE_GAME`, which side it is playing, the
+  opponent's name, and both clocks. So a reload, a crash or a phone waking up rejoins the
+  game in progress instead of playing on from an empty board. A broadcast that does not
+  fit the local history now asks the server for the authoritative one (twice at most)
+  before aborting, and broadcasts that arrive during the bootstrap are queued rather than
+  judged against a board this client has not loaded yet.
+- A player who claims the win (disconnect forfeit or flag) also broadcasts `forfeit`. The
+  other client does not believe it: it re-reads the game from the server, a few times,
+  since the claim only becomes true once the server has it. A tab returning from the
+  background re-reads too, which is how the player who was flagged while asleep finds out
+  at all. The flag claim waits `FLAG_CLAIM_GRACE_MS` after the clock reads zero, because
+  the server will not honour it until its own reconstruction is past zero by
+  `FLAG_CLAIM_MARGIN_SECONDS`; the same shape as the disconnect grace sitting above the
+  server's dwell.
 - The frontend is confirm-then-apply: a move is sent to the backend and only applied
   locally and broadcast once the backend accepts it. A double-submit guard prevents
   duplicates.
 - Supabase Realtime is used for broadcast and presence only, not as a source of truth.
-  The channel is now private (`private: true`) with authorization policies on
-  `realtime.messages` (migration 015) restricting topic `game:{id}` to its two
-  participants. This is DONE-UNVERIFIED: a wrong policy silently blocks all realtime, so
-  the private flip needs a live two-client smoke test. See DECISIONS.
+  The channel is private (`private: true`) with authorization policies on
+  `realtime.messages` (migration 024) restricting topic `game:{id}` to its two
+  participants, and `supabase.realtime.setAuth()` hands it the session token. The policy
+  logic is verified directly against the database; what still needs two live clients is
+  that the Realtime server populates topic and claims the way the policies assume. A wrong
+  policy blocks all realtime silently, so that check matters. See DECISIONS.
+- Session restore distinguishes "signed out" from "could not restore". A failed token
+  refresh arrives as an `INITIAL_SESSION` event with a null session, which is why
+  `useAuth` keeps a `quoridor-had-session` marker: with it, a failed restore retries (on
+  backoff, on `online`, on becoming visible) and reports `sessionRecovering` instead of
+  quietly becoming a guest. See DECISIONS.
+- Online play therefore requires a real Supabase session. The local dev login signs in
+  anonymously for that reason (and because it gives each browser a distinct user, so two
+  dev logins can be matched against each other); the old hand-rolled `dev-token` is gone
+  from the frontend. Anonymous tokens carry no email claim, so `core/auth.py` synthesizes
+  one per user id, `users.email` being NOT NULL UNIQUE.
 - Reconnect uses capped exponential backoff; the clock pauses while the opponent is
   disconnected; an illegal received move aborts both clients so they converge.
+
+Matchmaking rows expire, and the server is what enforces it (migration 021). A waiting
+row carries `last_polled_at`, refreshed by every `/matchmaking/status` poll, and
+`cleanup_stale_queue_entries` drops any row that has gone quiet for
+`QUEUE_IDLE_TIMEOUT_SECONDS` or has been waiting past `QUEUE_MAX_WAIT_SECONDS` (both in
+`matchmaking_service`). The sweep runs on join and on every poll, before matching, so
+nobody is ever paired with a player who already closed the tab. The client mirrors the
+same two deadlines for immediate feedback: it stops at the search cap, and stops after a
+minute of the tab being hidden. Neither client deadline is load-bearing.
+
+Game history has two sources and one list. Online games come from
+`GET /api/users/{id}/games`, so they are the same on any device; bot and pass-and-play
+games only ever existed in this browser's local storage. An online game's local save
+carries `serverGameId`, which is how the list shows the backend's copy instead of both.
+Saves written before that field existed can still appear twice until they age out.
+
+Friend challenges are rated. `accept_challenge` creates them with mode `casual`, but
+`submit_game_result` does not look at mode, so they move Elo and the per-format stats
+exactly like a ladder game. The name is historical; the UI now says "rated" where a
+challenge is offered or accepted, and history tags the row.
 
 ## Frontend
 

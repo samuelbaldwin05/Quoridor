@@ -1,5 +1,4 @@
 import { config } from './config';
-import { getDevToken } from './dev';
 import { supabase } from './supabase';
 
 /**
@@ -8,8 +7,6 @@ import { supabase } from './supabase';
  * so cannot use apiFetch, but still has to identify itself for the members-only engine.
  */
 export async function getAuthHeader(): Promise<string | null> {
-  const devToken = getDevToken();
-  if (devToken) return `Bearer ${devToken}`;
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -29,6 +26,30 @@ export const API_TIMEOUT_MS = 15000;
 
 export interface ApiFetchOptions extends RequestInit {
   timeoutMs?: number;
+}
+
+/**
+ * A non-2xx response. Carries the status so callers can tell a request worth retrying (the
+ * backend was asleep, the network blinked) from one that will fail identically forever (the
+ * server rejected the payload). The message keeps its original `API <status>: <body>` shape.
+ */
+export class ApiHttpError extends Error {
+  // Declared and assigned rather than taken as constructor parameter properties: the
+  // build runs with erasableSyntaxOnly, which rules that shorthand out.
+  readonly status: number;
+  readonly body: string;
+
+  constructor(status: number, body: string) {
+    super(`API ${status}: ${body}`);
+    this.name = 'ApiHttpError';
+    this.status = status;
+    this.body = body;
+  }
+
+  /** 5xx and 429 are the server's problem or a queue, so the same request may yet land. */
+  get isTransient(): boolean {
+    return this.status >= 500 || this.status === 429;
+  }
 }
 
 export class ApiTimeoutError extends Error {
@@ -77,7 +98,7 @@ export async function apiFetch<T>(path: string, init?: ApiFetchOptions): Promise
 
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(`API ${res.status}: ${text}`);
+    throw new ApiHttpError(res.status, text);
   }
   // 204 / empty bodies (e.g. DELETE endpoints) have no JSON to parse.
   if (res.status === 204 || res.headers.get('content-length') === '0') {

@@ -198,3 +198,49 @@ describe('online + misc transitions', () => {
     expect(s.message).toBeNull();
   });
 });
+
+describe('RESTORE_ONLINE_GAME', () => {
+  it('adopts the server history over whatever the client had', () => {
+    // A client that reloaded starts from nothing; the server's history is the game.
+    const moves = ['e2', 'e8', 'e3'].map((n, i) => ({
+      move: parseMove(n),
+      playerIndex: (i % 2) as 0 | 1,
+      timestamp: 0,
+    }));
+    const restored = gameReducer(freshState(), { type: 'RESTORE_ONLINE_GAME', moves });
+
+    expect(restored.moveHistory).toHaveLength(3);
+    expect(restored.game.status).toBe('playing');
+    expect(restored.game.currentPlayerIndex).toBe(1);
+    expect(restored.game.players[0].position).toEqual({ row: 6, col: 4 });
+    expect(restored.game.players[1].position).toEqual({ row: 1, col: 4 });
+  });
+
+  it('comes back finished when the history already ends in a win', () => {
+    const winning = [
+      'e2',
+      'd9',
+      'e3',
+      'e9',
+      'e4',
+      'd9',
+      'e5',
+      'e9',
+      'e6',
+      'd9',
+      'e7',
+      'e9',
+      'e8',
+      'd9',
+      'e9',
+    ];
+    const moves = winning.map((n, i) => ({
+      move: parseMove(n),
+      playerIndex: (i % 2) as 0 | 1,
+      timestamp: 0,
+    }));
+    const restored = gameReducer(freshState(), { type: 'RESTORE_ONLINE_GAME', moves });
+    expect(restored.game.status).toBe('finished');
+    expect(restored.game.winner).toBe(0);
+  });
+});

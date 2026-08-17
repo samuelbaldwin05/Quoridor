@@ -32,6 +32,7 @@ interface ApiFriend {
 
 interface RecentGame {
   id: string;
+  mode: 'pass_and_play' | 'vs_ai' | 'ranked' | 'casual';
   time_control: number | null;
   opponent_name: string | null;
   result: 'win' | 'loss';
@@ -323,6 +324,11 @@ export function ProfilePage() {
                         <span className="profile-game-opp">vs {g.opponent_name ?? 'Unknown'}</span>
                         {g.time_control && (
                           <span className="profile-game-meta">{tcLabel(g.time_control)}</span>
+                        )}
+                        {/* Challenges are rated like the ladder, so the row carries an Elo
+                            delta either way; the tag is what says where the game came from. */}
+                        {g.mode === 'casual' && (
+                          <span className="profile-game-meta">Challenge</span>
                         )}
                         {g.elo_change !== null && (
                           <span

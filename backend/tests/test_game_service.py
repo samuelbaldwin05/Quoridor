@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
@@ -69,6 +69,9 @@ def _make_game(
     elo_change_p2: int | None = None,
     move_history: list[str] | None = None,
     last_move_at: str | None = "2020-01-01T00:00:00+00:00",  # long ago: passes the dwell guard
+    time_control: int | None = 300,
+    time_used_p1: int = 0,
+    time_used_p2: int = 0,
 ) -> tuple[dict, str, str]:
     p1 = player1_id or str(uuid4())
     p2 = player2_id or str(uuid4())
@@ -83,6 +86,9 @@ def _make_game(
             "elo_change_p2": elo_change_p2,
             "move_history": move_history or [],
             "last_move_at": last_move_at,
+            "time_control": time_control,
+            "time_used_p1": time_used_p1,
+            "time_used_p2": time_used_p2,
         },
         p1,
         p2,
@@ -627,3 +633,114 @@ class TestRecordBotGame:
     def test_winner_index_out_of_range_rejected_at_schema(self, bad: int) -> None:
         with pytest.raises(PydanticValidationError):
             BotGameCreate(client_game_id="g", ai_difficulty="bot0", winner_index=bad)
+
+
+# ── record_game_result: opponent_timeout (server clock-guarded) ────────────────
+
+
+def _seconds_ago(seconds: int) -> str:
+    return (datetime.now(UTC) - timedelta(seconds=seconds)).isoformat()
+
+
+class TestRecordGameResultOpponentTimeout:
+    """A caller may claim the OPPONENT flagged, which exists because "timeout" can only
+    be reported by the player who ran out — impossible from a closed or backgrounded
+    tab. The server checks it against its own clock rather than taking the claim."""
+
+    def test_accepted_when_the_opponents_clock_is_spent(self) -> None:
+        # p1 played "e2", so p2 owes the move. p2 has used their whole clock and the
+        # current turn has run 20s past it.
+        game, p1, _p2 = _make_game(
+            move_history=["e2"],
+            time_control=300,
+            time_used_p2=300,
+            last_move_at=_seconds_ago(20),
+        )
+        client = _mock_client(game)
+        result = record_game_result(
+            client,
+            UUID(game["id"]),
+            GameResultRequest(winner_index=1, reason="opponent_timeout"),
+            UUID(p1),
+        )
+        assert result.winner_id == UUID(p1), "the claimant wins, not the client's winner_index"
+
+    def test_rejected_when_the_opponent_still_has_time(self) -> None:
+        game, p1, _p2 = _make_game(
+            move_history=["e2"],
+            time_control=300,
+            time_used_p2=100,
+            last_move_at=_seconds_ago(5),
+        )
+        client = _mock_client(game)
+        with pytest.raises(AuthorizationError):
+            record_game_result(
+                client,
+                UUID(game["id"]),
+                GameResultRequest(winner_index=0, reason="opponent_timeout"),
+                UUID(p1),
+            )
+
+    def test_rejected_inside_the_margin(self) -> None:
+        # Over by 5s, under the 10s margin that absorbs the client-side clock pauses the
+        # server cannot see. A real flag clears the margin comfortably.
+        game, p1, _p2 = _make_game(
+            move_history=["e2"],
+            time_control=300,
+            time_used_p2=300,
+            last_move_at=_seconds_ago(5),
+        )
+        client = _mock_client(game)
+        with pytest.raises(AuthorizationError):
+            record_game_result(
+                client,
+                UUID(game["id"]),
+                GameResultRequest(winner_index=0, reason="opponent_timeout"),
+                UUID(p1),
+            )
+
+    def test_rejected_on_the_callers_own_turn(self) -> None:
+        # After "e2" it is p2's move, so p2 cannot claim p1 flagged: p1's clock is not
+        # even running. Blocks asserting a win on your own turn.
+        game, _p1, p2 = _make_game(
+            move_history=["e2"],
+            time_control=300,
+            time_used_p1=300,
+            last_move_at=_seconds_ago(60),
+        )
+        client = _mock_client(game)
+        with pytest.raises(AuthorizationError):
+            record_game_result(
+                client,
+                UUID(game["id"]),
+                GameResultRequest(winner_index=1, reason="opponent_timeout"),
+                UUID(p2),
+            )
+
+    def test_rejected_before_the_first_move(self) -> None:
+        # Clocks are held until the game is under way, so there is no flag to claim
+        # however long the row has sat there. The 20s start abort covers this window.
+        game, _p1, p2 = _make_game(
+            move_history=[], time_control=300, last_move_at="2020-01-01T00:00:00+00:00"
+        )
+        client = _mock_client(game)
+        with pytest.raises(AuthorizationError):
+            record_game_result(
+                client,
+                UUID(game["id"]),
+                GameResultRequest(winner_index=1, reason="opponent_timeout"),
+                UUID(p2),
+            )
+
+    def test_rejected_without_a_time_control(self) -> None:
+        game, p1, _p2 = _make_game(
+            move_history=["e2"], time_control=None, last_move_at=_seconds_ago(600)
+        )
+        client = _mock_client(game)
+        with pytest.raises(AuthorizationError):
+            record_game_result(
+                client,
+                UUID(game["id"]),
+                GameResultRequest(winner_index=0, reason="opponent_timeout"),
+                UUID(p1),
+            )
