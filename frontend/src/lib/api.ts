@@ -37,12 +37,16 @@ export interface ApiFetchOptions extends RequestInit {
  * server rejected the payload). The message keeps its original `API <status>: <body>` shape.
  */
 export class ApiHttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly body: string,
-  ) {
+  // Declared and assigned rather than taken as constructor parameter properties: the
+  // build runs with erasableSyntaxOnly, which rules that shorthand out.
+  readonly status: number;
+  readonly body: string;
+
+  constructor(status: number, body: string) {
     super(`API ${status}: ${body}`);
     this.name = 'ApiHttpError';
+    this.status = status;
+    this.body = body;
   }
 
   /** 5xx and 429 are the server's problem or a queue, so the same request may yet land. */
