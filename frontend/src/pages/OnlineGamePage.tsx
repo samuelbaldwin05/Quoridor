@@ -53,7 +53,8 @@ export function OnlineGamePage() {
   const myUserId = profile?.id ?? '';
 
   const { state, dispatch } = useGame();
-  const [wallPreview, setWallPreview] = useState<Wall | null>(null);
+  // The move count the preview was drawn on rides along with it: see activeWall.
+  const [wallPreview, setWallPreview] = useState<{ wall: Wall; atMove: number } | null>(null);
 
   // Always-current ref to game state — lets onMoveReceived validate without stale closures
   const gameStateRef = useRef<GameState>(state.game);
@@ -356,6 +357,18 @@ export function OnlineGamePage() {
   const validPawnMoves: Position[] =
     isMyTurn && isLive ? getValidPawnMoves(state.game, myRole) : [];
 
+  // In confirm (tap) mode the preview is committed state, not a pointer echo: previewing
+  // a wall and then moving the pawn instead leaves the ghost up through the opponent's
+  // turn and into the next one. So a tap preview expires with the turn it was drawn on.
+  // Hover mode keeps its preview across the move; there the pointer owns it.
+  const moveCount = state.moveHistory.length;
+  const isExpiredTapPreview = confirmWallPlacement && wallPreview?.atMove !== moveCount;
+  const activeWall = wallPreview && !isExpiredTapPreview ? wallPreview.wall : null;
+  const previewWall = useCallback(
+    (wall: Wall | null) => setWallPreview(wall ? { wall, atMove: moveCount } : null),
+    [moveCount],
+  );
+
   // Keep broadcastAbortRef current so onMoveReceived (defined above) can reach it.
   useEffect(() => {
     broadcastAbortRef.current = broadcastAbort;
@@ -395,9 +408,9 @@ export function OnlineGamePage() {
   const handleWallHover = useCallback(
     (wall: Wall | null) => {
       if (confirmWallPlacement) return; // hover disabled; first click previews instead
-      setWallPreview(isMyTurn && isLive ? wall : null);
+      previewWall(isMyTurn && isLive ? wall : null);
     },
-    [isMyTurn, isLive, confirmWallPlacement],
+    [isMyTurn, isLive, confirmWallPlacement, previewWall],
   );
 
   const handleWallClick = useCallback(
@@ -407,16 +420,25 @@ export function OnlineGamePage() {
       if (!isValidWallPlacement(state.game, wall)) return;
       if (confirmWallPlacement) {
         // First click previews; second click on the same slot commits.
-        if (!wallPreview || !wallsEqual(wallPreview, wall)) {
-          setWallPreview(wall);
+        if (!activeWall || !wallsEqual(activeWall, wall)) {
+          previewWall(wall);
           return;
         }
       }
       const move: Move = { kind: 'wall', wall };
-      setWallPreview(null);
+      previewWall(null);
       void commitMove(move);
     },
-    [isMyTurn, isLive, state.game, myRole, commitMove, confirmWallPlacement, wallPreview],
+    [
+      isMyTurn,
+      isLive,
+      state.game,
+      myRole,
+      commitMove,
+      confirmWallPlacement,
+      activeWall,
+      previewWall,
+    ],
   );
 
   function handleResign() {
@@ -538,7 +560,7 @@ export function OnlineGamePage() {
               <GameBoard
                 gameState={displayGameState}
                 validPawnMoves={validPawnMoves}
-                wallPreview={isLive ? wallPreview : null}
+                wallPreview={isLive && isMyTurn ? activeWall : null}
                 isHumanTurn={isMyTurn && isLive}
                 clickMoveEnabled={state.settings.clickMoveEnabled}
                 flipped={boardFlipped}
