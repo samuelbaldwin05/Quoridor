@@ -11,7 +11,7 @@ Open work only. Reasoning and deferral rationale live in [DECISIONS.md](DECISION
 [CRIT] [HIGH] [MED] [LOW]. Locations are `path` references; re-grep if they drift.
 History of completed work is in git.
 
-Both suites green as of 2026-08-17: backend 397, frontend 390.
+Both suites green as of 2026-08-17: backend 397, frontend 393.
 
 ## Needs verification (you are here to test)
 
@@ -153,9 +153,14 @@ Check all three on both the online and offline game views:
     config dict, and `reuse_tree` measured +31.4 but needs per-game server state.
   - [MED] Drive the browser engine end to end. The Embind contract and the worker bundling are
     both verified, but nothing has run a real `new Worker` in a page.
-  - [LOW] Multi-threaded WASM needs COOP/COEP headers, which Azure Static Web Apps does not
-    send. Root parallelization is where most of the tuned strength came from, so this is the
-    largest available upgrade to the browser path.
+  - [LOW] Multi-threaded WASM needs COOP/COEP headers. Correction to the earlier note that
+    Azure Static Web Apps cannot send them: it can, via `globalHeaders` in
+    `staticwebapp.config.json`, which the app now has for its own reasons. The reason not to
+    is COEP, which blocks every cross-origin resource that does not opt in, and this app
+    loads Google's OAuth flow and Supabase over cross-origin requests. So it is a real
+    option with a real cost, not an impossibility. Root parallelization is where most of the
+    tuned strength came from, so this is still the largest available upgrade to the browser
+    path.
   - [LOW] Tree reuse and pondering. `reuse_tree` exists in the engine but needs either
     client-side persistence or server-side per-game state; the endpoint is stateless today.
 - Puzzles. The `puzzles` table exists with public-read RLS but is never populated;

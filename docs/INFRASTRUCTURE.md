@@ -39,6 +39,16 @@ Workflow: `.github/workflows/azure-static-web-apps-yellow-sand-062e4010f.yml`.
 - Build-time env (from repo secrets): `VITE_ENVIRONMENT=production`,
   `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_API_URL`.
 
+`frontend/public/staticwebapp.config.json` is deploy-critical. Azure serves the contents of
+`dist`, so a request for a client-side route (`/leaderboard`, `/history/<id>`) is a request
+for a file that does not exist, and without a `navigationFallback` it returns Azure's own
+404 page. That is what a phone hits when it reloads a page it was left on, which is how the
+missing file was found. Vite copies `public/` verbatim, which is why the file lives there
+rather than in the repo root. The exclude list deliberately leaves real files to 404 on
+their own: a missing bundle answering with index.html reads as a JavaScript parse error
+instead. `frontend/src/lib/__tests__/staticwebappConfig.test.ts` guards it, since nothing
+else fails until a deploy.
+
 ## Backend deploy
 
 Workflow: `.github/workflows/deploy-backend.yml`.

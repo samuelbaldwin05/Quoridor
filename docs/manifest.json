@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-17T18:22:46Z",
-  "head": "eba70ef",
+  "generated_at": "2026-08-17T18:49:30Z",
+  "head": "4203b38",
   "docs": {
     "docs/ARCHITECTURE.md": {
       "title": "Architecture",
@@ -11,10 +11,12 @@
         "supabase/migrations"
       ],
       "content_sha": "86793cbeea78",
-      "last_edit_commit": "eba70ef",
-      "last_edit_date": "2026-08-16",
+      "last_edit_commit": "4203b38",
+      "last_edit_date": "2026-08-17",
       "stale": true,
       "unreviewed_code_commits": [
+        "0a51451",
+        "809a016",
         "1346f4a",
         "ed474f2",
         "d52ac3f",
@@ -41,9 +43,9 @@
       "title": "Backlog",
       "reviewed_at": "0e3abee",
       "covers": [],
-      "content_sha": "66ec8c40b459",
-      "last_edit_commit": "eba70ef",
-      "last_edit_date": "2026-08-16",
+      "content_sha": "bd112c5604c4",
+      "last_edit_commit": "4203b38",
+      "last_edit_date": "2026-08-17",
       "stale": null,
       "unreviewed_code_commits": []
     },
@@ -52,8 +54,8 @@
       "reviewed_at": "0e3abee",
       "covers": [],
       "content_sha": "9d89be43aa64",
-      "last_edit_commit": "5697cfd",
-      "last_edit_date": "2026-08-16",
+      "last_edit_commit": "4203b38",
+      "last_edit_date": "2026-08-17",
       "stale": null,
       "unreviewed_code_commits": []
     },
@@ -67,11 +69,13 @@
         "backend/app/core/config.py",
         "backend/Dockerfile"
       ],
-      "content_sha": "477c090a5ea8",
-      "last_edit_commit": "e3ca21d",
-      "last_edit_date": "2026-08-12",
+      "content_sha": "403cccf348ca",
+      "last_edit_commit": "4203b38",
+      "last_edit_date": "2026-08-17",
       "stale": true,
       "unreviewed_code_commits": [
+        "6267280",
+        "0a51451",
         "e846852",
         "daf6427",
         "76d133a"
@@ -89,6 +93,7 @@
       "last_edit_date": "2026-08-12",
       "stale": true,
       "unreviewed_code_commits": [
+        "6683376",
         "958cf92",
         "d65457c",
         "daf6427"

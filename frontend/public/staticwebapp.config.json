@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/staticwebapp.config.json",
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/assets/*",
+      "/engine/*",
+      "/sounds/*",
+      "*.{css,js,mjs,map,wasm,png,jpg,jpeg,svg,ico,json,webmanifest,txt,mp3,wav,woff,woff2}"
+    ]
+  },
+  "mimeTypes": {
+    ".wasm": "application/wasm"
+  }
+}
