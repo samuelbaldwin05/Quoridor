@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// api.ts builds an auth header before every request: the Supabase client needs configured env,
-// and the dev-token check needs localStorage, neither of which exists in the node environment.
-// The header is not what these tests are about.
+// api.ts builds an auth header before every request, which needs the Supabase client and
+// its configured env; neither exists in the node environment. The header is not what these
+// tests are about.
 const getSession = vi.hoisted(() => vi.fn(async () => ({ data: { session: null } })));
 vi.mock('@/lib/supabase', () => ({ supabase: { auth: { getSession } } }));
-vi.mock('@/lib/dev', () => ({ getDevToken: () => null }));
 
 const { apiFetch, ApiTimeoutError, API_TIMEOUT_MS } = await import('../api');
 

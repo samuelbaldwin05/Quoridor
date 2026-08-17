@@ -3,7 +3,6 @@ import type { ReactNode } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { config } from '@/lib/config';
-import { getDevToken, setDevToken, clearDevToken } from '@/lib/dev';
 import { apiFetch } from '@/lib/api';
 
 export interface UserProfile {
@@ -64,13 +63,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    if (getDevToken()) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAuthMode('dev');
-      fetchProfile().finally(() => setIsLoading(false));
-      return;
-    }
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       // onAuthStateChange fires INITIAL_SESSION synchronously before this promise
       // resolves, so auth state + profile fetch are already handled there.
@@ -84,7 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session) {
-        setAuthMode('google');
+        // An anonymous session is the dev login (see signInAsDev), not a Google one.
+        setAuthMode(session.user.is_anonymous ? 'dev' : 'google');
         // Wait for profile before clearing isLoading — otherwise the guard and
         // ELO label briefly see (isLoading=false, profile=null) and show stale
         // defaults or let new users through to the app before /setup redirect.
@@ -106,21 +99,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  /**
+   * Local development login. It signs in ANONYMOUSLY, which means a real Supabase session
+   * rather than the hand-rolled "dev-token" this used to set. Two reasons that matters:
+   *
+   * - Online play needs a genuine session. The per-game Realtime channel is private
+   *   (migration 024), and its policies are `TO authenticated`, so a client without a
+   *   Supabase session gets no realtime at all: no moves, no presence, no error.
+   * - Every anonymous sign-in is a distinct user, where the old dev token was one shared
+   *   id for everybody. Two dev logins could therefore never be matched against each
+   *   other (matchmaking will not pair a user with themselves); now they can, which is
+   *   what makes a local two-client test possible at all.
+   *
+   * Needs `enable_anonymous_sign_ins` on the Supabase project. It is on locally (see
+   * supabase/config.toml) and off in the hosted one, where the button is not shown either.
+   */
   async function signInAsDev(): Promise<{ error: string | null }> {
-    try {
-      setDevToken();
-      setAuthMode('dev');
-      await fetchProfile();
-      return { error: null };
-    } catch (err) {
-      clearDevToken();
+    const { error } = await supabase.auth.signInAnonymously();
+    if (error) {
       setAuthMode('none');
-      return { error: err instanceof Error ? err.message : 'Dev login failed' };
+      return { error: error.message };
     }
+    // onAuthStateChange picks the session up and loads the profile.
+    return { error: null };
   }
 
   async function signOut(): Promise<void> {
-    clearDevToken();
     setAuthMode('none');
     setProfile(null);
     setUser(null);

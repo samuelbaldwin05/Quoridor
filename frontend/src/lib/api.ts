@@ -1,5 +1,4 @@
 import { config } from './config';
-import { getDevToken } from './dev';
 import { supabase } from './supabase';
 
 /**
@@ -8,8 +7,6 @@ import { supabase } from './supabase';
  * so cannot use apiFetch, but still has to identify itself for the members-only engine.
  */
 export async function getAuthHeader(): Promise<string | null> {
-  const devToken = getDevToken();
-  if (devToken) return `Bearer ${devToken}`;
   const {
     data: { session },
   } = await supabase.auth.getSession();
