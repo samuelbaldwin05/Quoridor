@@ -72,7 +72,13 @@ class MoveCreate(BaseModel):
 #                      replay shows it is currently the opponent's turn (i.e. the caller
 #                      has already made their move and the absent player owes the next
 #                      one). See game_service.record_game_result.
-ResultReason = Literal["win", "resign", "timeout", "disconnect"]
+#   "opponent_timeout" the caller reports that the OPPONENT's clock ran out. Also a claim
+#                      for the win, and also checked rather than trusted: it needs the
+#                      opponent to owe the move and the server's own clock reconstruction
+#                      to agree they are out of time. Exists because "timeout" can only
+#                      be reported by the player who ran out, which a closed or
+#                      backgrounded tab cannot do.
+ResultReason = Literal["win", "resign", "timeout", "disconnect", "opponent_timeout"]
 
 
 class GameResultRequest(BaseModel):

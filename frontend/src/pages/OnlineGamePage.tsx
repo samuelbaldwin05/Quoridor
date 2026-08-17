@@ -174,7 +174,8 @@ export function OnlineGamePage() {
   // Board win: send the full move history so the backend can replay + confirm the
   // winner. Resign/timeout: only the forfeiting player submits (caller = loser); the
   // winner observes instead, and observeResult reads the delta back off the game once
-  // that write lands.
+  // that write lands. Claims the caller makes about the opponent (disconnect,
+  // opponent_timeout) are `mine`, so this client submits them and the server checks them.
   useEffect(() => {
     if (aborted) return;
     if (state.game.status === 'finished' && result === null) {
@@ -249,6 +250,32 @@ export function OnlineGamePage() {
     terminalRef.current = { reason: 'timeout', mine: true };
     dispatch({ type: 'RESIGN_ONLINE', winner: opponent });
   }, [times, myRole, state.game.status, aborted, broadcastTimeout, dispatch]);
+
+  // Detect the OPPONENT's clock hitting 0 and claim it. The effect above only fires on
+  // the clock of whoever is running the tab, so a player whose tab is backgrounded (where
+  // browsers throttle timers to a crawl), asleep or closed never reports their own flag,
+  // and the game used to hang at 0:00 with no way to end it. The server does not take the
+  // claim on trust: it checks its own per-move clock reconstruction and that the opponent
+  // owes the move (see game_service._resolve_flag_claim).
+  const opponentRole: 0 | 1 = myRole === 0 ? 1 : 0;
+  useEffect(() => {
+    if (state.game.status !== 'playing') return;
+    if (aborted) return;
+    if (times[opponentRole] > 0) return;
+    if (state.moveHistory.length === 0) return; // clocks are held until the game is under way
+    if (state.game.currentPlayerIndex !== opponentRole) return;
+    terminalRef.current = { reason: 'opponent_timeout', mine: true };
+    dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
+  }, [
+    times,
+    myRole,
+    opponentRole,
+    state.game.status,
+    state.game.currentPlayerIndex,
+    state.moveHistory.length,
+    aborted,
+    dispatch,
+  ]);
 
   // Sustained opponent disconnect -> forfeit. If the opponent stays absent for
   // DISCONNECT_GRACE_MS mid-game while it is THEIR turn to move, record a win via the
@@ -498,7 +525,6 @@ export function OnlineGamePage() {
 
   useKeyboard(state.settings.keyboardEnabled, isMyTurn && isLive, handleKeyboardAction);
 
-  const opponentIndex: 0 | 1 = myRole === 0 ? 1 : 0;
   const myName = profile?.username ?? 'You';
   const myElo = profile?.elo ?? STARTING_ELO;
 
@@ -523,7 +549,7 @@ export function OnlineGamePage() {
             gameMode={state.settings.gameMode}
             opponentLabel={topLabel}
             playerLabel={bottomLabel}
-            topFenceCount={state.game.players[opponentIndex].wallsRemaining}
+            topFenceCount={state.game.players[opponentRole].wallsRemaining}
             bottomFenceCount={state.game.players[myRole].wallsRemaining}
             topRight={
               <div className="online-timer-row">
@@ -572,7 +598,7 @@ export function OnlineGamePage() {
               />
               <FencePanel
                 playerFences={state.game.players[myRole].wallsRemaining}
-                computerFences={state.game.players[opponentIndex].wallsRemaining}
+                computerFences={state.game.players[opponentRole].wallsRemaining}
                 flipped={boardFlipped}
               />
             </div>

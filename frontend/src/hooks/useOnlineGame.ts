@@ -30,7 +30,7 @@ export interface OnlineResult {
   recordStatus: ResultRecordStatus;
 }
 
-export type ResultReason = 'win' | 'resign' | 'timeout' | 'disconnect';
+export type ResultReason = 'win' | 'resign' | 'timeout' | 'disconnect' | 'opponent_timeout';
 
 // Backoff between result-submission attempts. A result is the one request in the app that
 // cannot be dropped, so it is retried well past the point of a normal request: an unlucky
