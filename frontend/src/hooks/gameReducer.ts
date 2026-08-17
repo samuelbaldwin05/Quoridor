@@ -1,6 +1,7 @@
 import { makeAiMove } from '@/ai/aiCoordinator';
 import { createAiContext, type AiContext, type AiDecision } from '@/ai/aiTypes';
 import { applyMove, checkWin, createInitialState } from '@/engine/gameEngine';
+import { replayToIndex } from '@/engine/moveDisplay';
 import type { GameState, Move, PlayerIndex, StoredMove } from '@/engine/gameTypes';
 import { saveGame } from '@/lib/gameStorage';
 import { saveSettings } from '@/lib/settingsStorage';
@@ -43,6 +44,7 @@ export type GameAction =
   | { type: 'APPLY_MOVE'; move: Move }
   | { type: 'APPLY_AI_MOVE'; decision: AiDecision; nextAiContext: AiContext }
   | { type: 'APPLY_ONLINE_MOVE'; move: Move; playerIndex: PlayerIndex }
+  | { type: 'RESTORE_ONLINE_GAME'; moves: StoredMove[] }
   | { type: 'RESIGN' }
   | { type: 'RESIGN_ONLINE'; winner: PlayerIndex }
   | { type: 'UPDATE_SETTINGS'; patch: Partial<Settings> }
@@ -184,6 +186,21 @@ export function gameReducer(state: FullState, action: GameAction): FullState {
         aiContext: nextAiContext,
         moveHistory: newHistory,
         lastSavedGameId,
+      };
+    }
+
+    case 'RESTORE_ONLINE_GAME': {
+      // Adopt the server's move history wholesale: this is a client rejoining a game
+      // that carried on without it (a reload, a crash, a phone that went to sleep), so
+      // the stored history is the truth and whatever was on screen is not.
+      const game = replayToIndex(action.moves, action.moves.length);
+      const winner = checkWin(game);
+      return {
+        ...state,
+        game: winner !== null ? { ...game, status: 'finished', winner } : game,
+        moveHistory: action.moves,
+        message: null,
+        lastSavedGameId: null,
       };
     }
 

@@ -19,8 +19,9 @@ import { useKeyboard, type KeyAction } from '@/hooks/useKeyboard';
 import { useOnlineGame, type ResultReason } from '@/hooks/useOnlineGame';
 import { useTheme } from '@/hooks/useTheme';
 import { useAudio } from '@/hooks/useAudio';
-import { apiFetch } from '@/lib/api';
+import { ApiHttpError, apiFetch } from '@/lib/api';
 import { STARTING_ELO } from '@/lib/elo';
+import { clocksFrom, toStoredMoves, type GameSnapshot } from '@/lib/onlineGameSnapshot';
 import { saveGame } from '@/lib/gameStorage';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -31,6 +32,19 @@ const DISCONNECT_GRACE_MS = 15000;
 // Debounce before surfacing the "waiting/reconnecting" status, so a brief presence gap
 // during the start handshake or a blip doesn't flash the notice.
 const WAITING_DEBOUNCE_MS = 4000;
+// How many times a broadcast this client cannot apply may send it back to the server for
+// the authoritative history before the game is written off as genuinely desynced.
+const MAX_RESYNCS = 2;
+
+// Why a game ended with no result. The overlay used to say "no move within 20 seconds"
+// whatever had happened, which was the wrong story for three of these four.
+type AbortReason = 'start-grace' | 'desync' | 'abandoned' | 'missing';
+const ABORT_MESSAGE: Record<AbortReason, string> = {
+  'start-grace': 'No move within 20 seconds. ELO unchanged.',
+  desync: 'This game went out of step between the two players and was stopped. ELO unchanged.',
+  abandoned: 'This game was left unfinished and has been closed. ELO unchanged.',
+  missing: 'This game could not be found. It may have finished a long time ago.',
+};
 
 /** A tap waiting on its confirming second tap. Mirrors useBoardInteraction's version;
  *  the online page runs its own interaction handlers because every move goes through the
@@ -55,15 +69,27 @@ export function OnlineGamePage() {
   const { gameId } = useParams<{ gameId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile, isLoading: authLoading } = useAuth();
 
-  const myRole = parseInt(searchParams.get('role') ?? '0') as 0 | 1;
-  const opponentName = searchParams.get('opponent') ?? 'Opponent';
+  // The URL is how a game is opened, not what it is. Everything here except the opponent's
+  // rating is confirmed against the server during the bootstrap below, so a reload, a
+  // pasted link or a hand-edited role all end up playing the game the server has.
   const opponentElo = parseInt(searchParams.get('opponentElo') ?? String(STARTING_ELO));
-  const timeControl = parseInt(searchParams.get('tc') ?? '300');
+  const [myRole, setMyRole] = useState<0 | 1>(
+    () => (parseInt(searchParams.get('role') ?? '0') === 1 ? 1 : 0) as 0 | 1,
+  );
+  const [opponentName, setOpponentName] = useState(
+    () => searchParams.get('opponent') ?? 'Opponent',
+  );
+  const [timeControl, setTimeControl] = useState(() => parseInt(searchParams.get('tc') ?? '300'));
   const myUserId = profile?.id ?? '';
 
   const { state, dispatch } = useGame();
+  // Read inside applySnapshot, which must not re-run every time the role settles.
+  const myRoleRef = useRef(myRole);
+  useEffect(() => {
+    myRoleRef.current = myRole;
+  }, [myRole]);
   // The tap awaiting its confirming second tap, tagged with the move it was made on (see
   // activeWall). Fences and pawn moves share the slot: you are proposing one move.
   const [pending, setPending] = useState<PendingIntent | null>(null);
@@ -90,6 +116,11 @@ export function OnlineGamePage() {
   const audio = useAudio(state.settings.soundEnabled, state.settings.volume);
 
   const [aborted, setAborted] = useState(false);
+  const [abortReason, setAbortReason] = useState<AbortReason>('start-grace');
+  const abortGame = useCallback((reason: AbortReason) => {
+    setAbortReason(reason);
+    setAborted(true);
+  }, []);
 
   // Debounced "opponent not present" flag. Only true after the opponent has been
   // absent for WAITING_DEBOUNCE_MS, so the brief gap while their client finishes the
@@ -110,6 +141,11 @@ export function OnlineGamePage() {
   // reach broadcastAbort once it's available.
   const broadcastAbortRef = useRef<() => void>(() => {});
 
+  // Whether this client has the server's history yet, and the broadcasts that arrived
+  // while it did not (or that did not fit it). Replayed once a snapshot lands.
+  const readyRef = useRef(false);
+  const queuedMovesRef = useRef<{ move: Move; playerIndex: PlayerIndex }[]>([]);
+
   const {
     result,
     connectionStatus,
@@ -128,15 +164,24 @@ export function OnlineGamePage() {
     myUserId,
     onMoveReceived: useCallback(
       (move: Move, playerIndex: PlayerIndex) => {
-        // Validate against current state. An illegal broadcast means a cheat or a
-        // desync; we can't prove a result, so abort both clients (no ELO) and tell
-        // the sender via a terminal broadcast so they converge instead of hanging.
-        const validation = applyMove(gameStateRef.current, move);
-        if (!validation.valid) {
-          broadcastAbortRef.current();
-          setAborted(true);
+        // Hold anything that arrives before the bootstrap has the server's history:
+        // judged against an empty board it would look illegal, and dropping it would
+        // leave this client a move behind for the rest of the game.
+        if (!readyRef.current) {
+          queuedMovesRef.current.push({ move, playerIndex });
           return;
         }
+        // A move that doesn't fit is usually a desync rather than a cheat, so ask the
+        // server who is right before writing the game off. Only if the server's own
+        // history still doesn't accept it do we abort both clients (no ELO), telling the
+        // sender via a terminal broadcast so they converge instead of hanging.
+        const validation = applyMove(gameStateRef.current, move);
+        if (!validation.valid) {
+          queuedMovesRef.current.push({ move, playerIndex });
+          void resyncRef.current();
+          return;
+        }
+
         dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex });
         setViewIndex(null);
       },
@@ -151,22 +196,112 @@ export function OnlineGamePage() {
       dispatch({ type: 'RESIGN_ONLINE', winner: myRole });
     }, [dispatch, myRole]),
     onOpponentAborted: useCallback(() => {
-      setAborted(true);
-    }, []),
+      // The other client could not reconcile with ours. Same event, other side of it.
+      abortGame('desync');
+    }, [abortGame]),
   });
 
-  // Start the game, clean up matchmaking queue, play start sound.
-  // Guarded so the one-time side effects (DELETE, start sound) fire exactly once
-  // even under StrictMode's dev double-invoke.
+  // Adopt the server's copy of the game. This is the difference between opening a game
+  // and REJOINING one: a reload, a crash or a phone waking up all land here with an empty
+  // board, and before this they simply played on from move one, desynced, until the first
+  // broadcast they could not apply voided the game for both players.
+  const applySnapshot = useCallback(
+    (snapshot: GameSnapshot) => {
+      const moves = toStoredMoves(snapshot.move_history);
+      const tc = snapshot.time_control ?? timeControl;
+      // Which side we are is the server's to say, but only if it knows who is asking: a
+      // profile that failed to load leaves the URL's role as the best guess available.
+      const role: 0 | 1 = myUserId ? (snapshot.player2_id === myUserId ? 1 : 0) : myRoleRef.current;
+      const oppName = (role === 0 ? snapshot.player2_name : snapshot.player1_name) ?? null;
+
+      setMyRole(role);
+      setTimeControl(tc);
+      if (oppName) setOpponentName(oppName);
+      const clocks = clocksFrom(snapshot, tc);
+      setTimes(clocks);
+      timesRef.current = clocks;
+      dispatch({ type: 'RESTORE_ONLINE_GAME', moves });
+
+      if (snapshot.status === 'playing') return;
+
+      if (snapshot.winner_index !== null) {
+        // Already decided. Show the outcome and read back the Elo it moved, rather than
+        // letting the result effect try to submit a result the server already has.
+        terminalRef.current = { reason: 'win', mine: false };
+        observeResult(snapshot.winner_index as 0 | 1);
+        dispatch({ type: 'RESIGN_ONLINE', winner: snapshot.winner_index as 0 | 1 });
+      } else {
+        // Finished with no winner is an abandoned game the sweep retired (migration 023).
+        abortGame('abandoned');
+      }
+    },
+    [dispatch, myUserId, timeControl, observeResult, abortGame],
+  );
+
+  // Re-read the server's history when a broadcast doesn't fit ours, then replay anything
+  // that queued up while we were asking. Bounded: a client that cannot be reconciled twice
+  // is genuinely desynced and falls through to the abort.
+  const resyncCountRef = useRef(0);
+  const resyncRef = useRef<() => Promise<void>>(async () => {});
+  const resync = useCallback(async () => {
+    if (resyncCountRef.current >= MAX_RESYNCS) {
+      broadcastAbortRef.current();
+      abortGame('desync');
+      return;
+    }
+    resyncCountRef.current += 1;
+    try {
+      const snapshot = await apiFetch<GameSnapshot>(`/games/${gameId}`);
+      applySnapshot(snapshot);
+      // Whatever queued is either already in that history or older than it.
+      queuedMovesRef.current = [];
+    } catch {
+      broadcastAbortRef.current();
+      abortGame('desync');
+    }
+  }, [gameId, applySnapshot, abortGame]);
+  useEffect(() => {
+    resyncRef.current = resync;
+  }, [resync]);
+
+  // Guarded so the one-time side effects (DELETE, start sound) fire exactly once even
+  // under StrictMode's dev double-invoke. Held until auth settles, because the snapshot
+  // is what tells this client which side it is playing, and that needs its user id.
   const startedRef = useRef(false);
   useEffect(() => {
-    if (startedRef.current) return;
+    if (startedRef.current || authLoading) return;
     startedRef.current = true;
-    dispatch({ type: 'START_GAME' });
-    void apiFetch('/matchmaking/leave', { method: 'DELETE' }).catch(() => {});
-    audio.playStart();
+    void (async () => {
+      try {
+        const snapshot = await apiFetch<GameSnapshot>(`/games/${gameId}`);
+        applySnapshot(snapshot);
+      } catch (err) {
+        if (err instanceof ApiHttpError && err.status === 404) {
+          // No such game, or not one of ours. Starting a fresh board here would put the
+          // player in a game that exists nowhere but their screen.
+          abortGame('missing');
+        } else {
+          // Could not reach the server. Fall back to the fresh start this page always
+          // used to assume, so a brand new game is still playable.
+          dispatch({ type: 'START_GAME' });
+        }
+      }
+      readyRef.current = true;
+      // The reducer validates each one against the restored history and ignores anything
+      // that no longer applies, which is the right answer for a move already in it.
+      for (const { move, playerIndex } of queuedMovesRef.current) {
+        dispatch({ type: 'APPLY_ONLINE_MOVE', move, playerIndex });
+      }
+      queuedMovesRef.current = [];
+      void apiFetch('/matchmaking/leave', { method: 'DELETE' }).catch(() => {});
+      // Only for a game that is actually starting. Rejoining one in progress should not
+      // sound like a new game.
+      if (gameStateRef.current.status !== 'playing' || state.moveHistory.length === 0) {
+        audio.playStart();
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authLoading]);
 
   // Play the appropriate sound on every appended move (any player, any kind).
   const prevMoveCountRef = useRef(state.moveHistory.length);
@@ -244,11 +379,11 @@ export function OnlineGamePage() {
     if (state.moveHistory.length > 0) return;
     if (aborted) return;
     const t = setTimeout(() => {
-      setAborted(true);
+      abortGame('start-grace');
       broadcastAbort();
     }, 20000);
     return () => clearTimeout(t);
-  }, [state.game.status, state.moveHistory.length, aborted, broadcastAbort]);
+  }, [state.game.status, state.moveHistory.length, aborted, broadcastAbort, abortGame]);
 
   // Detect MY clock hitting 0 → broadcast timeout to the opponent + record loss locally.
   // Only the player whose clock ran out fires this; the opponent receives via the
@@ -662,8 +797,10 @@ export function OnlineGamePage() {
       {aborted && result === null && (
         <div className="win-lose-overlay flex-center">
           <div className="win-lose-modal">
-            <h1 className="win-lose-title">Game Aborted</h1>
-            <p className="online-elo-change">No move within 20 seconds. ELO unchanged.</p>
+            <h1 className="win-lose-title">
+              {abortReason === 'missing' ? 'Game Not Found' : 'Game Aborted'}
+            </h1>
+            <p className="online-elo-change">{ABORT_MESSAGE[abortReason]}</p>
             <div className="win-lose-buttons">
               <button
                 className="btn action-btn"
