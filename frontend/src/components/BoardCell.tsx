@@ -3,6 +3,8 @@ interface BoardCellProps {
   col: number;
   occupant: 0 | 1 | null;
   isValidMove: boolean;
+  /** Tapped once in confirm mode: proposed, not played. A second tap commits it. */
+  isPending: boolean;
   isHumanTurn: boolean;
   clickMoveEnabled: boolean;
   onClick: () => void;
@@ -13,6 +15,7 @@ export function BoardCell({
   col,
   occupant,
   isValidMove,
+  isPending,
   isHumanTurn,
   clickMoveEnabled,
   onClick,
@@ -22,6 +25,7 @@ export function BoardCell({
     occupant === 0 ? 'player1' : '',
     occupant === 1 ? 'player2' : '',
     isValidMove && isHumanTurn ? 'valid-move' : '',
+    isPending && isHumanTurn ? 'pending-move' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -56,7 +60,7 @@ export function BoardCell({
             }
           : undefined
       }
-      aria-label={`Cell ${row},${col}${occupant !== null ? ` (player ${occupant + 1})` : ''}${isValidMove ? ' - valid move' : ''}`}
+      aria-label={`Cell ${row},${col}${occupant !== null ? ` (player ${occupant + 1})` : ''}${isValidMove ? ' - valid move' : ''}${isPending ? ' - selected, activate again to move here' : ''}`}
     />
   );
 }

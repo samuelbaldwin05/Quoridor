@@ -10,6 +10,8 @@ const ROW_LABELS = ['9', '8', '7', '6', '5', '4', '3', '2', '1'];
 interface GameBoardProps {
   gameState: GameState;
   validPawnMoves: Position[];
+  /** Pawn destination tapped once in confirm mode, awaiting its second tap. */
+  pendingPawnMove?: Position | null;
   wallPreview: Wall | null;
   isHumanTurn: boolean;
   clickMoveEnabled: boolean;
@@ -22,6 +24,7 @@ interface GameBoardProps {
 export function GameBoard({
   gameState,
   validPawnMoves,
+  pendingPawnMove = null,
   wallPreview,
   isHumanTurn,
   clickMoveEnabled,
@@ -43,6 +46,7 @@ export function GameBoard({
             : null;
 
       const isValidMove = validPawnMoves.some((p) => p.row === row && p.col === col);
+      const isPending = pendingPawnMove?.row === row && pendingPawnMove?.col === col;
 
       elements.push(
         <BoardCell
@@ -51,6 +55,7 @@ export function GameBoard({
           col={col}
           occupant={occupant}
           isValidMove={isValidMove}
+          isPending={isPending}
           isHumanTurn={isHumanTurn}
           clickMoveEnabled={clickMoveEnabled}
           onClick={() => onCellClick({ row, col })}

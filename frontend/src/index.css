@@ -1094,6 +1094,14 @@ body {
   filter: brightness(1.1);
 }
 
+/* Proposed but not played: the first tap of a double-tap move. Reads as a target that
+   has been picked up rather than one that is merely available. */
+.pending-move {
+  background: var(--valid-move) !important;
+  box-shadow: inset 0 0 0 3px var(--preview-valid);
+  filter: brightness(1.15);
+}
+
 /* Players */
 .player1 {
   background: var(--player1-color) !important;
@@ -1151,6 +1159,42 @@ body {
 .wall-slot.preview-invalid {
   background: var(--preview-invalid);
   cursor: not-allowed;
+}
+
+/* Touch targets. A groove is --gap-size wide (8px on a phone) and a fingertip is nearer
+   40px, so on a touch screen the slot's TARGET is grown past its visual, the way a phone
+   keyboard's keys accept presses beyond the drawn key. The extra area only reaches across
+   the groove, into the tiles either side of it, never along it: an h slot and a v slot
+   therefore still only compete where they already crossed, so the growth can never turn a
+   tap into the wrong ORIENTATION. It does take a bite out of the squares, which is
+   affordable precisely because confirm mode is on by default here: the worst a stolen tap
+   costs is one extra tap to correct a preview, not a move you did not mean to play.
+   Pointer-precise devices are left exactly as they were, since hover previews would then
+   fire from off the groove. */
+@media (pointer: coarse) {
+  .board {
+    /* Deliberately conservative: 4px takes the groove from 8px to 16px, which is still
+       under a fingertip but leaves most of a square intact for pawn taps. Raise it if
+       aiming still misses in real use. */
+    --wall-touch-slop: 4px;
+  }
+
+  .wall-slot {
+    position: relative;
+  }
+
+  .wall-slot:not(.placed)::before {
+    content: '';
+    position: absolute;
+  }
+
+  .wall-slot-h:not(.placed)::before {
+    inset: calc(-1 * var(--wall-touch-slop)) 0;
+  }
+
+  .wall-slot-v:not(.placed)::before {
+    inset: 0 calc(-1 * var(--wall-touch-slop));
+  }
 }
 
 /* UI Panel */

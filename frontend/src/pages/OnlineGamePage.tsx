@@ -32,6 +32,17 @@ const DISCONNECT_GRACE_MS = 15000;
 // during the start handshake or a blip doesn't flash the notice.
 const WAITING_DEBOUNCE_MS = 4000;
 
+/** A tap waiting on its confirming second tap. Mirrors useBoardInteraction's version;
+ *  the online page runs its own interaction handlers because every move goes through the
+ *  backend before it is applied. */
+type PendingIntent =
+  | { kind: 'wall'; wall: Wall; atMove: number }
+  | { kind: 'pawn'; to: Position; atMove: number };
+
+function samePosition(a: Position, b: Position): boolean {
+  return a.row === b.row && a.col === b.col;
+}
+
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
@@ -53,8 +64,9 @@ export function OnlineGamePage() {
   const myUserId = profile?.id ?? '';
 
   const { state, dispatch } = useGame();
-  // The move count the preview was drawn on rides along with it: see activeWall.
-  const [wallPreview, setWallPreview] = useState<{ wall: Wall; atMove: number } | null>(null);
+  // The tap awaiting its confirming second tap, tagged with the move it was made on (see
+  // activeWall). Fences and pawn moves share the slot: you are proposing one move.
+  const [pending, setPending] = useState<PendingIntent | null>(null);
 
   // Always-current ref to game state — lets onMoveReceived validate without stale closures
   const gameStateRef = useRef<GameState>(state.game);
@@ -70,7 +82,7 @@ export function OnlineGamePage() {
   const timesRef = useRef<[number, number]>([timeControl, timeControl]);
 
   const [showSettings, setShowSettings] = useState(false);
-  const [confirmWallPlacement, setConfirmWallPlacement] = useState(
+  const [confirmMoves, setConfirmMoves] = useState(
     () => window.matchMedia?.('(pointer: coarse)').matches ?? false,
   );
 
@@ -391,10 +403,12 @@ export function OnlineGamePage() {
   // turn and into the next one. So a tap preview expires with the turn it was drawn on.
   // Hover mode keeps its preview across the move; there the pointer owns it.
   const moveCount = state.moveHistory.length;
-  const isExpiredTapPreview = confirmWallPlacement && wallPreview?.atMove !== moveCount;
-  const activeWall = wallPreview && !isExpiredTapPreview ? wallPreview.wall : null;
+  const expired = confirmMoves && pending?.atMove !== moveCount;
+  const active = pending && !expired ? pending : null;
+  const activeWall = active?.kind === 'wall' ? active.wall : null;
+  const activePawnMove = active?.kind === 'pawn' ? active.to : null;
   const previewWall = useCallback(
-    (wall: Wall | null) => setWallPreview(wall ? { wall, atMove: moveCount } : null),
+    (wall: Wall | null) => setPending(wall ? { kind: 'wall', wall, atMove: moveCount } : null),
     [moveCount],
   );
 
@@ -429,17 +443,38 @@ export function OnlineGamePage() {
       if (!isMyTurn || !isLive || !state.settings.clickMoveEnabled) return;
       const move: Move = { kind: 'pawn', to: pos };
       if (!applyMove(state.game, move).valid) return;
+
+      // Confirm mode covers pawn moves for the same reason it covers fences: on a phone
+      // the grooves sit between the squares, so a tap aimed at one that lands slightly
+      // off used to play a pawn move on the spot, in a ranked game, with no way back.
+      if (confirmMoves) {
+        if (!activePawnMove || !samePosition(activePawnMove, pos)) {
+          setPending({ kind: 'pawn', to: pos, atMove: moveCount });
+          return;
+        }
+      }
+
+      setPending(null);
       void commitMove(move);
     },
-    [isMyTurn, isLive, state.game, state.settings.clickMoveEnabled, commitMove],
+    [
+      isMyTurn,
+      isLive,
+      state.game,
+      state.settings.clickMoveEnabled,
+      commitMove,
+      confirmMoves,
+      activePawnMove,
+      moveCount,
+    ],
   );
 
   const handleWallHover = useCallback(
     (wall: Wall | null) => {
-      if (confirmWallPlacement) return; // hover disabled; first click previews instead
+      if (confirmMoves) return; // hover disabled; first click previews instead
       previewWall(isMyTurn && isLive ? wall : null);
     },
-    [isMyTurn, isLive, confirmWallPlacement, previewWall],
+    [isMyTurn, isLive, confirmMoves, previewWall],
   );
 
   const handleWallClick = useCallback(
@@ -447,7 +482,7 @@ export function OnlineGamePage() {
       if (!isMyTurn || !isLive) return;
       if (state.game.players[myRole].wallsRemaining <= 0) return;
       if (!isValidWallPlacement(state.game, wall)) return;
-      if (confirmWallPlacement) {
+      if (confirmMoves) {
         // First click previews; second click on the same slot commits.
         if (!activeWall || !wallsEqual(activeWall, wall)) {
           previewWall(wall);
@@ -455,19 +490,10 @@ export function OnlineGamePage() {
         }
       }
       const move: Move = { kind: 'wall', wall };
-      previewWall(null);
+      setPending(null);
       void commitMove(move);
     },
-    [
-      isMyTurn,
-      isLive,
-      state.game,
-      myRole,
-      commitMove,
-      confirmWallPlacement,
-      activeWall,
-      previewWall,
-    ],
+    [isMyTurn, isLive, state.game, myRole, commitMove, confirmMoves, activeWall, previewWall],
   );
 
   function handleResign() {
@@ -588,6 +614,7 @@ export function OnlineGamePage() {
               <GameBoard
                 gameState={displayGameState}
                 validPawnMoves={validPawnMoves}
+                pendingPawnMove={isLive && isMyTurn ? activePawnMove : null}
                 wallPreview={isLive && isMyTurn ? activeWall : null}
                 isHumanTurn={isMyTurn && isLive}
                 clickMoveEnabled={state.settings.clickMoveEnabled}
@@ -623,8 +650,8 @@ export function OnlineGamePage() {
         settings={state.settings}
         onUpdateSettings={(patch) => dispatch({ type: 'UPDATE_SETTINGS', patch })}
         showOfflineSettings={false}
-        confirmWallPlacement={confirmWallPlacement}
-        onConfirmWallPlacementChange={setConfirmWallPlacement}
+        confirmMoves={confirmMoves}
+        onConfirmMovesChange={setConfirmMoves}
       />
 
       {/* Opponent-presence status is now an inline note beside the opponent's timer

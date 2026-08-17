@@ -16,6 +16,67 @@ function playing(): FullState {
 
 const WALL: Wall = { row: 4, col: 4, orientation: 'h' };
 
+describe('useBoardInteraction pawn confirm', () => {
+  const DEST = { row: 7, col: 4 }; // one step forward from player 0's start
+
+  it('proposes on the first tap and plays on the second', () => {
+    const dispatch = vi.fn();
+    const { result } = renderHook(() => useBoardInteraction(playing(), dispatch, true));
+
+    act(() => result.current.handleCellClick(DEST));
+    expect(result.current.pendingPawnMove).toEqual(DEST);
+    expect(dispatch).not.toHaveBeenCalled();
+
+    act(() => result.current.handleCellClick(DEST));
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'APPLY_MOVE',
+      move: { kind: 'pawn', to: DEST },
+    });
+    expect(result.current.pendingPawnMove).toBeNull();
+  });
+
+  it('moves the proposal to another square rather than playing it', () => {
+    const dispatch = vi.fn();
+    const { result } = renderHook(() => useBoardInteraction(playing(), dispatch, true));
+
+    act(() => result.current.handleCellClick(DEST));
+    act(() => result.current.handleCellClick({ row: 8, col: 3 }));
+    expect(result.current.pendingPawnMove).toEqual({ row: 8, col: 3 });
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('ignores a tap on a square that is not a legal destination', () => {
+    const dispatch = vi.fn();
+    const { result } = renderHook(() => useBoardInteraction(playing(), dispatch, true));
+
+    act(() => result.current.handleCellClick({ row: 0, col: 0 }));
+    expect(result.current.pendingPawnMove).toBeNull();
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('drops a proposed pawn move when a fence is tapped instead', () => {
+    const dispatch = vi.fn();
+    const { result } = renderHook(() => useBoardInteraction(playing(), dispatch, true));
+
+    act(() => result.current.handleCellClick(DEST));
+    act(() => result.current.handleWallClick(WALL));
+    expect(result.current.pendingPawnMove).toBeNull();
+    expect(result.current.wallPreview).toEqual(WALL);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('plays a tapped move outright when confirm mode is off', () => {
+    const dispatch = vi.fn();
+    const { result } = renderHook(() => useBoardInteraction(playing(), dispatch, false));
+
+    act(() => result.current.handleCellClick(DEST));
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'APPLY_MOVE',
+      move: { kind: 'pawn', to: DEST },
+    });
+  });
+});
+
 describe('useBoardInteraction wall preview', () => {
   it('previews on the first tap and commits on a second tap of the same slot', () => {
     const dispatch = vi.fn();

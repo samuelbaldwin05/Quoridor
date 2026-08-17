@@ -31,8 +31,9 @@ export function GamePage() {
   /** null = live; number = viewing state after N moves */
   const [viewIndex, setViewIndex] = useState<number | null>(null);
 
-  // Session-scoped: default ON for coarse pointers (phones/tablets), OFF for mice.
-  const [confirmWallPlacement, setConfirmWallPlacement] = useState(() => {
+  // Session-scoped: default ON for coarse pointers (phones/tablets), OFF for mice. Covers
+  // pawn moves as well as fences, since an off-target tap either way is a played move.
+  const [confirmMoves, setConfirmMoves] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia?.('(pointer: coarse)').matches ?? false;
   });
@@ -42,11 +43,12 @@ export function GamePage() {
 
   const {
     wallPreview,
+    pendingPawnMove,
     validPawnMoves: liveValidMoves,
     handleCellClick,
     handleWallHover,
     handleWallClick,
-  } = useBoardInteraction(state, dispatch, confirmWallPlacement);
+  } = useBoardInteraction(state, dispatch, confirmMoves);
 
   useAi(state, dispatch);
   useTheme(state.settings.theme);
@@ -211,6 +213,7 @@ export function GamePage() {
               <GameBoard
                 gameState={displayGameState}
                 validPawnMoves={validPawnMoves}
+                pendingPawnMove={isViewingHistory ? null : pendingPawnMove}
                 wallPreview={isViewingHistory ? null : wallPreview}
                 isHumanTurn={isHumanTurn}
                 clickMoveEnabled={state.settings.clickMoveEnabled}
@@ -245,8 +248,8 @@ export function GamePage() {
         settings={state.settings}
         onUpdateSettings={(patch) => dispatch({ type: 'UPDATE_SETTINGS', patch })}
         onResetScore={() => dispatch({ type: 'RESET_SCORE' })}
-        confirmWallPlacement={confirmWallPlacement}
-        onConfirmWallPlacementChange={setConfirmWallPlacement}
+        confirmMoves={confirmMoves}
+        onConfirmMovesChange={setConfirmMoves}
       />
 
       <WinLoseModal
