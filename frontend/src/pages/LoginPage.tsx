@@ -4,7 +4,7 @@ import { NavSidebar } from '@/components/NavSidebar';
 import { useAuth } from '@/hooks/useAuth';
 
 export function LoginPage() {
-  const { user, signInWithGoogle, signInAsDev, isDev } = useAuth();
+  const { user, signInWithGoogle, signInAsDev, isDev, sessionRecovering } = useAuth();
   const navigate = useNavigate();
   const [devLoading, setDevLoading] = useState(false);
   const [devError, setDevError] = useState<string | null>(null);
@@ -35,9 +35,14 @@ export function LoginPage() {
       <NavSidebar activePage="play" />
       <div className="main-content">
         <div className="login-card">
-          <h1 className="login-title">Sign In</h1>
+          <h1 className="login-title">{sessionRecovering ? 'Reconnecting…' : 'Sign In'}</h1>
+          {/* A session that is only missing because it could not be restored is not the
+              same as being signed out, and asking someone to sign in again when their
+              account is one working request away reads as a bug. */}
           <p className="login-subtitle">
-            Sign in to play online, track your Elo, and challenge friends.
+            {sessionRecovering
+              ? "You are still signed in, we just couldn't reach the server. This will pick up on its own once the connection is back."
+              : 'Sign in to play online, track your Elo, and challenge friends.'}
           </p>
 
           <div className="login-buttons">

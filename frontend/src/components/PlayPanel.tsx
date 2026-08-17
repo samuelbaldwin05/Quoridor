@@ -24,7 +24,7 @@ interface PlayPanelProps {
 }
 
 export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
-  const { isGuest, profile } = useAuth();
+  const { isGuest, profile, sessionRecovering } = useAuth();
   const navigate = useNavigate();
   const [mode, setMode] = useState<PlayMode>('vs-bot');
   // A guest whose saved difficulty is members-only (or the retired 'bot0') starts on the
@@ -107,8 +107,8 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
             >
               {isGuest ? (
                 <span className="play-mode-lock-label">
-                  <span className="play-mode-lock-icon">🔒</span>
-                  Sign in to Play Online
+                  <span className="play-mode-lock-icon">{sessionRecovering ? '⟳' : '🔒'}</span>
+                  {sessionRecovering ? 'Reconnecting your session…' : 'Sign in to Play Online'}
                 </span>
               ) : (
                 <span className="play-mode-online-label">

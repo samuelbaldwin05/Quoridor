@@ -158,11 +158,18 @@ jwt_expiry = 3600
 enable_refresh_token_rotation = true
 # Allows refresh tokens to be reused after expiry, up to the specified interval in seconds.
 # Requires enable_refresh_token_rotation = true.
-refresh_token_reuse_interval = 10
+#
+# Raised from the default 10s because of the case this app actually hits: an installed web
+# app and a browser tab on the same phone can restore their sessions seconds apart, and
+# with rotation on, the second refresh of the same token outside this window is rejected,
+# which signs the player out for real. Inside the window it returns a valid session and
+# nothing breaks. The hosted project needs the same value set in its dashboard; see
+# docs/INFRASTRUCTURE.md.
+refresh_token_reuse_interval = 30
 # Allow/disallow new user signups to your project.
 enable_signup = true
 # Allow/disallow anonymous sign-ins to your project. On locally because the dev login uses
-# one: it needs a real session for the private game channel (migration 024), and a distinct
+# one: it needs a real session for the private game channel (migration 015), and a distinct
 # user per browser so two dev logins can be matched against each other. Left OFF in the
 # hosted project, where the dev login button is not rendered.
 enable_anonymous_sign_ins = true
