@@ -23,8 +23,238 @@
     <meta name="twitter:description" content="Quoridor" />
     <meta name="twitter:image" content="/og-preview.png" />
     <title>Quoridor</title>
+
+    <style>
+      /* Inlined so the loading board is on screen from the first frame, before index.css
+         and the JS bundle land. The React AppLoading renders the same markup and reuses
+         these rules, so they live here rather than in index.css. */
+      body {
+        margin: 0;
+        background: #2c3e50;
+      }
+
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        background: #2c3e50;
+      }
+
+      /* Set once auth resolves. The app is already rendered underneath by then, so this
+         uncovers it rather than cutting to it. */
+      #boot-splash[data-done] {
+        opacity: 0;
+        transition: opacity 250ms ease;
+        pointer-events: none;
+      }
+
+      .app-loading {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: 24px;
+        text-align: center;
+      }
+
+      .app-loading-text {
+        min-height: 1.2em;
+        color: rgba(255, 255, 255, 0.45);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 13px;
+        margin: 0;
+      }
+
+      /* ── Loading board ───────────────────────────────────────────────────────────
+         A miniature game playing itself while auth resolves. One 6s loop, all of it in
+         keyframes so it costs nothing but compositing. */
+
+      .loading-board {
+        width: 116px;
+        height: 116px;
+      }
+
+      .loading-board-frame {
+        fill: rgba(255, 255, 255, 0.05);
+      }
+
+      .loading-board-cell {
+        fill: rgba(255, 255, 255, 0.92);
+      }
+
+      .loading-board-play {
+        animation: loading-board-cycle 6s ease-in-out infinite;
+      }
+
+      .loading-board-pawn.is-dark {
+        fill: var(--modern-primary-bg, #2c3e50);
+        animation: loading-board-pawn-dark 6s ease-in-out infinite;
+      }
+
+      .loading-board-pawn.is-light {
+        fill: #ffffff;
+        stroke: var(--modern-primary-bg, #2c3e50);
+        stroke-width: 1.6;
+        animation: loading-board-pawn-light 6s ease-in-out infinite;
+      }
+
+      .loading-board-wall {
+        fill: var(--modern-text-medium, #34495e);
+        transform-box: fill-box;
+        transform-origin: center;
+      }
+
+      .loading-board-wall.is-h {
+        animation: loading-board-wall-h 6s ease-out infinite;
+      }
+
+      .loading-board-wall.is-v {
+        animation: loading-board-wall-v 6s ease-out infinite;
+      }
+
+      /* The pawns and walls fade out together at the end so the reset is not a jump cut. */
+      @keyframes loading-board-cycle {
+        0%,
+        4% {
+          opacity: 0;
+        }
+        12%,
+        84% {
+          opacity: 1;
+        }
+        96%,
+        100% {
+          opacity: 0;
+        }
+      }
+
+      /* Bottom pawn: up one, stopped by the wall, around it and home up the next column. */
+      @keyframes loading-board-pawn-dark {
+        0%,
+        8% {
+          transform: translate(0, 0);
+        }
+        11%,
+        34% {
+          transform: translate(0, -20px);
+        }
+        37%,
+        48% {
+          transform: translate(20px, -20px);
+        }
+        51%,
+        63% {
+          transform: translate(20px, -40px);
+        }
+        66%,
+        73% {
+          transform: translate(20px, -60px);
+        }
+        76%,
+        100% {
+          transform: translate(20px, -80px);
+        }
+      }
+
+      /* Top pawn: the same wall stops it, so it goes around the other side. */
+      @keyframes loading-board-pawn-light {
+        0%,
+        19% {
+          transform: translate(0, 0);
+        }
+        22%,
+        45% {
+          transform: translate(0, 20px);
+        }
+        48%,
+        60% {
+          transform: translate(0, 40px);
+        }
+        63%,
+        70% {
+          transform: translate(-20px, 40px);
+        }
+        73%,
+        80% {
+          transform: translate(-20px, 60px);
+        }
+        83%,
+        100% {
+          transform: translate(-20px, 80px);
+        }
+      }
+
+      @keyframes loading-board-wall-h {
+        0%,
+        30% {
+          opacity: 0;
+          transform: scaleX(0.15);
+        }
+        34%,
+        100% {
+          opacity: 1;
+          transform: scaleX(1);
+        }
+      }
+
+      @keyframes loading-board-wall-v {
+        0%,
+        56% {
+          opacity: 0;
+          transform: scaleY(0.15);
+        }
+        60%,
+        100% {
+          opacity: 1;
+          transform: scaleY(1);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .loading-board-play,
+        .loading-board-pawn,
+        .loading-board-wall {
+          animation: none;
+        }
+
+        .loading-board-wall {
+          opacity: 0.35;
+        }
+      }
+    </style>
   </head>
   <body>
+    <!-- Painted from the first frame, before the bundle has downloaded. It lives outside
+         #root so React mounting cannot tear it down and restart the animation; the app
+         dismisses it through lib/bootSplash.ts once auth has resolved. -->
+    <div id="boot-splash" class="app-loading" role="status" aria-live="polite">
+      <svg
+        class="loading-board"
+        viewBox="-6 -6 108 108"
+        role="img"
+        aria-label="Quoridor board"
+        focusable="false"
+      >
+        <defs>
+          <pattern id="loading-board-cells" width="20" height="20" patternUnits="userSpaceOnUse">
+            <rect class="loading-board-cell" width="16" height="16" rx="2" />
+          </pattern>
+        </defs>
+        <rect class="loading-board-frame" x="-6" y="-6" width="108" height="108" rx="9" />
+        <rect x="0" y="0" width="96" height="96" fill="url(#loading-board-cells)" />
+        <g class="loading-board-play">
+          <rect class="loading-board-wall is-h" x="20" y="56" width="36" height="4" rx="2" />
+          <rect class="loading-board-wall is-v" x="56" y="0" width="4" height="36" rx="2" />
+          <circle class="loading-board-pawn is-dark" cx="48" cy="88" r="5.5" />
+          <circle class="loading-board-pawn is-light" cx="28" cy="8" r="5.5" />
+        </g>
+      </svg>
+      <!-- Empty on purpose. Nothing here has read storage yet, so the app fills this in
+           once it knows whether there is a session to restore. -->
+      <p id="boot-splash-note" class="app-loading-text"></p>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

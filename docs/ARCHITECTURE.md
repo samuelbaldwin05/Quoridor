@@ -172,15 +172,26 @@ The server, not the client, decides outcomes. This is the anti-cheat core.
   that the Realtime server populates topic and claims the way the policies assume. A wrong
   policy blocks all realtime silently, so that check matters. See DECISIONS.
 - Session restore distinguishes "signed out" from "could not restore". A failed token
-  refresh arrives as an `INITIAL_SESSION` event with a null session, which is why
-  `useAuth` keeps a `quoridor-had-session` marker: with it, a failed restore retries (on
-  backoff, on `online`, on becoming visible) and reports `sessionRecovering` instead of
-  quietly becoming a guest. See DECISIONS.
+  refresh arrives as an `INITIAL_SESSION` event with a null session, so `useAuth` asks
+  storage instead of the event: `storedSessionExists()` looks for supabase-js's own
+  `sb-<ref>-auth-token` key, which survives a refresh that failed on the network and is
+  cleared only when the server rejects the token. With a session there, a failed restore
+  retries (on backoff, on `online`, on becoming visible) and reports `sessionRecovering`
+  instead of quietly becoming a guest; with nothing there, the app renders for a guest on
+  the first paint rather than waiting on an event. The older `quoridor-had-session` marker
+  is still consulted as a fallback for browsers that refuse storage reads. See DECISIONS.
 - Online play therefore requires a real Supabase session. The local dev login signs in
   anonymously for that reason (and because it gives each browser a distinct user, so two
   dev logins can be matched against each other); the old hand-rolled `dev-token` is gone
   from the frontend. Anonymous tokens carry no email claim, so `core/auth.py` synthesizes
   one per user id, `users.email` being NOT NULL UNIQUE.
+- Google sign-in is the one place the frontend does not talk to Supabase Auth directly.
+  `signInWithGoogle` sends the browser to `/auth/google/start` on our backend, which runs
+  the authorization-code exchange (`services/oauth_service.py`) and returns the verified
+  `id_token` to `/auth/callback`, where `signInWithIdToken` turns it into an ordinary
+  Supabase session. Everything downstream, refresh included, is unchanged. The reason is
+  cosmetic but real: Google's consent screen names the host of the redirect URI. See
+  DECISIONS.
 - Reconnect uses capped exponential backoff; the clock pauses while the opponent is
   disconnected; an illegal received move aborts both clients so they converge.
 

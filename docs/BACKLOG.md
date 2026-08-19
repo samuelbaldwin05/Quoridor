@@ -11,7 +11,7 @@ Open work only. Reasoning and deferral rationale live in [DECISIONS.md](DECISION
 [CRIT] [HIGH] [MED] [LOW]. Locations are `path` references; re-grep if they drift.
 History of completed work is in git.
 
-Both suites green as of 2026-08-17: backend 397, frontend 393.
+Both suites green as of 2026-08-18: backend 425, frontend 434.
 
 ## Needs verification (you are here to test)
 
@@ -19,6 +19,27 @@ The 2026-08-06 hardening pass landed the code for the items below but could not 
 them without a live environment or a human visual check. Until verified they are open.
 The prerequisite for the live items is a running stack: `make dev`, then two browsers or
 two accounts.
+
+### [HIGH] First live Google sign-in through the backend handshake
+
+The self-hosted handshake is covered by tests at both ends, but nothing in the suite talks
+to Google or to a real GoTrue. It cannot work until all of this is done, and none of it is
+in the repo:
+
+1. Point `api.quoridor.sambaldwin.dev` at the Container App (CNAME plus the `asuid` TXT)
+   and take the free managed certificate.
+2. Google Cloud: add `https://api.quoridor.sambaldwin.dev/auth/google/callback` as an
+   authorized redirect URI, verify `sambaldwin.dev`, fill in the consent screen (app name,
+   logo, support email, homepage, privacy policy) and publish it out of Testing.
+3. Supabase: add the same Google client id to the Google provider's authorized client ids,
+   or `signInWithIdToken` rejects every token on audience.
+4. Set the backend env vars from INFRASTRUCTURE on the Container App, and repoint
+   `VITE_API_URL`.
+
+Then check, in this order: the consent screen says `sambaldwin.dev` and not the project
+ref; an existing Google account signs into the same user row it had before; a brand new
+account gets a row and the `/setup` redirect; cancelling at Google lands on
+`/auth/callback` with "Sign-in was cancelled" rather than a stack trace.
 
 ### [CRIT] Live two-client trust-chain smoke test
 
@@ -68,6 +89,44 @@ Check all three on both the online and offline game views:
   overlay, with the Cancel affordance folded in.
 - `MoveListPanel` extracted and shared by `GameRightPanel` and `OnlineGamePage`: scroll
   behavior and the move list read correctly in both.
+
+## Mobile UI cleanups (queued 2026-08-18, branch `fix/mobile-ui-cleanups`)
+
+Reported from a phone. Not started, and some of them need a detail from the reporter before
+they can be picked up (marked "needs").
+
+- [HIGH] The friends page overflows the screen on a phone: everything reads about 1.2x too
+  wide on the main tab. Found it: `.friends-card` is `width: 420px` (index.css, Friends Page
+  section) and the `@media (max-width: 640px)` block never overrides it, so on a 360-390px
+  phone the card is wider than the viewport. `.main-content` is `overflow: hidden` on mobile,
+  so the excess is clipped rather than scrolled, which is the "renders incorrectly" part. Fix
+  is a mobile override to `width: 100%; max-width: 420px`, then a pass over the fixed widths
+  inside the card (avatar 36px, action buttons 30px) to confirm nothing else spills.
+- [MED] The double-tap confirm highlight is the wrong colour. `.pending-move` in `index.css`
+  is a green square with a 3px inset ring in `--preview-valid` (#f39c12), which reads as
+  yellow. Decided: keep the green square, ring it in the board's own slate (#2c3e50) instead.
+  High contrast under a fingertip and no new hue on the board.
+- [MED] After the confirming tap, the ring shows briefly against a white square before the
+  pawn has moved. Same rule, different cause: the pending intent in
+  `frontend/src/hooks/useBoardInteraction.ts` is only dropped when `moveCount` changes
+  (the `expired` check), so there is a frame where the move is committed and the highlight is
+  still painted. Clear it in the handler that commits, not on the next move.
+- [MED] A proposed fence (the first tap, before it is confirmed) should be dropped as soon as
+  anything else is tapped, not left on the board. Also `useBoardInteraction.ts`. Decided: the
+  dismissing tap still does its own job, so tapping another slot proposes that one and tapping
+  a pawn destination proposes that move. No wasted taps.
+- [MED] Opening a friend's finished game from their profile replays the moves on the board but
+  the list below stays empty. There is no live spectating, so this is only the
+  `/history/:id` path: ProfilePage navigates there, GameHistoryPage fetches `/games/{id}` and
+  adapts it. Board and list both read `currentGame.moves`, so the data is there and the fault
+  is almost certainly layout: `.ghp-list` is `flex: 1; height: 0` (index.css), which collapses
+  to nothing unless its parent is a flex column with a definite height. That holds on desktop
+  and is worth checking against the mobile `.main-content` / `.right-panel` overrides in the
+  640px block. Confirm with a game that definitely has moves before chasing anything else.
+- [LOW] Reach a full profile from the leaderboard. Decided: navigate to `/profile/:userId`
+  everywhere and retire `ProfileModal`, so there is one profile surface to keep working on a
+  phone and the profile stays a URL you can share. Touches `LeaderboardPage.tsx` and whatever
+  else still opens the modal.
 
 ## Mobile
 

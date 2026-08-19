@@ -25,15 +25,23 @@ vi.mock('@/lib/supabase', () => ({
       getSession,
       signInAnonymously,
       signOut,
-      signInWithOAuth: vi.fn(),
+      signInWithIdToken: vi.fn(),
     },
   },
 }));
-vi.mock('@/lib/api', () => ({ apiFetch: vi.fn(async () => ({})) }));
+const apiFetch = vi.hoisted(() => vi.fn(async () => ({}) as unknown));
+vi.mock('@/lib/api', () => ({ apiFetch }));
 
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
+import { resetBootSplashForTests } from '@/lib/bootSplash';
 
 const SESSION_HINT_KEY = 'quoridor-had-session';
+const STORED_SESSION_KEY = 'sb-abcdefgh-auth-token';
+
+/** What supabase-js leaves in localStorage for a session it is holding. */
+function storeSupabaseSession() {
+  localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ refresh_token: 'r1' }));
+}
 
 function fakeSession(isAnonymous = false) {
   return { access_token: 'token', user: { id: 'u1', is_anonymous: isAnonymous } };
@@ -70,6 +78,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   refreshSession.mockResolvedValue({ data: { session: null }, error: null } as unknown);
   getSession.mockResolvedValue({ data: { session: null }, error: null } as unknown);
+  apiFetch.mockResolvedValue({} as unknown);
+  resetBootSplashForTests();
+  document.body.innerHTML =
+    '<div id="boot-splash"><p id="boot-splash-note"></p></div><div id="app-root"></div>';
 });
 
 afterEach(() => {
@@ -234,5 +246,150 @@ describe('AuthProvider across two contexts on one device', () => {
       window.dispatchEvent(new StorageEvent('storage', { key: 'quoridor_games', newValue: '[]' }));
     });
     expect(getSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('signInWithGoogle', () => {
+  it('sends the browser to our own backend rather than to the Supabase project', async () => {
+    // The point of the whole handshake: Google's consent screen names the host of the
+    // redirect URI, so it has to be ours.
+    const assign = vi.fn();
+    vi.stubGlobal('location', { origin: 'https://app.test', assign });
+    sessionStorage.clear();
+
+    function GoogleButton() {
+      const { signInWithGoogle } = useAuth();
+      return <button onClick={() => void signInWithGoogle()}>sign in</button>;
+    }
+    render(
+      <AuthProvider>
+        <GoogleButton />
+      </AuthProvider>,
+    );
+    await emit('INITIAL_SESSION', null);
+    await act(async () => {
+      screen.getByText('sign in').click();
+    });
+
+    const url = new URL(assign.mock.calls[0][0] as string);
+    expect(url.pathname).toBe('/auth/google/start');
+    expect(url.searchParams.get('origin')).toBe('https://app.test');
+    expect(url.searchParams.get('handoff')).toBeTruthy();
+
+    vi.unstubAllGlobals();
+  });
+});
+
+function LoadingProbe() {
+  const { isLoading, authMode, sessionRecovering } = useAuth();
+  return (
+    <span data-testid="loading">{`loading=${isLoading}|${authMode}|recovering=${sessionRecovering}`}</span>
+  );
+}
+
+function renderLoadingProbe() {
+  render(
+    <AuthProvider>
+      <LoadingProbe />
+    </AuthProvider>,
+  );
+  return () => screen.getByTestId('loading').textContent;
+}
+
+describe('AuthProvider first paint', () => {
+  it('does not claim to be signing anyone in when storage holds no session', () => {
+    // The reported bug: every cold load sat on "Signing you in..." before deciding, for
+    // browsers that were never signed in and browsers that were, alike.
+    const state = renderLoadingProbe();
+    expect(state()).toBe('loading=false|none|recovering=false');
+  });
+
+  it('waits when supabase-js has a session in storage', () => {
+    storeSupabaseSession();
+    const state = renderLoadingProbe();
+    expect(state()).toBe('loading=true|none|recovering=false');
+  });
+
+  it('ignores keys that only look like a stored session', () => {
+    // The PKCE verifier and the split-out user object share the prefix and are not sessions.
+    localStorage.setItem('sb-abcdefgh-auth-token-code-verifier', 'v');
+    localStorage.setItem('sb-abcdefgh-auth-token-user', '{}');
+    const state = renderLoadingProbe();
+    expect(state()).toBe('loading=false|none|recovering=false');
+  });
+
+  it('trusts storage over the hint marker when deciding to chase a session', async () => {
+    // No marker (a browser that has never completed a restore here), but supabase-js is
+    // holding a session. Calling that a guest is how a signed-in player browses anonymously.
+    storeSupabaseSession();
+    const state = renderLoadingProbe();
+    await emit('INITIAL_SESSION', null);
+
+    expect(state()).toBe('loading=false|none|recovering=true');
+    expect(refreshSession).toHaveBeenCalled();
+  });
+
+  it('lets the app through when the profile request hangs on a cold backend', async () => {
+    vi.useFakeTimers();
+    apiFetch.mockImplementation(() => new Promise(() => {}));
+    storeSupabaseSession();
+    const state = renderLoadingProbe();
+    await emit('INITIAL_SESSION', fakeSession());
+    expect(state()).toBe('loading=true|google|recovering=false');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2500);
+    });
+    expect(state()).toBe('loading=false|google|recovering=false');
+    vi.useRealTimers();
+  });
+});
+
+describe('AuthProvider recovery does not give up', () => {
+  it('keeps retrying past the end of the backoff list', async () => {
+    // It used to stop after the last delay while still reporting "Reconnecting", which is a
+    // promise nothing was left to keep.
+    vi.useFakeTimers();
+    storeSupabaseSession();
+    renderLoadingProbe();
+    await emit('INITIAL_SESSION', null);
+
+    for (let i = 0; i < 6; i += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15000);
+      });
+    }
+    expect(refreshSession.mock.calls.length).toBeGreaterThan(4);
+    vi.useRealTimers();
+  });
+});
+
+describe('the boot splash', () => {
+  const splash = () => document.getElementById('boot-splash');
+  const note = () => document.getElementById('boot-splash-note');
+
+  it('goes away immediately for a browser with no session to restore', () => {
+    renderLoadingProbe();
+    expect(splash()!.dataset.done).toBe('true');
+    expect(note()!.textContent).toBe('');
+  });
+
+  it('says what it is waiting for while a session is being restored', async () => {
+    storeSupabaseSession();
+    renderLoadingProbe();
+    expect(splash()!.dataset.done).toBeUndefined();
+    expect(note()!.textContent).toBe('Signing you in…');
+
+    await emit('INITIAL_SESSION', fakeSession());
+    expect(splash()!.dataset.done).toBe('true');
+  });
+
+  it('gets out of the way when a restore fails, rather than sitting on a dead promise', async () => {
+    storeSupabaseSession();
+    renderLoadingProbe();
+    await emit('INITIAL_SESSION', null);
+    // The app is released here and the login page carries the reconnecting message from now
+    // on, so the splash has no business staying up.
+    expect(splash()!.dataset.done).toBe('true');
   });
 });

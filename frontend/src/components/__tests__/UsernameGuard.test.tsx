@@ -32,13 +32,15 @@ function renderGuard() {
 }
 
 describe('UsernameGuard', () => {
-  it('shows a loading state while auth resolves, not a blank page', () => {
+  it('renders nothing while auth resolves, leaving the boot splash in place', () => {
+    // Not the blank-page bug this guard was written for: index.html's loading board is still
+    // covering the viewport here, and useAuth is what takes it away. Rendering a second copy
+    // inside React is what used to make it flash.
     useAuth.mockReturnValue({ isLoading: true, needsUsername: false });
     const { container } = renderGuard();
 
-    expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.getByText('Signing you in…')).toBeInTheDocument();
-    expect(container.textContent).not.toBe('');
+    expect(container.textContent).toBe('');
+    expect(screen.queryByText('the app')).not.toBeInTheDocument();
   });
 
   it('renders the page once auth has resolved', () => {
@@ -59,6 +61,6 @@ describe('UsernameGuard', () => {
     useAuth.mockReturnValue({ isLoading: true, needsUsername: true });
     renderGuard();
     expect(screen.queryByText('pick a username')).not.toBeInTheDocument();
-    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText('the app')).not.toBeInTheDocument();
   });
 });

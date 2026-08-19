@@ -3353,8 +3353,11 @@ body {
 
 /* Whole-app states: shown by UsernameGuard while auth resolves, and by ErrorBoundary when a
    render throws. Both replace the entire page, so they centre in the viewport rather than in a
-   panel. Reuses .matchmaking-spinner below for the spinner itself. */
-.app-loading,
+   panel.
+
+   The loading half lives in index.html instead: markup and styles both, inlined so the board
+   paints on the first frame rather than waiting for this file and the JS bundle. See
+   lib/bootSplash.ts. */
 .app-error {
   min-height: 100vh;
   display: flex;
@@ -3364,12 +3367,6 @@ body {
   gap: 14px;
   padding: 24px;
   text-align: center;
-}
-
-.app-loading-text {
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 13px;
-  margin: 0;
 }
 
 .app-error-title {
