@@ -675,3 +675,26 @@ before the bundle runs and a visitor with no session should never be told they a
 in. `useAuth` fills it in once it knows. `lib/__tests__/loadingBoard.test.ts` reads `index.html`
 back and holds the markup, the keyframes and `lib/loadingBoard.ts` in step; the loop's fade at
 the six-second boundary is slow on purpose for the same reason the remount was removed.
+
+## Bot games are read back through an authenticated route, not the public history list
+
+`list_finished_games_for_user` excludes `mode = 'vs_ai'`, so the public
+`/api/users/{id}/games` shows ranked play only. That exclusion is right (a bot game has no
+opponent and no Elo delta, and nobody else's business), but nothing read the rows back, so a
+bot game existed on the server and was only ever visible from the `localStorage` copy in the
+browser that played it. Clearing site data, or playing on a phone and looking on a laptop,
+lost the history that had in fact been recorded all along.
+
+Added `GET /games/bot`, authenticated and always scoped to the caller rather than taking a
+user id, with its own `BotGameSummary` rather than reusing `GameSummary` whose opponent and
+Elo fields would all be null. `GameDetail` gained `ai_difficulty` so a replay opened on a
+device that never played the game can name the tier instead of calling the bot "Player 2".
+
+The client holds the same game twice: the local save keys the pair through
+`client_game_id`, which is the local id. `lib/gameHistoryMerge.ts` prefers the local copy
+when both exist, since it is already in hand where the server copy costs a fetch.
+
+Still not recorded, and deliberately so for now: pass-and-play games (no `ai_difficulty`, so
+nothing identifies the opponent), a guest's bot games before they sign in (they backfill on
+the next login from local storage, which keeps the last 50), and a bot game abandoned without
+resigning (no winner, so nothing is saved even locally).
