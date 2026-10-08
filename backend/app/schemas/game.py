@@ -140,6 +140,22 @@ class BotGameRead(BaseModel):
     created: bool  # False when the game already existed (idempotent no-op)
 
 
+class BotGameSummary(BaseModel):
+    """One finished bot game, for the caller's own history list.
+
+    Deliberately not a `GameSummary`: a bot game has no opponent and no Elo delta, so the
+    fields that list row exists to carry would all be null. `client_game_id` is here so a
+    client holding the same game in local storage can tell the two copies apart.
+    """
+
+    id: UUID
+    client_game_id: str
+    ai_difficulty: BotDifficulty
+    result: Literal["win", "loss"]
+    move_count: int
+    completed_at: datetime | None
+
+
 class GameSummary(BaseModel):
     """One finished game from a specific player's perspective (history list row)."""
 
@@ -170,6 +186,9 @@ class GameDetail(BaseModel):
     player2_id: UUID | None
     player1_name: str | None
     player2_name: str | None
+    # Set on a vs_ai game only, so a replay opened on a device that never played it can
+    # still name the tier instead of calling the bot "Player 2".
+    ai_difficulty: BotDifficulty | None = None
     winner_index: int | None
     move_history: list[str]
     # Null until the game finalizes. Carried here so the winner of a forfeit can read the

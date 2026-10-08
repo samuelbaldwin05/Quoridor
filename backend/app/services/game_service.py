@@ -18,6 +18,7 @@ from app.repositories import game_repository
 from app.schemas.game import (
     BotGameCreate,
     BotGameRead,
+    BotGameSummary,
     GameDetail,
     GameResultRequest,
     GameResultResponse,
@@ -379,6 +380,35 @@ def _to_bot_read(row: dict, created: bool) -> BotGameRead:
     )
 
 
+def list_bot_games(
+    supabase: Client, user_id: UUID, limit: int = 20, offset: int = 0
+) -> list[BotGameSummary]:
+    """The caller's finished bot games, newest first.
+
+    Recorded by record_bot_game and read back only here. Scoped to one user by the caller's
+    own id rather than a path parameter: a bot game is private history, not a public result.
+    """
+    rows = game_repository.list_bot_games_for_user(supabase, user_id, limit, offset)
+    uid = str(user_id)
+    return [_to_bot_summary(row, uid) for row in rows]
+
+
+def _to_bot_summary(row: dict, uid: str) -> BotGameSummary:
+    """Map a raw vs_ai row to the caller's history row.
+
+    winner_id is the player on a win and NULL when the bot won (a bot has no user row), so
+    the result reads off the same comparison the ranked list uses.
+    """
+    return BotGameSummary(
+        id=UUID(row["id"]),
+        client_game_id=row["client_game_id"],
+        ai_difficulty=row["ai_difficulty"],
+        result="win" if row.get("winner_id") == uid else "loss",
+        move_count=len(row.get("move_history") or []),
+        completed_at=row.get("completed_at"),
+    )
+
+
 def _to_summary(row: dict, uid: str) -> GameSummary:
     """Map a raw game row to a summary from player `uid`'s perspective."""
     is_p1 = row.get("player1_id") == uid
@@ -428,6 +458,7 @@ def get_game_detail(supabase: Client, game_id: UUID, viewer_id: UUID | None = No
         id=UUID(row["id"]),
         mode=row["mode"],
         status=row["status"],
+        ai_difficulty=row.get("ai_difficulty"),
         time_control=row.get("time_control"),
         player1_id=UUID(row["player1_id"]) if row.get("player1_id") else None,
         player2_id=UUID(row["player2_id"]) if row.get("player2_id") else None,

@@ -73,6 +73,29 @@ def list_finished_games_for_user(
     return _attach_current_names(client, resp.data or [])
 
 
+def list_bot_games_for_user(client: Client, user_id: UUID, limit: int, offset: int) -> list[dict]:
+    """The caller's finished bot games, newest first. Raw rows.
+
+    The counterpart to the vs_ai exclusion in list_finished_games_for_user: bot games are
+    kept out of the public ranked list and read back here instead, scoped to the one player
+    who played them (they are always player1 on a vs_ai row).
+    """
+    try:
+        resp = (
+            client.table("games")
+            .select("*")
+            .eq("player1_id", str(user_id))
+            .eq("mode", "vs_ai")
+            .eq("status", "finished")
+            .order("completed_at", desc=True)
+            .range(offset, offset + limit - 1)  # PostgREST range is inclusive
+            .execute()
+        )
+    except Exception as exc:
+        raise DatabaseError("bot games list fetch failed") from exc
+    return resp.data or []
+
+
 def get_bot_game_by_client_id(client: Client, player1_id: UUID, client_game_id: str) -> dict | None:
     """A player's already-recorded bot game for this client id, or None. Raw row."""
     try:

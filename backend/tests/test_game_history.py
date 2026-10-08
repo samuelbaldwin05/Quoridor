@@ -131,3 +131,58 @@ class TestGetGameDetail:
         detail = game_service.get_game_detail(CLIENT, UUID(row["id"]), viewer_id=None)
         assert detail.time_used_p1 is None
         assert detail.last_move_at is None
+
+
+def _bot_row(**overrides) -> dict:
+    row = {
+        "id": str(uuid4()),
+        "mode": "vs_ai",
+        "status": "finished",
+        "player1_id": str(uuid4()),
+        "player2_id": None,
+        "winner_id": None,
+        "winner_index": 1,
+        "ai_difficulty": "mcts",
+        "client_game_id": "game_1700000000_abcde",
+        "move_history": ["e2", "e8"],
+        "completed_at": "2026-07-01T00:00:00+00:00",
+    }
+    row.update(overrides)
+    return row
+
+
+class TestListBotGames:
+    """Bot games are excluded from the public ranked list, so this is the only way a player
+    gets them back. Before it existed they were written and never read."""
+
+    def test_loss_when_the_bot_won(self, monkeypatch) -> None:
+        row = _bot_row()  # winner_id None: a bot has no user row to point at
+        monkeypatch.setattr(
+            game_repository, "list_bot_games_for_user", lambda c, uid, lim, off: [row]
+        )
+        (summary,) = game_service.list_bot_games(CLIENT, UUID(row["player1_id"]))
+        assert summary.result == "loss"
+        assert summary.ai_difficulty == "mcts"
+        assert summary.client_game_id == row["client_game_id"]
+        assert summary.move_count == 2
+
+    def test_win_when_the_player_won(self, monkeypatch) -> None:
+        row = _bot_row()
+        row["winner_id"] = row["player1_id"]
+        row["winner_index"] = 0
+        monkeypatch.setattr(
+            game_repository, "list_bot_games_for_user", lambda c, uid, lim, off: [row]
+        )
+        (summary,) = game_service.list_bot_games(CLIENT, UUID(row["player1_id"]))
+        assert summary.result == "win"
+
+    def test_paging_is_forwarded(self, monkeypatch) -> None:
+        seen: dict = {}
+
+        def fake(c, uid, lim, off):
+            seen.update(limit=lim, offset=off)
+            return []
+
+        monkeypatch.setattr(game_repository, "list_bot_games_for_user", fake)
+        assert game_service.list_bot_games(CLIENT, uuid4(), 5, 10) == []
+        assert seen == {"limit": 5, "offset": 10}

@@ -206,6 +206,31 @@ class TestGameHistoryRoutes:
         resp = client.get(f"/games/{uuid4()}")
         assert resp.status_code == 404
 
+    def test_list_bot_games_returns_200(self, client, monkeypatch):
+        monkeypatch.setattr("app.api.games.list_bot_games", lambda c, uid, lim, off: [])
+        resp = client.get("/games/bot")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_bot_games_path_is_not_read_as_a_game_id(self, client, monkeypatch):
+        # GET /games/{game_id} is declared after this route for exactly this reason: the
+        # other order answers 422 on "bot" as a malformed UUID.
+        called: dict = {}
+
+        def fake(c, uid, lim, off):
+            called["hit"] = True
+            return []
+
+        monkeypatch.setattr("app.api.games.list_bot_games", fake)
+        assert client.get("/games/bot").status_code == 200
+        assert called == {"hit": True}
+
+    def test_list_bot_games_requires_auth(self):
+        app.dependency_overrides.clear()  # no auth override -> real HTTPBearer runs
+        with TestClient(app) as c:
+            resp = c.get("/games/bot")
+        assert resp.status_code in (401, 403)
+
 
 # ── record bot game route ───────────────────────────────────────────────────────
 
