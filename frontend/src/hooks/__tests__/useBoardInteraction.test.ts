@@ -134,3 +134,70 @@ describe('useBoardInteraction wall preview', () => {
     expect(result.current.wallPreview).toBeNull();
   });
 });
+
+describe('useBoardInteraction proposal dismissal', () => {
+  const DEST = { row: 7, col: 4 };
+  const OFF_BOARD_WALL: Wall = { row: 8, col: 8, orientation: 'h' };
+
+  function tap(target: Element) {
+    act(() => {
+      target.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    });
+  }
+
+  it('drops a proposed fence when a square you cannot move to is tapped', () => {
+    const { result } = renderHook(() => useBoardInteraction(playing(), vi.fn(), true));
+
+    act(() => result.current.handleWallClick(WALL));
+    act(() => result.current.handleCellClick({ row: 0, col: 0 }));
+    expect(result.current.wallPreview).toBeNull();
+  });
+
+  it('drops a proposed fence when an illegal slot is tapped', () => {
+    const { result } = renderHook(() => useBoardInteraction(playing(), vi.fn(), true));
+
+    act(() => result.current.handleWallClick(WALL));
+    act(() => result.current.handleWallClick(OFF_BOARD_WALL));
+    expect(result.current.wallPreview).toBeNull();
+  });
+
+  it('drops a proposal on a tap anywhere off the board', () => {
+    // Settings, the move list, the nav: none of them used to take the fence back down, so it
+    // sat there until the turn ended.
+    const outside = document.createElement('button');
+    document.body.appendChild(outside);
+    const { result } = renderHook(() => useBoardInteraction(playing(), vi.fn(), true));
+
+    act(() => result.current.handleWallClick(WALL));
+    expect(result.current.wallPreview).toEqual(WALL);
+
+    tap(outside);
+    expect(result.current.wallPreview).toBeNull();
+    outside.remove();
+  });
+
+  it('leaves a tap on the board itself to the cell and slot handlers', () => {
+    const board = document.createElement('div');
+    board.setAttribute('data-board-grid', '');
+    const cell = document.createElement('div');
+    board.appendChild(cell);
+    document.body.appendChild(board);
+    const { result } = renderHook(() => useBoardInteraction(playing(), vi.fn(), true));
+
+    act(() => result.current.handleCellClick(DEST));
+    tap(cell);
+    expect(result.current.pendingPawnMove).toEqual(DEST);
+    board.remove();
+  });
+
+  it('does not listen while confirm mode is off', () => {
+    const outside = document.createElement('button');
+    document.body.appendChild(outside);
+    const { result } = renderHook(() => useBoardInteraction(playing(), vi.fn(), false));
+
+    act(() => result.current.handleWallHover(WALL));
+    tap(outside);
+    expect(result.current.wallPreview).toEqual(WALL);
+    outside.remove();
+  });
+});

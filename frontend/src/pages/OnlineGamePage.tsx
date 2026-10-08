@@ -5,6 +5,7 @@ import { FencePanel } from '@/components/FencePanel';
 import { GameBoard } from '@/components/GameBoard';
 import { GameCard } from '@/components/GameCard';
 import { MoveListPanel } from '@/components/MoveListPanel';
+import { useDismissOnOutsideTap } from '@/hooks/useDismissOnOutsideTap';
 import { NavSidebar } from '@/components/NavSidebar';
 import { SettingsModal } from '@/components/SettingsModal';
 import { applyMove } from '@/engine/gameEngine';
@@ -631,6 +632,9 @@ export function OnlineGamePage() {
   const active = pending && !expired ? pending : null;
   const activeWall = active?.kind === 'wall' ? active.wall : null;
   const activePawnMove = active?.kind === 'pawn' ? active.to : null;
+
+  const clearPending = useCallback(() => setPending(null), []);
+  useDismissOnOutsideTap(confirmMoves && active !== null, clearPending);
   const previewWall = useCallback(
     (wall: Wall | null) => setPending(wall ? { kind: 'wall', wall, atMove: moveCount } : null),
     [moveCount],
@@ -666,7 +670,12 @@ export function OnlineGamePage() {
     (pos: Position) => {
       if (!isMyTurn || !isLive || !state.settings.clickMoveEnabled) return;
       const move: Move = { kind: 'pawn', to: pos };
-      if (!applyMove(state.game, move).valid) return;
+      if (!applyMove(state.game, move).valid) {
+        // A square you cannot move to is still something other than the proposal, so the
+        // proposal goes. Mirrors useBoardInteraction.
+        setPending(null);
+        return;
+      }
 
       // Confirm mode covers pawn moves for the same reason it covers fences: on a phone
       // the grooves sit between the squares, so a tap aimed at one that lands slightly
@@ -704,8 +713,13 @@ export function OnlineGamePage() {
   const handleWallClick = useCallback(
     (wall: Wall) => {
       if (!isMyTurn || !isLive) return;
-      if (state.game.players[myRole].wallsRemaining <= 0) return;
-      if (!isValidWallPlacement(state.game, wall)) return;
+      if (
+        state.game.players[myRole].wallsRemaining <= 0 ||
+        !isValidWallPlacement(state.game, wall)
+      ) {
+        setPending(null);
+        return;
+      }
       if (confirmMoves) {
         // First click previews; second click on the same slot commits.
         if (!activeWall || !wallsEqual(activeWall, wall)) {

@@ -11,7 +11,7 @@ Open work only. Reasoning and deferral rationale live in [DECISIONS.md](DECISION
 [CRIT] [HIGH] [MED] [LOW]. Locations are `path` references; re-grep if they drift.
 History of completed work is in git.
 
-Both suites green as of 2026-08-18: backend 425, frontend 434.
+Both suites green as of 2026-10-07: backend 431, frontend 450.
 
 ## Needs verification (you are here to test)
 
@@ -90,43 +90,27 @@ Check all three on both the online and offline game views:
 - `MoveListPanel` extracted and shared by `GameRightPanel` and `OnlineGamePage`: scroll
   behavior and the move list read correctly in both.
 
-## Mobile UI cleanups (queued 2026-08-18, branch `fix/mobile-ui-cleanups`)
+## Mobile UI cleanups (landed 2026-08-18, needs a phone)
 
-Reported from a phone. Not started, and some of them need a detail from the reporter before
-they can be picked up (marked "needs").
+The round on branch `fix/mobile-ui-cleanups` is in. What is left is confirming it on a real
+device, plus one item that could not be reproduced from the code.
 
-- [HIGH] The friends page overflows the screen on a phone: everything reads about 1.2x too
-  wide on the main tab. Found it: `.friends-card` is `width: 420px` (index.css, Friends Page
-  section) and the `@media (max-width: 640px)` block never overrides it, so on a 360-390px
-  phone the card is wider than the viewport. `.main-content` is `overflow: hidden` on mobile,
-  so the excess is clipped rather than scrolled, which is the "renders incorrectly" part. Fix
-  is a mobile override to `width: 100%; max-width: 420px`, then a pass over the fixed widths
-  inside the card (avatar 36px, action buttons 30px) to confirm nothing else spills.
-- [MED] The double-tap confirm highlight is the wrong colour. `.pending-move` in `index.css`
-  is a green square with a 3px inset ring in `--preview-valid` (#f39c12), which reads as
-  yellow. Decided: keep the green square, ring it in the board's own slate (#2c3e50) instead.
-  High contrast under a fingertip and no new hue on the board.
-- [MED] After the confirming tap, the ring shows briefly against a white square before the
-  pawn has moved. Same rule, different cause: the pending intent in
-  `frontend/src/hooks/useBoardInteraction.ts` is only dropped when `moveCount` changes
-  (the `expired` check), so there is a frame where the move is committed and the highlight is
-  still painted. Clear it in the handler that commits, not on the next move.
-- [MED] A proposed fence (the first tap, before it is confirmed) should be dropped as soon as
-  anything else is tapped, not left on the board. Also `useBoardInteraction.ts`. Decided: the
-  dismissing tap still does its own job, so tapping another slot proposes that one and tapping
-  a pawn destination proposes that move. No wasted taps.
-- [MED] Opening a friend's finished game from their profile replays the moves on the board but
-  the list below stays empty. There is no live spectating, so this is only the
-  `/history/:id` path: ProfilePage navigates there, GameHistoryPage fetches `/games/{id}` and
-  adapts it. Board and list both read `currentGame.moves`, so the data is there and the fault
-  is almost certainly layout: `.ghp-list` is `flex: 1; height: 0` (index.css), which collapses
-  to nothing unless its parent is a flex column with a definite height. That holds on desktop
-  and is worth checking against the mobile `.main-content` / `.right-panel` overrides in the
-  640px block. Confirm with a game that definitely has moves before chasing anything else.
-- [LOW] Reach a full profile from the leaderboard. Decided: navigate to `/profile/:userId`
-  everywhere and retire `ProfileModal`, so there is one profile surface to keep working on a
-  phone and the profile stays a URL you can share. Touches `LeaderboardPage.tsx` and whatever
-  else still opens the modal.
+- [MED] Check the friends page and the leaderboard on a phone. Both cards were a flat pixel
+  width (`.friends-card` 420px, `.leaderboard-page-card` 520px) with no mobile override, so
+  they were wider than the viewport and `.main-content` clipped the overflow rather than
+  scrolling it. Both are now `width: 100%` with the old width as `max-width`, which leaves the
+  desktop layout alone. Worth a look at a long username in a friend row.
+- [MED] Check the proposed-move ring under a finger. It is now the board's slate
+  (`--primary-bg`) instead of the amber `--preview-valid`, and `.cell` no longer transitions
+  `box-shadow`, so the ring snaps off the moment the move is played instead of fading out over
+  200ms on a square the pawn had not reached yet.
+- [MED] Unconfirmed: the move list came up empty on a friend's finished game. The data path is
+  shared with the board (`currentGame.moves` in `GameHistoryPage`), so an empty list with a
+  populated board should not be possible, and the same `.ghp-list` renders the game list fine
+  on the same page. Two things changed on the strength of that: `.ghp-list` is now
+  `flex: 1 1 auto` rather than `flex: 1; height: 0`, which collapsed to nothing whenever its
+  parent had no definite height, and a game with no moves now says so instead of showing an
+  empty panel. If it happens again, the message will tell you which of the two it is.
 
 ## Mobile
 

@@ -1,6 +1,7 @@
 import { isValidWallPlacement } from '@/engine/moveValidation';
 import { wallsEqual } from '@/engine/wallUtils';
 import type { GameState, Position, Wall } from '@/engine/gameTypes';
+import { BOARD_GRID_ATTR } from '@/hooks/useDismissOnOutsideTap';
 import { BoardCell } from './BoardCell';
 import { WallSlot } from './WallSlot';
 
@@ -110,7 +111,9 @@ export function GameBoard({
       </div>
 
       <div className="board-axis-main">
-        <div className={`board${flipped ? ' board-flipped' : ''}`}>{elements}</div>
+        <div className={`board${flipped ? ' board-flipped' : ''}`} {...{ [BOARD_GRID_ATTR]: '' }}>
+          {elements}
+        </div>
 
         {/* Bottom axis — column letters */}
         <div className="board-axis-x">

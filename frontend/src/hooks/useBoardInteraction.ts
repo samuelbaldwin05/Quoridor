@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { getValidPawnMoves, isValidWallPlacement } from '@/engine/moveValidation';
 import { wallsEqual } from '@/engine/wallUtils';
 import type { Position, Wall } from '@/engine/gameTypes';
 import type { FullState, GameAction } from './gameReducer';
+import { useDismissOnOutsideTap } from './useDismissOnOutsideTap';
 
 /**
  * A tap waiting on its confirming second tap, tagged with the move it was made on.
@@ -48,6 +49,9 @@ export function useBoardInteraction(
   const previewWall = (wall: Wall | null) =>
     setPending(wall ? { kind: 'wall', wall, atMove: moveCount } : null);
 
+  const clearPending = useCallback(() => setPending(null), []);
+  useDismissOnOutsideTap(confirmMoves && active !== null, clearPending);
+
   const validPawnMoves: Position[] = isHumanTurn ? getValidPawnMoves(state.game, currentIdx) : [];
 
   const handleCellClick = (pos: Position) => {
@@ -57,7 +61,12 @@ export function useBoardInteraction(
     // wall grooves sit between the squares, so a tap aimed at one that lands slightly off
     // used to play a pawn move on the spot, with no way back. First tap proposes.
     if (confirmMoves) {
-      if (!validPawnMoves.some((p) => samePosition(p, pos))) return;
+      if (!validPawnMoves.some((p) => samePosition(p, pos))) {
+        // A tap on a square you cannot move to is still a tap on something else, and a
+        // proposal left standing through it is a proposal nobody asked to keep.
+        setPending(null);
+        return;
+      }
       if (!activePawnMove || !samePosition(activePawnMove, pos)) {
         setPending({ kind: 'pawn', to: pos, atMove: moveCount });
         return;
@@ -75,8 +84,13 @@ export function useBoardInteraction(
 
   const handleWallClick = (wall: Wall) => {
     if (!isHumanTurn) return;
-    if (state.game.players[currentIdx].wallsRemaining <= 0) return;
-    if (!isValidWallPlacement(state.game, wall)) return;
+    if (
+      state.game.players[currentIdx].wallsRemaining <= 0 ||
+      !isValidWallPlacement(state.game, wall)
+    ) {
+      setPending(null);
+      return;
+    }
 
     // In confirm mode, first click previews, second click on same slot commits.
     if (confirmMoves) {
