@@ -15,25 +15,44 @@ jobs:
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: true
           lfs: false
-      - name: Build And Deploy
-        id: builddeploy
-        uses: Azure/static-web-apps-deploy@v1
+
+      # The build runs here rather than in Azure's Oryx container. Oryx detects Node and runs
+      # `npm install`, but this project is on Bun and carries only bun.lock, so npm resolved
+      # the tree from package.json alone and crashed in its own dependency graph
+      # ("Cannot read properties of null (reading 'edgesOut')"). Building here also means the
+      # deployed bundle comes from the same lockfile that lint and the test suites run against.
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        working-directory: frontend
         env:
           VITE_ENVIRONMENT: production
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        run: bun run build
+
+      - name: Build And Deploy
+        id: builddeploy
+        uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_YELLOW_SAND_062E4010F }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          app_location: "./frontend"
+          # Already built, so this is the output directory and skip_app_build is on. Both
+          # matter: with output_location still set, the action looks for dist/dist.
+          app_location: "frontend/dist"
           api_location: ""
-          output_location: "dist"
+          output_location: ""
+          skip_app_build: true
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
