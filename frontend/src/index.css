@@ -1031,7 +1031,15 @@ body {
   font-weight: bold;
   font-size: 18px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  /* Everything except box-shadow, which is the proposed-move ring. Under `all` it faded out
+     over 200ms, so it sat on the square after the move had already been played, while the
+     cell was still on its way to being a pawn. The pawn's own colour and shape still animate;
+     the marker snaps, because it is state rather than decoration. */
+  transition:
+    background 0.2s ease,
+    border 0.2s ease,
+    border-radius 0.2s ease,
+    filter 0.2s ease;
   width: var(--cell-size);
   height: var(--cell-size);
   position: relative;
@@ -1095,10 +1103,12 @@ body {
 }
 
 /* Proposed but not played: the first tap of a double-tap move. Reads as a target that
-   has been picked up rather than one that is merely available. */
+   has been picked up rather than one that is merely available. The ring is the board's own
+   slate rather than --preview-valid: that amber read as yellow against the green and was the
+   loudest thing on the board. */
 .pending-move {
   background: var(--valid-move) !important;
-  box-shadow: inset 0 0 0 3px var(--preview-valid);
+  box-shadow: inset 0 0 0 3px var(--primary-bg);
   filter: brightness(1.15);
 }
 
@@ -2385,12 +2395,14 @@ body {
 }
 
 /* ── Leaderboard Page ───────────────────────────────────────────────────────── */
+/* See .friends-card: a flat 520px overflowed every phone made. */
 .leaderboard-page-card {
   background: var(--secondary-bg);
   border-radius: var(--border-radius-large);
   display: flex;
   flex-direction: column;
-  width: 520px;
+  width: 100%;
+  max-width: 520px;
   max-height: calc(100vh - 32px);
   overflow: hidden;
 }
@@ -2638,8 +2650,11 @@ body {
 }
 
 .ghp-list {
-  flex: 1;
-  height: 0; /* combined with flex:1, forces list to fill exactly — triggers scroll */
+  /* flex-basis auto, not 0: `flex: 1; height: 0` fills exactly when the parent has a definite
+     height and collapses to nothing when it does not, which is a hard bug to see coming. With
+     auto the list is at least as tall as its entries either way, and min-height 0 still lets
+     it shrink and scroll inside a parent that is sized. */
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   padding: 0 6px 6px;
@@ -2817,12 +2832,16 @@ body {
 }
 
 /* ── Friends Page ───────────────────────────────────────────────────────────── */
+/* width/max-width rather than a fixed width: at 420px flat this was wider than the phone it
+   was on, and .main-content hides its overflow on mobile, so the right-hand end of every row
+   was simply cut off. Same shape as .profile-page-card. */
 .friends-card {
   background: var(--secondary-bg);
   border-radius: var(--border-radius-large);
   display: flex;
   flex-direction: column;
-  width: 420px;
+  width: 100%;
+  max-width: 420px;
   align-self: stretch;
   overflow: hidden;
 }
@@ -3145,95 +3164,6 @@ body {
   flex-shrink: 0;
 }
 
-/* ── Profile Modal ──────────────────────────────────────────────────────────── */
-.profile-modal-overlay {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.profile-modal-card {
-  background: var(--secondary-bg);
-  border-radius: var(--border-radius-large);
-  padding: 28px 28px 24px;
-  min-width: 320px;
-  max-width: 400px;
-  width: 90%;
-  position: relative;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.profile-modal-close {
-  position: absolute;
-  top: 14px;
-  right: 16px;
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 22px;
-  cursor: pointer;
-  line-height: 1;
-  padding: 0;
-  transition: color 0.15s;
-}
-
-.profile-modal-close:hover {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.profile-modal-loading,
-.profile-modal-error {
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 13px;
-  text-align: center;
-  padding: 16px 0;
-  margin: 0;
-}
-
-.profile-modal-error {
-  color: var(--hover-danger);
-}
-
-.profile-modal-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.profile-modal-avatar {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: var(--tertiary-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  font-weight: 700;
-  color: #ffffff;
-  flex-shrink: 0;
-}
-
-.profile-modal-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.profile-modal-name {
-  color: #ffffff;
-  font-size: 18px;
-  font-weight: 800;
-  margin: 0;
-}
-
-.profile-modal-elo {
-  font-size: 14px;
-  font-weight: 700;
-}
-
 .profile-overall-row {
   display: flex;
   gap: 8px;
@@ -3353,8 +3283,11 @@ body {
 
 /* Whole-app states: shown by UsernameGuard while auth resolves, and by ErrorBoundary when a
    render throws. Both replace the entire page, so they centre in the viewport rather than in a
-   panel. Reuses .matchmaking-spinner below for the spinner itself. */
-.app-loading,
+   panel.
+
+   The loading half lives in index.html instead: markup and styles both, inlined so the board
+   paints on the first frame rather than waiting for this file and the JS bundle. See
+   lib/bootSplash.ts. */
 .app-error {
   min-height: 100vh;
   display: flex;
@@ -3364,12 +3297,6 @@ body {
   gap: 14px;
   padding: 24px;
   text-align: center;
-}
-
-.app-loading-text {
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 13px;
-  margin: 0;
 }
 
 .app-error-title {

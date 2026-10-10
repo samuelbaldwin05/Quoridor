@@ -12,6 +12,8 @@ import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { config } from '@/lib/config';
 import { apiFetch } from '@/lib/api';
+import { beginHandoff } from '@/lib/oauthHandoff';
+import { dismissBootSplash, setBootSplashNote } from '@/lib/bootSplash';
 
 export interface UserProfile {
   id: string;
@@ -62,6 +64,38 @@ function hadSession(): boolean {
   }
 }
 
+// supabase-js persists the session under `sb-<project ref>-auth-token`, chunked with a
+// `.0`, `.1` suffix when it is too big for one entry.
+const AUTH_TOKEN_KEY = /^sb-.+-auth-token(\.\d+)?$/;
+
+/**
+ * Whether supabase-js has a session sitting in storage right now.
+ *
+ * This is the real answer to "are we about to be signed in", where SESSION_HINT_KEY is only
+ * a hint left behind by a past session. supabase-js keeps the stored session when a refresh
+ * fails on the network and only clears it when the server actually rejects the token, so
+ * the key is present in exactly the cases worth waiting for.
+ *
+ * Reading it directly is what lets a genuine guest skip the loading screen entirely instead
+ * of watching "Signing you in..." until an event or a timeout says otherwise.
+ */
+function storedSessionExists(): boolean {
+  try {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && AUTH_TOKEN_KEY.test(key) && localStorage.getItem(key)) return true;
+    }
+  } catch {
+    // No storage to read. The hint below is the only thing left to go on.
+  }
+  return false;
+}
+
+/** Whether this browser should end up signed in, so a null session is worth chasing. */
+function expectsSession(): boolean {
+  return storedSessionExists() || hadSession();
+}
+
 /**
  * Whether a failed refresh means "signed out" or "try again later". A 4xx is the auth
  * server rejecting the refresh token, which is final: it expired, or rotation invalidated
@@ -79,8 +113,16 @@ const RECOVERY_DELAYS_MS = [1500, 5000, 15000];
 
 // Backstop for the initial resolve. INITIAL_SESSION is emitted on subscribe, so this
 // should never fire; it exists because the alternative to a late event is a spinner that
-// never ends, which is the bug AppLoading was introduced for.
-const AUTH_RESOLVE_TIMEOUT_MS = 12000;
+// never ends, which is the bug the loading board was introduced for. It no longer decides
+// anyone is a guest: if storage says a session is there, this hands over to the recovery path.
+const AUTH_RESOLVE_TIMEOUT_MS = 8000;
+
+// How long the app waits on the profile request once the session itself is in hand.
+// Waiting at all is what keeps a new user from seeing the app for a frame before /setup;
+// waiting on the full request meant a cold backend held a signed-in player on a screen
+// reading "Signing you in..." for ten seconds. The redirect still fires when the profile
+// lands, it is just no longer the thing gating first paint.
+const PROFILE_GRACE_MS = 2000;
 
 interface AuthContextValue {
   user: User | null;
@@ -107,7 +149,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>('none');
-  const [isLoading, setIsLoading] = useState(true);
+  // Seeded from storage rather than always true: with nothing stored there is nobody to
+  // sign in, and the guest should get the app on the first paint.
+  const [isLoading, setIsLoading] = useState(expectsSession);
   // Signed out only because the session could not be restored, and worth retrying. The UI
   // says "reconnecting" rather than offering to sign in, which would be a lie.
   const [sessionRecovering, setSessionRecovering] = useState(false);
@@ -142,10 +186,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(next.user);
     // An anonymous session is the dev login (see signInAsDev), not a Google one.
     setAuthMode(next.user.is_anonymous ? 'dev' : 'google');
-    // Wait for profile before clearing isLoading — otherwise the guard and ELO label
-    // briefly see (isLoading=false, profile=null) and show stale defaults or let new users
-    // through to the app before the /setup redirect.
-    fetchProfile().finally(() => setIsLoading(false));
+    // Wait for the profile before clearing isLoading, so the guard and the Elo label do not
+    // briefly see (isLoading=false, profile=null) and show stale defaults or let a new user
+    // through before the /setup redirect. Bounded, though: past PROFILE_GRACE_MS the app is
+    // worth more than the flicker it saves.
+    const grace = setTimeout(() => setIsLoading(false), PROFILE_GRACE_MS);
+    fetchProfile().finally(() => {
+      clearTimeout(grace);
+      setIsLoading(false);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -175,7 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [adoptSession]);
 
   const recoverSession = useCallback(async () => {
-    if (!recoveringRef.current || !hadSession()) return;
+    if (!recoveringRef.current || !expectsSession()) return;
     const { data, error } = await supabase.auth.refreshSession();
     if (data.session) return; // the auth listener takes it from here
     if (error && isFinalAuthFailure(error.status)) {
@@ -187,16 +236,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSessionRecovering(false);
       return;
     }
-    const delay = RECOVERY_DELAYS_MS[recoveryAttempt.current];
-    if (delay === undefined) return; // out of attempts; online/visible still retry
+    // Backs off to the last delay and stays there. Stopping outright used to leave the UI
+    // saying "Reconnecting" with nothing left that would ever reconnect it.
+    const delay =
+      RECOVERY_DELAYS_MS[Math.min(recoveryAttempt.current, RECOVERY_DELAYS_MS.length - 1)];
     recoveryAttempt.current += 1;
     if (recoveryTimer.current) clearTimeout(recoveryTimer.current);
     recoveryTimer.current = setTimeout(() => void recoverSession(), delay);
   }, [adoptSessionFromStorage]);
 
+  // The loading board is already on screen (index.html), so all that is left is saying what
+  // it is waiting for and getting out of the way. Nothing says "signing you in" to a visitor
+  // who has no session to sign in to: for them isLoading was false before the first render.
   useEffect(() => {
-    // Backstop only: clears the spinner if the first auth event never arrives.
-    const resolveTimer = setTimeout(() => setIsLoading(false), AUTH_RESOLVE_TIMEOUT_MS);
+    if (!isLoading) {
+      dismissBootSplash();
+      return;
+    }
+    // Only ever this one line: every path that starts a recovery has already released the
+    // app, so "reconnecting" belongs to the login page, not to the splash.
+    setBootSplashNote('Signing you in…');
+  }, [isLoading]);
+
+  useEffect(() => {
+    // Backstop only: releases the app if the first auth event never arrives. Somebody with
+    // a session in storage becomes "reconnecting", not a guest, because guessing guest is
+    // how a signed-in player ends up browsing anonymously with a good token in storage.
+    const resolveTimer = setTimeout(() => {
+      setIsLoading(false);
+      if (expectsSession() && !recoveringRef.current) {
+        recoveringRef.current = true;
+        setSessionRecovering(true);
+        void recoverSession();
+      }
+    }, AUTH_RESOLVE_TIMEOUT_MS);
 
     const {
       data: { subscription },
@@ -226,7 +299,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSessionRecovering(false);
         return;
       }
-      if (hadSession()) {
+      if (expectsSession()) {
         recoveringRef.current = true;
         setSessionRecovering(true);
         void recoverSession();
@@ -269,11 +342,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Google sign-in goes through our own backend rather than supabase.auth.signInWithOAuth.
+   *
+   * The consent screen names the host of the redirect URI, and going through Supabase
+   * directly makes that the project ref, which reads like a phishing page. So the backend
+   * owns the handshake and hands the verified id_token back to /auth/callback, which
+   * trades it for a real Supabase session. Nothing downstream changes: the session, its
+   * refresh, and the Realtime auth are all still Supabase's.
+   */
   async function signInWithGoogle(): Promise<void> {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
+    const params = new URLSearchParams({
+      origin: window.location.origin,
+      handoff: beginHandoff(),
     });
+    window.location.assign(`${config.apiUrl}/auth/google/start?${params.toString()}`);
   }
 
   /**

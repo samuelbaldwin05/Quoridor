@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { MatchmakingModal } from './MatchmakingModal';
 import { useAuth } from '@/hooks/useAuth';
 import { BOT_TIERS, selectableDifficulty } from '@/lib/botTiers';
-import { STARTING_ELO } from '@/lib/elo';
 import type { Settings } from '@/lib/schemas/settingsSchemas';
 
 type PlayMode = Settings['gameMode'] | 'online';
@@ -13,7 +12,7 @@ type PlayMode = Settings['gameMode'] | 'online';
 // match_in_queue partitions strictly on time_control. The retired options were 180
 // (Blitz) and 600 (Classic); bringing them back means restoring the picker here and
 // threading the choice through MatchmakingModal again. Finished games at those controls
-// still exist, so the label maps in MatchmakingModal and ProfileModal keep all three.
+// still exist, so the label map in MatchmakingModal keeps all three.
 const ONLINE_TIME_CONTROL = 300;
 const ONLINE_BLURB = '5 minute online rapid play';
 const PASS_AND_PLAY_BLURB = 'Play a friend on the same device';
@@ -24,7 +23,7 @@ interface PlayPanelProps {
 }
 
 export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
-  const { isGuest, profile, sessionRecovering } = useAuth();
+  const { isGuest, profile, sessionRecovering, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [mode, setMode] = useState<PlayMode>('vs-bot');
   // A guest whose saved difficulty is members-only (or the retired 'bot0') starts on the
@@ -34,13 +33,26 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
   );
   const [showMatchmaking, setShowMatchmaking] = useState(false);
 
-  const userElo = profile?.elo ?? STARTING_ELO;
+  // A rating is the server's number or nothing. Falling back to the 1000 start showed a
+  // signed-in player whose profile request failed a rating that is not theirs, on the one
+  // screen where a rating is the whole point.
+  const rating = profile?.elo ?? null;
   const displayName = profile?.username ?? 'You';
+  // Online needs an identity the server will recognise. A guest has none, and a session whose
+  // profile never loaded is indistinguishable from one whose user row is gone, so neither gets
+  // to queue. The backend agrees either way: matchmaking resolves the caller's own row.
+  const onlineReady = !isGuest && rating !== null;
+
+  function handleOnlineUnavailable() {
+    // A guest signs in; someone already signed in has a profile request to retry instead.
+    if (isGuest) navigate('/login');
+    else void refreshProfile();
+  }
 
   function handlePlay() {
     if (mode === 'online') {
-      if (isGuest) {
-        navigate('/login');
+      if (!onlineReady) {
+        handleOnlineUnavailable();
         return;
       }
       setShowMatchmaking(true);
@@ -100,20 +112,26 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
               Pass and Play
             </button>
 
-            {/* Online — locked for guests */}
+            {/* Online — locked for a guest, and for a session with no profile to queue with */}
             <button
-              className={`play-mode-option play-mode-online${mode === 'online' ? ' play-mode-active' : ''}${isGuest ? ' play-mode-locked' : ''}`}
-              onClick={() => (isGuest ? navigate('/login') : setMode('online'))}
+              className={`play-mode-option play-mode-online${mode === 'online' ? ' play-mode-active' : ''}${onlineReady ? '' : ' play-mode-locked'}`}
+              onClick={() => (onlineReady ? setMode('online') : handleOnlineUnavailable())}
             >
-              {isGuest ? (
-                <span className="play-mode-lock-label">
-                  <span className="play-mode-lock-icon">{sessionRecovering ? '⟳' : '🔒'}</span>
-                  {sessionRecovering ? 'Reconnecting your session…' : 'Sign in to Play Online'}
-                </span>
-              ) : (
+              {onlineReady ? (
                 <span className="play-mode-online-label">
                   Play Online
-                  <span className="play-mode-elo">{userElo}</span>
+                  <span className="play-mode-elo">{rating}</span>
+                </span>
+              ) : (
+                <span className="play-mode-lock-label">
+                  <span className="play-mode-lock-icon">
+                    {isGuest && !sessionRecovering ? '🔒' : '⟳'}
+                  </span>
+                  {isGuest
+                    ? sessionRecovering
+                      ? 'Reconnecting your session…'
+                      : 'Sign in to Play Online'
+                    : 'Rating unavailable. Tap to retry'}
                 </span>
               )}
             </button>
@@ -149,7 +167,7 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
 
           {mode === 'pass-and-play' && <p className="play-panel-note">{PASS_AND_PLAY_BLURB}</p>}
 
-          {mode === 'online' && !isGuest && <p className="play-panel-note">{ONLINE_BLURB}</p>}
+          {mode === 'online' && onlineReady && <p className="play-panel-note">{ONLINE_BLURB}</p>}
         </div>
 
         <div className="play-panel-footer">
@@ -158,16 +176,22 @@ export function PlayPanel({ currentDifficulty, onPlay }: PlayPanelProps) {
             onClick={handlePlay}
             disabled={mode === 'online' && isGuest}
           >
-            {mode === 'online' ? (isGuest ? 'Sign in' : 'Find Match') : 'Play'}
+            {mode === 'online'
+              ? onlineReady
+                ? 'Find Match'
+                : isGuest
+                  ? 'Sign in'
+                  : 'Retry'
+              : 'Play'}
           </button>
         </div>
       </div>
 
-      {showMatchmaking && (
+      {showMatchmaking && rating !== null && (
         <MatchmakingModal
           timeControl={ONLINE_TIME_CONTROL}
           displayName={displayName}
-          elo={userElo}
+          elo={rating}
           onMatchFound={handleMatchFound}
           onCancel={() => setShowMatchmaking(false)}
           onPlayBot={handlePlayBotInstead}

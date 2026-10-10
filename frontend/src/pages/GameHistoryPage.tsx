@@ -8,48 +8,24 @@ import { createInitialState } from '@/engine/gameEngine';
 import { replayToIndex, moveIcon } from '@/engine/moveDisplay';
 import { serializeMove, parseMove } from '@/engine/notation';
 import type { StoredMove } from '@/engine/gameTypes';
-import {
-  loadGame,
-  listGames,
-  gameOutcome,
-  type GameOutcome,
-  type SavedGame,
-} from '@/lib/gameStorage';
+import { loadGame, listGames, type GameOutcome, type SavedGame } from '@/lib/gameStorage';
 import { apiFetch } from '@/lib/api';
+import {
+  mergeHistory,
+  type HistoryEntry,
+  type ServerBotGameSummary,
+  type ServerGameSummary,
+} from '@/lib/gameHistoryMerge';
 import { useAuth } from '@/hooks/useAuth';
 import { useHoldRepeat } from '@/hooks/useHoldRepeat';
-
-/** One row of GET /api/users/{id}/games: an online game as the backend recorded it. */
-interface ServerGameSummary {
-  id: string;
-  mode: 'pass_and_play' | 'vs_ai' | 'ranked' | 'casual';
-  time_control: number | null;
-  opponent_name: string | null;
-  result: 'win' | 'loss';
-  elo_change: number | null;
-  move_count: number;
-  completed_at: string | null;
-}
-
-/**
- * A row in the history list, from either side of the split: online games come from the
- * backend so they are there on any device, bot and pass-and-play games only ever existed
- * on this one. `id` is what the viewer should be opened with, which is the server's id
- * for an online game and the local save's id otherwise.
- */
-interface HistoryEntry {
-  id: string;
-  date: number;
-  outcome: GameOutcome;
-  opponentLabel: string;
-  isBot: boolean;
-  eloChange: number | null;
-  casual: boolean;
-}
+import { botGameLabel } from '@/lib/botTiers';
+import type { Settings } from '@/lib/schemas/settingsSchemas';
 
 // Public replay record from GET /games/{id} (online games).
 interface OnlineGameDetail {
   id: string;
+  mode: 'pass_and_play' | 'vs_ai' | 'ranked' | 'casual';
+  ai_difficulty: Settings['difficulty'] | null;
   player1_name: string | null;
   player2_name: string | null;
   winner_index: number | null;
@@ -65,14 +41,18 @@ function adaptOnlineGame(d: OnlineGameDetail): SavedGame {
     playerIndex: (i % 2) as 0 | 1,
     timestamp: 0,
   }));
+  // A bot has no user row, so player2_name is null on a vs_ai game and the generic
+  // fallback would replay it against "Player 2".
+  const opponent =
+    d.mode === 'vs_ai' ? botGameLabel(d.ai_difficulty) : (d.player2_name ?? 'Player 2');
   return {
     id: d.id,
     date: d.completed_at ? new Date(d.completed_at).getTime() : 0,
     moves,
     winner: d.winner_index === 0 || d.winner_index === 1 ? d.winner_index : null,
-    opponentLabel: d.player2_name ?? 'Player 2',
+    opponentLabel: opponent,
     userRole: 0,
-    playerNames: [d.player1_name ?? 'Player 1', d.player2_name ?? 'Player 2'],
+    playerNames: [d.player1_name ?? 'Player 1', opponent],
   };
 }
 
@@ -122,35 +102,29 @@ export function GameHistoryPage() {
     };
   }, [myId]);
 
-  const games = useMemo<HistoryEntry[]>(() => {
-    // A local copy of a game the server also has would otherwise appear twice. Saves
-    // written before online games carried a server id have nothing to match on, so they
-    // can still double up until they age out of the fifty the browser keeps.
-    const hideLocalOnline = serverGames !== null;
-    const localEntries: HistoryEntry[] = listGames()
-      .filter((g) => !(hideLocalOnline && g.serverGameId))
-      .map((g) => ({
-        id: g.id,
-        date: g.date,
-        outcome: gameOutcome(g),
-        opponentLabel: g.opponentLabel ?? 'Bot',
-        isBot: g.difficulty != null,
-        eloChange: null,
-        casual: false,
-      }));
+  // Bot games, which the ranked list above deliberately excludes (they have no opponent and
+  // no Elo). They were being recorded and never read back, so a bot game existed only in the
+  // browser that played it and went away with the site data.
+  const [serverBotGames, setServerBotGames] = useState<ServerBotGameSummary[] | null>(null);
+  useEffect(() => {
+    if (!myId) return;
+    let cancelled = false;
+    apiFetch<ServerBotGameSummary[]>('/games/bot?limit=50')
+      .then((rows) => {
+        if (!cancelled) setServerBotGames(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setServerBotGames(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [myId]);
 
-    const serverEntries: HistoryEntry[] = (serverGames ?? []).map((g) => ({
-      id: g.id,
-      date: g.completed_at ? new Date(g.completed_at).getTime() : 0,
-      outcome: g.result,
-      opponentLabel: g.opponent_name ?? 'Opponent',
-      isBot: false,
-      eloChange: g.elo_change,
-      casual: g.mode === 'casual',
-    }));
-
-    return [...serverEntries, ...localEntries].sort((a, b) => b.date - a.date);
-  }, [serverGames]);
+  const games = useMemo<HistoryEntry[]>(
+    () => mergeHistory(serverGames, serverBotGames, listGames()),
+    [serverGames, serverBotGames],
+  );
 
   // A selected game is either a local (offline) save (derived synchronously) or,
   // failing that, an online game fetched from the backend for replay (e.g. opened
@@ -457,6 +431,12 @@ export function GameHistoryPage() {
                   >
                     Start
                   </button>
+
+                  {currentGame.moves.length === 0 && (
+                    /* Says which of the two it is. An empty panel under a played-out board
+                       reads as a broken list rather than as a game nobody moved in. */
+                    <p className="ghp-empty">No moves recorded for this game.</p>
+                  )}
 
                   {currentGame.moves.map((sm, i) => {
                     const isActive = moveIndex === i + 1;

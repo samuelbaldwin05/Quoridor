@@ -134,11 +134,36 @@ noted):
   DECISIONS)
 - `ENVIRONMENT` (`development` or `production`, default `development`)
 - `CORS_ORIGINS`
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (optional; unset disables Google sign-in)
+- `GOOGLE_REDIRECT_URI` (must match the Google OAuth client exactly)
+- `OAUTH_STATE_SECRET` (required for Google sign-in; signs the PKCE state cookie)
+- `OAUTH_ALLOWED_RETURN_ORIGINS`, `FRONTEND_URL`
 
 Frontend (build-time, `VITE_` prefix): `VITE_ENVIRONMENT`, `VITE_SUPABASE_URL`,
 `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_API_URL`.
 
 `.env` is gitignored; `backend/.env.example` holds local-dev defaults.
+
+## Google sign-in
+
+The Google handshake runs on the backend, not on the Supabase project, so the consent
+screen names our own domain instead of the project ref. See DECISIONS for why. The flow:
+`/auth/google/start` sends the browser to Google, `/auth/google/callback` exchanges the
+code and redirects to the frontend's `/auth/callback` with the verified `id_token` in the
+fragment, and the page trades it for a Supabase session via `signInWithIdToken`.
+
+Three things live outside this repo and the code assumes all of them:
+
+- The Google Cloud OAuth client has `https://<backend host>/auth/google/callback` as an
+  authorized redirect URI, and `sambaldwin.dev` is a verified domain on the project.
+- The Supabase Google provider lists the same client id under its authorized client ids.
+  Without it, `signInWithIdToken` rejects the token on audience.
+- The Container App has `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`,
+  `OAUTH_STATE_SECRET`, `OAUTH_ALLOWED_RETURN_ORIGINS` and `FRONTEND_URL` set. These are
+  set through `az containerapp`, not from this repo.
+
+Locally the routes answer 503 with no client id configured, which is fine: the dev login
+is an anonymous session and does not touch Google.
 
 ## AI weights
 

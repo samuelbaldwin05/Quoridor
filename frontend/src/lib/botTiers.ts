@@ -28,6 +28,25 @@ export const BOT_TIERS: readonly BotTier[] = [
   { id: 'mcts', label: 'Extreme', desc: 'Tree search engine', membersOnly: true },
 ];
 
+/**
+ * How a finished game names the bot it was played against.
+ *
+ * Separate from BOT_TIERS because it has to cover 'bot0', which is retired from selection but
+ * still labels games recorded before that. GameCard and gameReducer each kept their own copy
+ * of this before; new code should use this one.
+ */
+export const BOT_GAME_LABELS: Record<Settings['difficulty'], string> = {
+  bot0: 'Beginner Bot (retired)',
+  bot1: 'Easy Bot',
+  bot2: 'Medium Bot',
+  extreme: 'Hard Bot',
+  mcts: 'Extreme Bot',
+};
+
+export function botGameLabel(difficulty: Settings['difficulty'] | null | undefined): string {
+  return difficulty ? (BOT_GAME_LABELS[difficulty] ?? 'Bot') : 'Bot';
+}
+
 export const DEFAULT_DIFFICULTY: Settings['difficulty'] = 'bot2';
 
 /**

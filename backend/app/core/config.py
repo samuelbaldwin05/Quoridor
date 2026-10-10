@@ -21,6 +21,29 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:5173"]
 
+    # ── Google sign-in ────────────────────────────────────────────────────────
+    # The Google consent screen names the host of the redirect URI, so the code exchange
+    # runs here instead of on <ref>.supabase.co. Supabase still issues the session: the
+    # verified id_token goes back to the browser, which trades it for one through
+    # signInWithIdToken. See docs/DECISIONS.md.
+    #
+    # Leaving the client id or secret unset disables the routes (503) rather than
+    # half-starting a flow that cannot finish.
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    # Must match an authorized redirect URI on the Google OAuth client character for
+    # character. Not derived from the request, because behind Container Apps' ingress the
+    # scheme and host the app sees are not the ones Google was given.
+    google_redirect_uri: str = "http://localhost:8000/auth/google/callback"
+    # Signs the short-lived state cookie that carries the PKCE verifier across the round
+    # trip. Any random string; rotating it only invalidates sign-ins already in flight.
+    oauth_state_secret: str | None = None
+    # Origins the browser may be handed back to. A leading "*." matches one label, which
+    # is what keeps per-PR preview environments able to sign in.
+    oauth_allowed_return_origins: list[str] = ["http://localhost:5173"]
+    # Where to send someone whose sign-in failed before the origin could be recovered.
+    frontend_url: str = "http://localhost:5173"
+
     # ── MCTS bot ──────────────────────────────────────────────────────────────
     # Strength is budgeted in search iterations rather than milliseconds, so the bot plays
     # the same on a busy box as on an idle one. See docs/MCTS_INTEGRATION.md.

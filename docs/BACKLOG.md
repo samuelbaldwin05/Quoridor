@@ -11,7 +11,7 @@ Open work only. Reasoning and deferral rationale live in [DECISIONS.md](DECISION
 [CRIT] [HIGH] [MED] [LOW]. Locations are `path` references; re-grep if they drift.
 History of completed work is in git.
 
-Both suites green as of 2026-08-17: backend 397, frontend 393.
+Both suites green as of 2026-10-07: backend 431, frontend 450.
 
 ## Needs verification (you are here to test)
 
@@ -19,6 +19,27 @@ The 2026-08-06 hardening pass landed the code for the items below but could not 
 them without a live environment or a human visual check. Until verified they are open.
 The prerequisite for the live items is a running stack: `make dev`, then two browsers or
 two accounts.
+
+### [HIGH] First live Google sign-in through the backend handshake
+
+The self-hosted handshake is covered by tests at both ends, but nothing in the suite talks
+to Google or to a real GoTrue. It cannot work until all of this is done, and none of it is
+in the repo:
+
+1. Point `api.quoridor.sambaldwin.dev` at the Container App (CNAME plus the `asuid` TXT)
+   and take the free managed certificate.
+2. Google Cloud: add `https://api.quoridor.sambaldwin.dev/auth/google/callback` as an
+   authorized redirect URI, verify `sambaldwin.dev`, fill in the consent screen (app name,
+   logo, support email, homepage, privacy policy) and publish it out of Testing.
+3. Supabase: add the same Google client id to the Google provider's authorized client ids,
+   or `signInWithIdToken` rejects every token on audience.
+4. Set the backend env vars from INFRASTRUCTURE on the Container App, and repoint
+   `VITE_API_URL`.
+
+Then check, in this order: the consent screen says `sambaldwin.dev` and not the project
+ref; an existing Google account signs into the same user row it had before; a brand new
+account gets a row and the `/setup` redirect; cancelling at Google lands on
+`/auth/callback` with "Sign-in was cancelled" rather than a stack trace.
 
 ### [CRIT] Live two-client trust-chain smoke test
 
@@ -68,6 +89,28 @@ Check all three on both the online and offline game views:
   overlay, with the Cancel affordance folded in.
 - `MoveListPanel` extracted and shared by `GameRightPanel` and `OnlineGamePage`: scroll
   behavior and the move list read correctly in both.
+
+## Mobile UI cleanups (landed 2026-08-18, needs a phone)
+
+The round on branch `fix/mobile-ui-cleanups` is in. What is left is confirming it on a real
+device, plus one item that could not be reproduced from the code.
+
+- [MED] Check the friends page and the leaderboard on a phone. Both cards were a flat pixel
+  width (`.friends-card` 420px, `.leaderboard-page-card` 520px) with no mobile override, so
+  they were wider than the viewport and `.main-content` clipped the overflow rather than
+  scrolling it. Both are now `width: 100%` with the old width as `max-width`, which leaves the
+  desktop layout alone. Worth a look at a long username in a friend row.
+- [MED] Check the proposed-move ring under a finger. It is now the board's slate
+  (`--primary-bg`) instead of the amber `--preview-valid`, and `.cell` no longer transitions
+  `box-shadow`, so the ring snaps off the moment the move is played instead of fading out over
+  200ms on a square the pawn had not reached yet.
+- [MED] Unconfirmed: the move list came up empty on a friend's finished game. The data path is
+  shared with the board (`currentGame.moves` in `GameHistoryPage`), so an empty list with a
+  populated board should not be possible, and the same `.ghp-list` renders the game list fine
+  on the same page. Two things changed on the strength of that: `.ghp-list` is now
+  `flex: 1 1 auto` rather than `flex: 1; height: 0`, which collapsed to nothing whenever its
+  parent had no definite height, and a game with no moves now says so instead of showing an
+  empty panel. If it happens again, the message will tell you which of the two it is.
 
 ## Mobile
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
+from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 import pytest
@@ -204,6 +205,31 @@ class TestGameHistoryRoutes:
         monkeypatch.setattr("app.api.games.get_game_detail", raise_not_found)
         resp = client.get(f"/games/{uuid4()}")
         assert resp.status_code == 404
+
+    def test_list_bot_games_returns_200(self, client, monkeypatch):
+        monkeypatch.setattr("app.api.games.list_bot_games", lambda c, uid, lim, off: [])
+        resp = client.get("/games/bot")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_bot_games_path_is_not_read_as_a_game_id(self, client, monkeypatch):
+        # GET /games/{game_id} is declared after this route for exactly this reason: the
+        # other order answers 422 on "bot" as a malformed UUID.
+        called: dict = {}
+
+        def fake(c, uid, lim, off):
+            called["hit"] = True
+            return []
+
+        monkeypatch.setattr("app.api.games.list_bot_games", fake)
+        assert client.get("/games/bot").status_code == 200
+        assert called == {"hit": True}
+
+    def test_list_bot_games_requires_auth(self):
+        app.dependency_overrides.clear()  # no auth override -> real HTTPBearer runs
+        with TestClient(app) as c:
+            resp = c.get("/games/bot")
+        assert resp.status_code in (401, 403)
 
 
 # ── record bot game route ───────────────────────────────────────────────────────
@@ -432,3 +458,112 @@ class TestAiEngineAuth:
                 headers={"Authorization": "Bearer not-a-jwt"},
             )
         assert resp.status_code == 401
+
+
+# ── Google sign-in handshake ──────────────────────────────────────────────────
+
+
+class TestGoogleSignIn:
+    """The routes only. The checks they lean on are covered in test_oauth.py."""
+
+    @pytest.fixture(autouse=True)
+    def configured(self, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "google_client_id", "client-id.apps.googleusercontent.com")
+        monkeypatch.setattr(settings, "google_client_secret", "client-secret")
+        monkeypatch.setattr(settings, "oauth_state_secret", "state-secret-for-tests")
+        monkeypatch.setattr(settings, "frontend_url", "https://quoridor.example")
+        monkeypatch.setattr(settings, "oauth_allowed_return_origins", ["https://quoridor.example"])
+
+    def test_unconfigured_google_sends_the_person_back_with_an_error(self, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "google_client_id", None)
+        with TestClient(app) as c:
+            resp = c.get("/auth/google/start", follow_redirects=False)
+        assert resp.status_code == 302
+        assert resp.headers["location"].endswith("#auth_error=not_configured")
+
+    def test_start_redirects_to_google_and_sets_the_state_cookie(self):
+        with TestClient(app) as c:
+            resp = c.get(
+                "/auth/google/start",
+                params={"origin": "https://quoridor.example", "handoff": "h1"},
+                follow_redirects=False,
+            )
+        assert resp.status_code == 302
+        assert resp.headers["location"].startswith("https://accounts.google.com/")
+        cookie = resp.headers["set-cookie"]
+        assert "quoridor_oauth=" in cookie
+        assert "HttpOnly" in cookie
+        assert "Path=/auth/google" in cookie
+
+    def test_start_refuses_an_origin_that_is_not_ours(self):
+        with TestClient(app) as c:
+            resp = c.get(
+                "/auth/google/start",
+                params={"origin": "https://evil.example"},
+                follow_redirects=False,
+            )
+        assert resp.status_code == 400
+
+    def test_callback_without_a_cookie_lands_on_the_frontend_with_an_error(self):
+        with TestClient(app) as c:
+            resp = c.get(
+                "/auth/google/callback",
+                params={"code": "abc", "state": "xyz"},
+                follow_redirects=False,
+            )
+        assert resp.status_code == 302
+        assert resp.headers["location"] == (
+            "https://quoridor.example/auth/callback#auth_error=expired"
+        )
+
+    def test_a_completed_handshake_hands_the_id_token_to_the_callback_page(self, monkeypatch):
+        async def fake_exchange(_code, _verifier):
+            return {"id_token": "the.id.token", "access_token": "the-access-token"}
+
+        async def fake_verify(_id_token, _access_token):
+            return {"email": "alice@example.com", "email_verified": True}
+
+        monkeypatch.setattr("app.services.oauth_service.exchange_code", fake_exchange)
+        monkeypatch.setattr("app.services.oauth_service.verify_id_token", fake_verify)
+
+        with TestClient(app) as c:
+            start = c.get(
+                "/auth/google/start",
+                params={"origin": "https://quoridor.example", "handoff": "h1"},
+                follow_redirects=False,
+            )
+            state = parse_qs(urlsplit(start.headers["location"]).query)["state"][0]
+            resp = c.get(
+                "/auth/google/callback",
+                params={"code": "abc", "state": state},
+                follow_redirects=False,
+            )
+
+        fragment = urlsplit(resp.headers["location"]).fragment
+        handed = {k: v[0] for k, v in parse_qs(fragment).items()}
+        assert resp.headers["location"].startswith("https://quoridor.example/auth/callback#")
+        assert handed == {
+            "id_token": "the.id.token",
+            "access_token": "the-access-token",
+            "handoff": "h1",
+        }
+        assert resp.headers["cache-control"] == "no-store"
+
+    def test_declining_at_google_comes_back_as_cancelled(self):
+        with TestClient(app) as c:
+            start = c.get(
+                "/auth/google/start",
+                params={"origin": "https://quoridor.example", "handoff": "h1"},
+                follow_redirects=False,
+            )
+            state = parse_qs(urlsplit(start.headers["location"]).query)["state"][0]
+            resp = c.get(
+                "/auth/google/callback",
+                params={"error": "access_denied", "state": state},
+                follow_redirects=False,
+            )
+        assert resp.headers["location"].endswith("#auth_error=cancelled")

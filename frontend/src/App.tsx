@@ -12,6 +12,7 @@ import { PuzzlesPage } from './pages/PuzzlesPage';
 import { FriendsPage } from './pages/FriendsPage';
 import { LeaderboardPage } from './pages/LeaderboardPage';
 import { LoginPage } from './pages/LoginPage';
+import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { OnlineGamePage } from './pages/OnlineGamePage';
 import { UsernameSetupPage } from './pages/UsernameSetupPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -57,6 +58,7 @@ function App() {
             <BotGameSyncer />
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="/setup" element={<UsernameSetupPage />} />
               <Route
                 path="/"

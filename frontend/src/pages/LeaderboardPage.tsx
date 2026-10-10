@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { NavSidebar } from '@/components/NavSidebar';
-import { ProfileModal } from '@/components/ProfileModal';
 import { supabase } from '@/lib/supabase';
 import { eloColor } from '@/lib/elo';
 
@@ -19,10 +19,10 @@ const SORT_OPTIONS: { id: SortMode; label: string }[] = [
 ];
 
 export function LeaderboardPage() {
+  const navigate = useNavigate();
   const [sort, setSort] = useState<SortMode>('elo');
   const [entries, setEntries] = useState<LeaderEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,7 +84,7 @@ export function LeaderboardPage() {
               <button
                 key={entry.id}
                 className="leaderboard-page-row"
-                onClick={() => setProfileUserId(entry.id)}
+                onClick={() => navigate(`/profile/${entry.id}`)}
               >
                 <span className="leaderboard-page-rank">
                   {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
@@ -99,8 +99,6 @@ export function LeaderboardPage() {
           </div>
         </div>
       </div>
-
-      <ProfileModal userId={profileUserId} onClose={() => setProfileUserId(null)} />
     </div>
   );
 }

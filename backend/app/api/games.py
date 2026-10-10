@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from supabase import Client
 
 from app.core.auth import get_current_user, get_optional_user_id
@@ -10,6 +10,7 @@ from app.core.dependencies import get_supabase
 from app.schemas.game import (
     BotGameCreate,
     BotGameRead,
+    BotGameSummary,
     GameDetail,
     GameResultRequest,
     GameResultResponse,
@@ -19,12 +20,29 @@ from app.schemas.game import (
 from app.schemas.user import UserRead
 from app.services.game_service import (
     get_game_detail,
+    list_bot_games,
     record_bot_game,
     record_game_result,
     submit_move,
 )
 
 router = APIRouter(prefix="/games", tags=["games"])
+
+
+# Declared before GET /{game_id}: route matching is in declaration order, so the other way
+# round this path is read as a game id and answered with a 422 for a malformed UUID.
+@router.get("/bot", response_model=list[BotGameSummary])
+def list_bot_games_route(
+    limit: int = Query(20, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    user: UserRead = Depends(get_current_user),
+    supabase: Client = Depends(get_supabase),
+) -> list[BotGameSummary]:
+    """The caller's own finished bot games, newest first.
+
+    Authenticated and always scoped to the caller, unlike the public ranked history on
+    /api/users/{id}/games, which excludes these."""
+    return list_bot_games(supabase, user.id, limit, offset)
 
 
 @router.get("/{game_id}", response_model=GameDetail)

@@ -584,3 +584,117 @@ which Safari's missing `persist()` cannot be asked about. Beating that needs the
 a server-set cookie, and the frontend is a static bundle with no server to set one, so the
 mitigation stands where it is: a wipe now costs a re-tap of Sign in with Google rather than
 a player's history, because the backend holds the games.
+
+## Google sign-in goes through our backend, not Supabase's OAuth endpoint
+
+`signInWithGoogle` sends the browser to `GET /auth/google/start` on our own API instead of
+calling `supabase.auth.signInWithOAuth`. The backend owns the authorization-code exchange
+(PKCE, a signed state cookie, `id_token` verification against Google's JWKS) and hands the
+verified `id_token` back to the frontend in the callback fragment. The frontend trades it
+for a session with `supabase.auth.signInWithIdToken`.
+
+Why: Google's consent screen names the host of the redirect URI. Going through Supabase
+directly makes that `ogflmuxjthyvzflcjijx.supabase.co`, which reads like a phishing page to
+anyone who looks. The supported fix is Supabase's Custom Domain add-on, which needs a paid
+plan, so it is $35/month to change one line of text on someone else's screen. Doing the
+handshake ourselves costs one service module and gets the same result.
+
+What this deliberately does NOT change: Supabase still issues and refreshes the session,
+still owns the account model (`signInWithIdToken` finds or creates the user and links the
+Google identity by `sub`, so accounts made through the old flow keep working), and still
+authorizes Realtime. `core/auth.py` verifies the same tokens it always did.
+
+Known costs, accepted:
+
+- Sign-in now depends on the backend being reachable, where before it only needed Supabase.
+  The Container App runs a minimum of one replica for the MCTS tier, so there is no cold
+  start, but a deploy rollover during the redirect strands that attempt.
+- The `id_token` and Google `access_token` cross the last hop in a URL fragment. Fragments
+  are not sent to servers and do not reach access logs, and supabase-js's own implicit flow
+  already puts a full session there, so this is no worse than what it replaces.
+- Adding another provider later means implementing its handshake too, where the paid add-on
+  would have covered all of them at once.
+
+## No `nonce` in the Google authorize request
+
+`begin()` in `oauth_service.py` sends `state` and PKCE but no `nonce`.
+
+Why: PKCE binds the code to this backend, the signed state cookie binds the callback to the
+browser that started it, and the `handoff` value in `lib/oauthHandoff.ts` binds the returned
+fragment to the tab that asked for it, which is the one attack (someone else's `id_token`
+pasted into a link) that the first two do not cover. A nonce would have to be passed on to
+`signInWithIdToken`, where Google's and Apple's conventions differ over whether it is hashed,
+for protection already covered three ways.
+
+## Auth resolution reads storage instead of waiting to be told
+
+`useAuth` seeds `isLoading` from `storedSessionExists()`, which scans localStorage for
+supabase-js's `sb-<ref>-auth-token`. No key means nobody to sign in, so a guest gets the app
+on the first paint. A key means the restore is worth waiting for, and a null
+`INITIAL_SESSION` becomes `sessionRecovering` rather than a sign-out.
+
+Why: the old flow started every load at `isLoading = true` and resolved on whichever came
+first, the auth event or a 12-second backstop. Three things went wrong with that. A visitor
+who had never signed in still watched "Signing you in..." before being told they were a
+guest. The backstop treated "no event yet" as "guest", which is exactly the mistake the
+`quoridor-had-session` marker was added to prevent, and the marker could not help because it
+only records a past session, not the one sitting in storage now. And `adoptSession` held
+first paint on the profile request, so a cold Container App kept a signed-in player on the
+loading screen for the full ten-second timeout.
+
+Also changed with it: the profile request gets `PROFILE_GRACE_MS` (2s) before the app renders
+anyway, the backstop drops to 8s and hands over to recovery instead of assuming guest, and
+the recovery backoff repeats its last delay forever rather than running out. Running out left
+the UI reporting "Reconnecting" with nothing scheduled that would ever reconnect it.
+
+The cost of the profile grace is the flicker it used to prevent: on a slow backend a brand
+new user can see the app for a moment before /setup takes them. The redirect still happens
+when the profile lands. That is a better trade than a ten-second hold on every cold start.
+
+## The loading board lives in index.html and React never re-renders it
+
+`index.html` carries the board markup in a fixed-position `#boot-splash` overlay, alongside
+`#root` rather than inside it, and the rules that style it live in an inline `<style>` there
+rather than in `index.css`. React never draws it. `lib/bootSplash.ts` writes its caption and
+fades it out, and `useAuth` calls that the moment `isLoading` goes false. `UsernameGuard`
+renders nothing while loading, which is safe precisely because the splash is still on top.
+
+Why not React: a React-only loading screen cannot appear until the bundle has downloaded,
+parsed and run, which is exactly the stretch that was showing a white screen. Inlining moves
+first paint to as soon as the HTML is parsed. The styles have to come with it, since a `<link>`
+to `index.css` would block that paint anyway, and the theme variables carry literal fallbacks
+for the same reason.
+
+Why outside `#root`: React clears its container on the first commit
+(`clearContainerSparingly`, checked in react-dom 19). With the splash inside, mounting tore the
+running animation down and a fresh copy started from frame one, which is a visible flash.
+Outside it, the same element runs uninterrupted from first paint to dismissal.
+
+The caption starts empty rather than saying "Signing you in", because nothing has read storage
+before the bundle runs and a visitor with no session should never be told they are being signed
+in. `useAuth` fills it in once it knows. `lib/__tests__/loadingBoard.test.ts` reads `index.html`
+back and holds the markup, the keyframes and `lib/loadingBoard.ts` in step; the loop's fade at
+the six-second boundary is slow on purpose for the same reason the remount was removed.
+
+## Bot games are read back through an authenticated route, not the public history list
+
+`list_finished_games_for_user` excludes `mode = 'vs_ai'`, so the public
+`/api/users/{id}/games` shows ranked play only. That exclusion is right (a bot game has no
+opponent and no Elo delta, and nobody else's business), but nothing read the rows back, so a
+bot game existed on the server and was only ever visible from the `localStorage` copy in the
+browser that played it. Clearing site data, or playing on a phone and looking on a laptop,
+lost the history that had in fact been recorded all along.
+
+Added `GET /games/bot`, authenticated and always scoped to the caller rather than taking a
+user id, with its own `BotGameSummary` rather than reusing `GameSummary` whose opponent and
+Elo fields would all be null. `GameDetail` gained `ai_difficulty` so a replay opened on a
+device that never played the game can name the tier instead of calling the bot "Player 2".
+
+The client holds the same game twice: the local save keys the pair through
+`client_game_id`, which is the local id. `lib/gameHistoryMerge.ts` prefers the local copy
+when both exist, since it is already in hand where the server copy costs a fetch.
+
+Still not recorded, and deliberately so for now: pass-and-play games (no `ai_difficulty`, so
+nothing identifies the opponent), a guest's bot games before they sign in (they backfill on
+the next login from local storage, which keeps the last 50), and a bot game abandoned without
+resigning (no winner, so nothing is saved even locally).
