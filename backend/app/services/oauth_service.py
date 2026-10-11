@@ -72,18 +72,38 @@ def _origin_of(url: str) -> str | None:
 
 
 def _matches(pattern: str, origin: str) -> bool:
+    """Whether `origin` is covered by one allowlist entry.
+
+    Three forms. An exact origin matches itself. "*.example.net" matches exactly one label,
+    so it cannot be talked into matching "a.b.example.net". "**.example.net" matches any
+    depth, which is what a nested subdomain needs: "dev.qwall.sambaldwin.dev" sits two
+    labels under "sambaldwin.dev", so the single-label form never covered it and sign-in
+    there answered "Unsupported return origin".
+
+    Depth is the only thing "**." relaxes. On a domain you own that is the obvious intent.
+    On a shared host it is not a guard at all, since anyone can take a name under it, so
+    list those origins exactly.
+    """
     if pattern == origin:
         return True
     scheme, _, host = pattern.partition("://")
-    if not host.startswith("*."):
-        return False
     parsed = urlsplit(origin)
     if parsed.scheme != scheme:
         return False
-    suffix = host[1:]  # ".example.net"
+
+    if host.startswith("**."):
+        suffix = host[2:]  # ".example.net"
+        any_depth = True
+    elif host.startswith("*."):
+        suffix = host[1:]
+        any_depth = False
+    else:
+        return False
+
     if not parsed.netloc.endswith(suffix) or len(parsed.netloc) <= len(suffix):
         return False
-    # One label only, so "*.example.net" cannot be talked into matching "a.b.example.net".
+    if any_depth:
+        return True
     return "." not in parsed.netloc[: -len(suffix)]
 
 
