@@ -137,7 +137,12 @@ noted):
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (optional; unset disables Google sign-in)
 - `GOOGLE_REDIRECT_URI` (must match the Google OAuth client exactly)
 - `OAUTH_STATE_SECRET` (required for Google sign-in; signs the PKCE state cookie)
-- `OAUTH_ALLOWED_RETURN_ORIGINS`, `FRONTEND_URL`
+- `OAUTH_ALLOWED_RETURN_ORIGINS`, `FRONTEND_URL`. An entry is an exact origin, `*.` for one
+  label, or `**.` for any depth. A nested subdomain sits more than one label down, so
+  `*.sambaldwin.dev` never reaches `dev.qwall.sambaldwin.dev` and sign-in there answers
+  `Unsupported return origin`. On a domain you own, `**.` is the intent. On a shared host
+  like `azurestaticapps.net` neither wildcard is a guard at all, since anyone can take a
+  name under it, so list those origins exactly.
 
 Frontend (build-time, `VITE_` prefix): `VITE_ENVIRONMENT`, `VITE_SUPABASE_URL`,
 `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_API_URL`.

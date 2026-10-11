@@ -24,7 +24,11 @@ def google_configured(monkeypatch):
     monkeypatch.setattr(
         settings,
         "oauth_allowed_return_origins",
-        ["https://quoridor.example", "https://*.previews.example"],
+        [
+            "https://quoridor.example",
+            "https://*.previews.example",
+            "https://**.deep.example",
+        ],
     )
 
 
@@ -52,10 +56,35 @@ def test_wildcard_matches_one_label():
     )
 
 
+def test_single_label_wildcard_does_not_reach_a_nested_subdomain():
+    """The shape that produced "Unsupported return origin" on deployed dev.
+
+    `dev.qwall.sambaldwin.dev` is two labels under `sambaldwin.dev`, so the single-label
+    form never covered it however the pattern was written.
+    """
+    with pytest.raises(oauth_service.OAuthError):
+        oauth_service.resolve_return_origin("https://dev.qwall.previews.example")
+
+
+def test_double_wildcard_matches_any_depth():
+    for origin in (
+        "https://one.deep.example",
+        "https://app-26.centralus.deep.example",
+        "https://a.b.c.deep.example",
+    ):
+        assert oauth_service.resolve_return_origin(origin) == origin
+
+
 @pytest.mark.parametrize(
     "origin",
     [
         "https://evil.example",
+        # Any depth is the only thing "**." relaxes. Not the scheme,
+        "http://one.deep.example",
+        # not the apex on its own,
+        "https://deep.example",
+        # and not a host that merely ends in the same characters.
+        "https://notdeep.example",
         # A wildcard is one label, not a suffix match on the whole host.
         "https://a.b.previews.example",
         # Nor does it license a different scheme.
