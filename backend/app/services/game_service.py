@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID
 
 from supabase import Client
@@ -343,12 +344,17 @@ def record_bot_game(
 
     caller_str = str(caller_id)
     payload = {
-        "mode": "vs_ai",
+        "mode": body.mode,
+        # "finished" with a NULL winner is how this schema already records a game nobody
+        # won: migration 023 retires abandoned games exactly that way. There is no separate
+        # status for "stopped partway", and adding one would change what every existing
+        # reader counts.
         "status": "finished",
         "player1_id": caller_str,
         "player2_id": None,
-        # winner_index 0 = the user; 1 = the bot, which has no user row so winner_id
-        # stays NULL. Never resolves to a real opponent, so no ranked/Elo impact.
+        # winner_index 0 = the user; 1 = the bot or the other side of a pass-and-play game,
+        # neither of which has a user row, so winner_id stays NULL. It never resolves to a
+        # real opponent, so there is no ranked or Elo impact either way.
         "winner_id": caller_str if body.winner_index == 0 else None,
         "winner_index": body.winner_index,
         "ai_difficulty": body.ai_difficulty,
@@ -373,8 +379,9 @@ def _to_bot_read(row: dict, created: bool) -> BotGameRead:
     return BotGameRead(
         id=UUID(row["id"]),
         client_game_id=row["client_game_id"],
-        ai_difficulty=row["ai_difficulty"],
-        winner_index=row["winner_index"],
+        mode=row["mode"],
+        ai_difficulty=row.get("ai_difficulty"),
+        winner_index=row.get("winner_index"),
         status=row["status"],
         created=created,
     )
@@ -394,16 +401,23 @@ def list_bot_games(
 
 
 def _to_bot_summary(row: dict, uid: str) -> BotGameSummary:
-    """Map a raw vs_ai row to the caller's history row.
+    """Map a raw local-game row to the caller's history row.
 
-    winner_id is the player on a win and NULL when the bot won (a bot has no user row), so
-    the result reads off the same comparison the ranked list uses.
+    winner_index is the one field that separates the three outcomes. winner_id cannot: it is
+    NULL both when the other side won (which has no user row to point at) and when nobody
+    did, so reading the result off it alone turns every abandoned game into a loss.
     """
+    winner_index = row.get("winner_index")
+    if winner_index is None:
+        result: Literal["win", "loss", "unfinished"] = "unfinished"
+    else:
+        result = "win" if row.get("winner_id") == uid else "loss"
     return BotGameSummary(
         id=UUID(row["id"]),
         client_game_id=row["client_game_id"],
-        ai_difficulty=row["ai_difficulty"],
-        result="win" if row.get("winner_id") == uid else "loss",
+        mode=row["mode"],
+        ai_difficulty=row.get("ai_difficulty"),
+        result=result,
         move_count=len(row.get("move_history") or []),
         completed_at=row.get("completed_at"),
     )

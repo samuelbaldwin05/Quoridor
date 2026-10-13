@@ -14,12 +14,13 @@ export interface ServerGameSummary {
   completed_at: string | null;
 }
 
-/** One row of GET /games/bot: a bot game as the backend recorded it, for the caller only. */
+/** One row of GET /games/bot: a local game as the backend recorded it, for the caller only. */
 export interface ServerBotGameSummary {
   id: string;
   client_game_id: string;
-  ai_difficulty: Settings['difficulty'];
-  result: 'win' | 'loss';
+  mode: 'vs_ai' | 'pass_and_play';
+  ai_difficulty: Settings['difficulty'] | null;
+  result: 'win' | 'loss' | 'unfinished';
   move_count: number;
   completed_at: string | null;
 }
@@ -80,17 +81,17 @@ export function mergeHistory(
     casual: g.mode === 'casual',
   }));
 
-  // The server's copy of a bot game this browser still holds is the same game, and the local
-  // save is the better one to open: it is already there, where the server copy costs a fetch.
-  // client_game_id is the local save's own id, which is what makes the two matchable.
+  // The server's copy of a local game this browser still holds is the same game, and the
+  // local save is the better one to open: it is already there, where the server copy costs a
+  // fetch. client_game_id is the local save's own id, which is what makes the two matchable.
   const botEntries: HistoryEntry[] = (serverBotGames ?? [])
     .filter((g) => !localIds.has(g.client_game_id))
     .map((g) => ({
       id: g.id,
       date: g.completed_at ? new Date(g.completed_at).getTime() : 0,
       outcome: g.result,
-      opponentLabel: botGameLabel(g.ai_difficulty),
-      isBot: true,
+      opponentLabel: g.mode === 'pass_and_play' ? 'Pass & Play' : botGameLabel(g.ai_difficulty),
+      isBot: g.mode === 'vs_ai',
       eloChange: null,
       casual: false,
     }));

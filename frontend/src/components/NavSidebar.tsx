@@ -80,7 +80,9 @@ export function NavSidebar({ activePage = 'play' }: NavSidebarProps) {
 
   const displayName = profile?.username ?? 'Guest';
   const avatarLetter = displayName[0]?.toUpperCase() ?? 'G';
-  const eloLabel = profile ? `ELO ${profile.elo}` : isGuest ? 'Guest' : '…';
+  // isGuest first: a guest playing anonymously has a profile row with a starting rating on
+  // it, and showing that as their Elo is the same lie the online button used to tell.
+  const eloLabel = isGuest ? 'Guest' : profile ? `ELO ${profile.elo}` : '…';
 
   async function handleLogout() {
     await signOut();

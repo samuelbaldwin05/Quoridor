@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-08T01:44:06Z",
-  "head": "192e5b0",
+  "generated_at": "2026-10-13T02:36:35Z",
+  "head": "1d9b096",
   "docs": {
     "docs/ARCHITECTURE.md": {
       "title": "Architecture",
@@ -15,6 +15,8 @@
       "last_edit_date": "2026-08-18",
       "stale": true,
       "unreviewed_code_commits": [
+        "50bf862",
+        "e0e8202",
         "192e5b0",
         "0a51451",
         "809a016",
@@ -44,9 +46,9 @@
       "title": "Backlog",
       "reviewed_at": "0e3abee",
       "covers": [],
-      "content_sha": "b06eecbe5f8c",
-      "last_edit_commit": "192e5b0",
-      "last_edit_date": "2026-08-18",
+      "content_sha": "4d003ab13a5c",
+      "last_edit_commit": "f2dbe9d",
+      "last_edit_date": "2026-10-07",
       "stale": null,
       "unreviewed_code_commits": []
     },
@@ -54,9 +56,9 @@
       "title": "Decisions",
       "reviewed_at": "0e3abee",
       "covers": [],
-      "content_sha": "feda48392f66",
-      "last_edit_commit": "192e5b0",
-      "last_edit_date": "2026-08-18",
+      "content_sha": "d167960998c1",
+      "last_edit_commit": "1eff960",
+      "last_edit_date": "2026-10-07",
       "stale": null,
       "unreviewed_code_commits": []
     },
@@ -70,11 +72,12 @@
         "backend/app/core/config.py",
         "backend/Dockerfile"
       ],
-      "content_sha": "b329909e5011",
-      "last_edit_commit": "192e5b0",
-      "last_edit_date": "2026-08-18",
+      "content_sha": "1705b4eb1dde",
+      "last_edit_commit": "50bf862",
+      "last_edit_date": "2026-10-11",
       "stale": true,
       "unreviewed_code_commits": [
+        "ee9c7eb",
         "192e5b0",
         "6267280",
         "0a51451",

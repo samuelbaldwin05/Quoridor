@@ -170,6 +170,36 @@ Three things live outside this repo and the code assumes all of them:
 Locally the routes answer 503 with no client id configured, which is fine: the dev login
 is an anonymous session and does not touch Google.
 
+## Product KPIs
+
+Four numbers, all read from `games` and `auth.users` through views added in migration 025.
+There is no counters table: a counter that can drift from the rows it counts is worse than
+no counter.
+
+- `public.kpi_summary`: one row, with `games_total`, `games_online`, `games_local`,
+  `games_finished`, `users_authenticated`, `users_guest`, `users_total` and
+  `players_with_a_game`.
+- `public.kpi_games_daily`: games per day per mode.
+- `public.kpi_users_daily`: new users per day, split authenticated versus guest.
+
+All three are readable by `service_role` only. Supabase's default privileges would have
+granted them to `anon` and `authenticated`, which publishes a live user count to anyone
+holding the publishable key, so migration 025 revokes that. Read them from the SQL editor
+or the backend; they are deliberately not on the PostgREST surface.
+
+Counting a non-authenticated player needs anonymous sign-ins enabled on the hosted project
+(Authentication, Providers, Anonymous). A guest who plays a game gets an anonymous session
+(`useAuth.ensureGuestSession`), which is what makes them countable and lets the game be
+recorded. With the setting off, the app still works: the sign-in fails quietly, the game
+stays in that browser's local storage, and it uploads at the player's next real login.
+Anonymous users count toward Supabase MAU, and each browser is a separate one, so the guest
+number counts browsers rather than people.
+
+What these numbers cannot tell you: anything before 2026-10-12. Guest games played earlier
+exist only in whichever browser played them, and reach the database only if that person
+signs in on that browser (`useBotGameSync` backfills). Site visits are not measured at all;
+nothing in the frontend reports a page view.
+
 ## AI weights
 
 The backend loads trained weights not committed to git. Storage location (Supabase

@@ -13,7 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { config } from '@/lib/config';
 import { apiFetch } from '@/lib/api';
 import { beginHandoff } from '@/lib/oauthHandoff';
-import { dismissBootSplash, setBootSplashNote } from '@/lib/bootSplash';
+import { dismissBootSplash } from '@/lib/bootSplash';
 
 export interface UserProfile {
   id: string;
@@ -24,7 +24,21 @@ export interface UserProfile {
   games_played: number;
 }
 
-type AuthMode = 'none' | 'dev' | 'google';
+type AuthMode = 'none' | 'guest' | 'dev' | 'google';
+
+/**
+ * Which kind of session this is. Anonymous covers two different people: a guest who started
+ * a game (tagged at sign-in) and the local dev login. They are told apart by the tag rather
+ * than by environment, so a dev login in a hosted environment stays a dev login and stays
+ * out of the KPI counts.
+ *
+ * Anonymous sessions created before the tag existed were all dev logins, which is why an
+ * untagged one falls that way.
+ */
+function authModeForUser(user: User): AuthMode {
+  if (!user.is_anonymous) return 'google';
+  return user.user_metadata?.login_kind === 'guest' ? 'guest' : 'dev';
+}
 
 /**
  * Marker that this browser has held a session, so "no session" can be told apart from
@@ -77,7 +91,7 @@ const AUTH_TOKEN_KEY = /^sb-.+-auth-token(\.\d+)?$/;
  * the key is present in exactly the cases worth waiting for.
  *
  * Reading it directly is what lets a genuine guest skip the loading screen entirely instead
- * of watching "Signing you in..." until an event or a timeout says otherwise.
+ * of watching it until an event or a timeout says otherwise.
  */
 function storedSessionExists(): boolean {
   try {
@@ -119,8 +133,8 @@ const AUTH_RESOLVE_TIMEOUT_MS = 8000;
 
 // How long the app waits on the profile request once the session itself is in hand.
 // Waiting at all is what keeps a new user from seeing the app for a frame before /setup;
-// waiting on the full request meant a cold backend held a signed-in player on a screen
-// reading "Signing you in..." for ten seconds. The redirect still fires when the profile
+// waiting on the full request meant a cold backend held a signed-in player on the loading
+// screen for ten seconds. The redirect still fires when the profile
 // lands, it is just no longer the thing gating first paint.
 const PROFILE_GRACE_MS = 2000;
 
@@ -131,12 +145,14 @@ interface AuthContextValue {
   isLoading: boolean;
   /** Signed out only because the session could not be restored yet, and being retried. */
   sessionRecovering: boolean;
+  /** No real sign-in behind this session: signed out, or a guest playing anonymously. */
   isGuest: boolean;
   isDev: boolean;
   needsUsername: boolean;
   authMode: AuthMode;
   signInWithGoogle: () => Promise<void>;
   signInAsDev: () => Promise<{ error: string | null }>;
+  ensureGuestSession: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateUsername: (username: string) => Promise<void>;
@@ -184,8 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     recoveryAttempt.current = 0;
     setSession(next);
     setUser(next.user);
-    // An anonymous session is the dev login (see signInAsDev), not a Google one.
-    setAuthMode(next.user.is_anonymous ? 'dev' : 'google');
+    setAuthMode(authModeForUser(next.user));
     // Wait for the profile before clearing isLoading, so the guard and the Elo label do not
     // briefly see (isLoading=false, profile=null) and show stale defaults or let a new user
     // through before the /setup redirect. Bounded, though: past PROFILE_GRACE_MS the app is
@@ -195,7 +210,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(grace);
       setIsLoading(false);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Retry a restore that failed on the network. Each attempt goes through the auth client,
@@ -207,6 +221,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // tab focus would spend a refresh token each time, and with rotation on that is how you
   // invalidate the one another tab is about to use.
   const recoveringRef = useRef(false);
+  // One guest session per browser, not one per call: the first move of a game and a reload
+  // mid-game both ask for it, and each anonymous sign-in would otherwise be a new user row.
+  const guestSignIn = useRef(false);
 
   /**
    * Last chance before declaring someone signed out: read storage again.
@@ -245,17 +262,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     recoveryTimer.current = setTimeout(() => void recoverSession(), delay);
   }, [adoptSessionFromStorage]);
 
-  // The loading board is already on screen (index.html), so all that is left is saying what
-  // it is waiting for and getting out of the way. Nothing says "signing you in" to a visitor
-  // who has no session to sign in to: for them isLoading was false before the first render.
+  // The loading board is already on screen (index.html), so all this has to do is get out
+  // of the way once auth has resolved. A visitor with no session to restore never sees it:
+  // for them isLoading was false before the first render.
   useEffect(() => {
-    if (!isLoading) {
-      dismissBootSplash();
-      return;
-    }
-    // Only ever this one line: every path that starts a recovery has already released the
-    // app, so "reconnecting" belongs to the login page, not to the splash.
-    setBootSplashNote('Signing you in…');
+    if (!isLoading) dismissBootSplash();
   }, [isLoading]);
 
   useEffect(() => {
@@ -375,7 +386,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * supabase/config.toml) and off in the hosted one, where the button is not shown either.
    */
   async function signInAsDev(): Promise<{ error: string | null }> {
-    const { error } = await supabase.auth.signInAnonymously();
+    const { error } = await supabase.auth.signInAnonymously({
+      options: { data: { login_kind: 'dev' } },
+    });
     if (error) {
       setAuthMode('none');
       return { error: error.message };
@@ -384,8 +397,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   }
 
+  /**
+   * Give a guest who is actually playing an anonymous Supabase session.
+   *
+   * Two things come out of it. The game can be recorded like any other, because the POST
+   * carries a real token, where before a guest's games existed in one browser's
+   * localStorage and nowhere else. And the player is countable once, which is the only way
+   * a non-authenticated user appears in the KPIs at all.
+   *
+   * Deliberately not called on page load. A session created by opening the board would
+   * count someone who never played, and the number that matters is people who played.
+   *
+   * A guest is still a guest: `isGuest` covers this mode too, so online play, friends and
+   * the members-only bot tiers stay behind a real sign-in. Signing in with Google later
+   * links the Google identity to this same row, so the games come along.
+   *
+   * Failure is swallowed on purpose. Anonymous sign-ins are a project setting, and if they
+   * are off the game still has to be playable; the local save is unaffected and uploads on
+   * the player's next real login.
+   */
+  const ensureGuestSession = useCallback(async (): Promise<void> => {
+    if (guestSignIn.current) return;
+    guestSignIn.current = true;
+    try {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) return;
+      const { error } = await supabase.auth.signInAnonymously({
+        options: { data: { login_kind: 'guest' } },
+      });
+      if (error) {
+        console.warn('Could not start a guest session:', error.message);
+        guestSignIn.current = false;
+      }
+    } catch (err) {
+      console.warn('Could not start a guest session:', err);
+      guestSignIn.current = false;
+    }
+  }, []);
+
   async function signOut(): Promise<void> {
     forgetHadSession();
+    // A guest who plays again after signing out is a guest again, and needs a session of
+    // their own for the game to be recorded.
+    guestSignIn.current = false;
     recoveringRef.current = false;
     setSessionRecovering(false);
     setAuthMode('none');
@@ -406,7 +460,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // True if logged in but has never set a username
   // username is always set on the row (placeholder on insert), so the trigger
   // for the setup page is the explicit username_chosen flag, not nullness.
-  const needsUsername = authMode !== 'none' && profile !== null && !profile.username_chosen;
+  // Everyone but a guest picks a username, the dev login included (it plays ranked games
+  // locally). A guest has a profile row, because the backend makes one for any session, but
+  // sending them to /setup would ask for a public identity from someone who has not signed
+  // in at all.
+  const needsUsername =
+    authMode !== 'none' && authMode !== 'guest' && profile !== null && !profile.username_chosen;
 
   return createElement(AuthContext.Provider, {
     value: {
@@ -415,12 +474,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       isLoading,
       sessionRecovering,
-      isGuest: authMode === 'none',
+      isGuest: authMode === 'none' || authMode === 'guest',
       isDev: config.development.bypassAuth,
       needsUsername,
       authMode,
       signInWithGoogle,
       signInAsDev,
+      ensureGuestSession,
       signOut,
       refreshProfile: fetchProfile,
       updateUsername,

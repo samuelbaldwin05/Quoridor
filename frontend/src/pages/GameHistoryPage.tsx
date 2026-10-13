@@ -41,10 +41,14 @@ function adaptOnlineGame(d: OnlineGameDetail): SavedGame {
     playerIndex: (i % 2) as 0 | 1,
     timestamp: 0,
   }));
-  // A bot has no user row, so player2_name is null on a vs_ai game and the generic
-  // fallback would replay it against "Player 2".
+  // Neither offline mode has a second user row, so player2_name is null on both and the
+  // generic fallback would replay them against "Player 2".
   const opponent =
-    d.mode === 'vs_ai' ? botGameLabel(d.ai_difficulty) : (d.player2_name ?? 'Player 2');
+    d.mode === 'vs_ai'
+      ? botGameLabel(d.ai_difficulty)
+      : d.mode === 'pass_and_play'
+        ? 'Player 2'
+        : (d.player2_name ?? 'Player 2');
   return {
     id: d.id,
     date: d.completed_at ? new Date(d.completed_at).getTime() : 0,
