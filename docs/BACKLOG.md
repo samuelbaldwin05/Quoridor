@@ -11,7 +11,7 @@ Open work only. Reasoning and deferral rationale live in [DECISIONS.md](DECISION
 [CRIT] [HIGH] [MED] [LOW]. Locations are `path` references; re-grep if they drift.
 History of completed work is in git.
 
-Both suites green as of 2026-10-07: backend 431, frontend 450.
+Both suites green as of 2026-10-12: backend 444, frontend 461.
 
 ## Needs verification (you are here to test)
 
@@ -131,6 +131,18 @@ device, plus one item that could not be reproduced from the code.
 
 ## Open follow-ups
 
+- [HIGH] Turn on anonymous sign-ins in the hosted Supabase project (Authentication,
+  Providers, Anonymous). Until it is on, `useAuth.ensureGuestSession` fails quietly and the
+  guest half of the KPI numbers stays at zero: a guest's games keep living in one browser
+  and only reach the database if that person signs in there. Nothing breaks either way.
+- [LOW] Site visits are not measured. Nothing in the frontend reports a page view, and
+  neither Search Console nor the Container App's Log Analytics workspace can stand in for
+  it, since guests play against the WASM engine without touching the API. One script tag
+  would do it; Cloudflare Web Analytics needs no cookie banner, GA4 does. Visits before this
+  lands are unrecoverable.
+- [LOW] Prune anonymous users with no games. Anonymous sign-in is reachable by anything that
+  can load the page, so crawlers can create rows, and every anonymous user counts toward
+  Supabase MAU.
 - [LOW] Set the refresh token reuse interval to 30s in the hosted project's dashboard
   (Auth, Sessions) to match `supabase/config.toml`. The client now survives a lost rotation
   race by adopting whatever session the other context wrote, so this is the second line of

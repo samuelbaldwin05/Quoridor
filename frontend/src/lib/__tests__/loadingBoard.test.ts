@@ -132,12 +132,13 @@ describe('the board inlined in index.html', () => {
     );
   });
 
-  it('says nothing until the app has read storage', () => {
-    // Anything here would be a guess. A visitor with no session should never be told they are
-    // being signed in, and useAuth fills this in the moment it knows.
-    const note = /<p id="boot-splash-note"[^>]*>([^<]*)<\/p>/.exec(splashMarkup());
-    expect(note, 'no note under the board').not.toBeNull();
-    expect(note![1].trim()).toBe('');
+  it('says nothing at all: the board animating is the whole message', () => {
+    // A caption read as a second loading screen competing with this one, and anything it
+    // could say before storage has been read would be a guess anyway.
+    const text = splashMarkup()
+      .replace(/<[^>]*>/g, '')
+      .trim();
+    expect(text).toBe('');
   });
 
   it.each(['dark', 'light'] as const)('starts the %s pawn on its first square', (pawn) => {

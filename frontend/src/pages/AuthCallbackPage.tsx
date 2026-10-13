@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { NavSidebar } from '@/components/NavSidebar';
 import { supabase } from '@/lib/supabase';
+import { dismissBootSplash, holdBootSplash, releaseBootSplash } from '@/lib/bootSplash';
 import { claimHandoff } from '@/lib/oauthHandoff';
 
 // Codes the backend puts in the fragment when it gives up. Anything unrecognised gets the
@@ -29,25 +30,37 @@ export function AuthCallbackPage() {
     if (started.current) return;
     started.current = true;
 
+    // The loading board from index.html stays up for the whole exchange, and this page draws
+    // nothing of its own until something goes wrong. Without the hold, auth resolves to
+    // "guest" for an instant here (the session is not in storage yet) and the board would be
+    // pulled away mid-sign-in.
+    holdBootSplash();
+
     const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     // Out of the address bar before anything awaits, so a token can't be shoulder-read or
     // land in a shared screenshot while Supabase is thinking.
     window.history.replaceState(null, '', '/auth/callback');
 
+    function fail(message: string): void {
+      releaseBootSplash();
+      dismissBootSplash();
+      setError(message);
+    }
+
     async function complete(): Promise<void> {
       const failure = params.get('auth_error');
       if (failure) {
-        setError(messageFor(failure));
+        fail(messageFor(failure));
         return;
       }
 
       const idToken = params.get('id_token');
       if (!idToken) {
-        setError(messageFor('missing'));
+        fail(messageFor('missing'));
         return;
       }
       if (!claimHandoff(params.get('handoff'))) {
-        setError('That sign-in did not start in this tab, so it was ignored.');
+        fail('That sign-in did not start in this tab, so it was ignored.');
         return;
       }
 
@@ -59,27 +72,33 @@ export function AuthCallbackPage() {
         access_token: accessToken || undefined,
       });
       if (authError) {
-        setError(authError.message);
+        fail(authError.message);
         return;
       }
+      // Dismissed here rather than left to useAuth: the session arriving does not move
+      // isLoading, so nothing downstream would take the splash away. The fade covers the
+      // handover to the page underneath.
+      releaseBootSplash();
+      dismissBootSplash();
       navigate('/', { replace: true });
     }
 
     void complete();
   }, [navigate]);
 
+  // Nothing to draw while it is working: the loading board is covering the screen.
+  if (!error) return null;
+
   return (
     <div className="game-layout">
       <NavSidebar activePage="play" />
       <div className="main-content">
         <div className="login-card">
-          <h1 className="login-title">{error ? 'Sign-in failed' : 'Signing you in…'}</h1>
-          {error && <p className="login-error">{error}</p>}
-          {error && (
-            <p className="login-subtitle">
-              <Link to="/login">Back to sign in</Link>
-            </p>
-          )}
+          <h1 className="login-title">Sign-in failed</h1>
+          <p className="login-error">{error}</p>
+          <p className="login-subtitle">
+            <Link to="/login">Back to sign in</Link>
+          </p>
         </div>
       </div>
     </div>

@@ -43,8 +43,15 @@ function storeSupabaseSession() {
   localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ refresh_token: 'r1' }));
 }
 
-function fakeSession(isAnonymous = false) {
-  return { access_token: 'token', user: { id: 'u1', is_anonymous: isAnonymous } };
+function fakeSession(isAnonymous = false, loginKind?: 'guest' | 'dev') {
+  return {
+    access_token: 'token',
+    user: {
+      id: 'u1',
+      is_anonymous: isAnonymous,
+      user_metadata: loginKind ? { login_kind: loginKind } : {},
+    },
+  };
 }
 
 function Probe() {
@@ -81,7 +88,7 @@ beforeEach(() => {
   apiFetch.mockResolvedValue({} as unknown);
   resetBootSplashForTests();
   document.body.innerHTML =
-    '<div id="boot-splash"><p id="boot-splash-note"></p></div><div id="app-root"></div>';
+    '<div id="boot-splash"></div><div id="app-root"></div>';
 });
 
 afterEach(() => {
@@ -298,7 +305,7 @@ function renderLoadingProbe() {
 
 describe('AuthProvider first paint', () => {
   it('does not claim to be signing anyone in when storage holds no session', () => {
-    // The reported bug: every cold load sat on "Signing you in..." before deciding, for
+    // The reported bug: every cold load sat on the loading screen before deciding, for
     // browsers that were never signed in and browsers that were, alike.
     const state = renderLoadingProbe();
     expect(state()).toBe('loading=false|none|recovering=false');
@@ -366,19 +373,19 @@ describe('AuthProvider recovery does not give up', () => {
 
 describe('the boot splash', () => {
   const splash = () => document.getElementById('boot-splash');
-  const note = () => document.getElementById('boot-splash-note');
 
   it('goes away immediately for a browser with no session to restore', () => {
     renderLoadingProbe();
     expect(splash()!.dataset.done).toBe('true');
-    expect(note()!.textContent).toBe('');
   });
 
-  it('says what it is waiting for while a session is being restored', async () => {
+  it('stays up while a session is being restored, and carries no caption', async () => {
+    // The board animating is the whole message. A line of text over it read as a second
+    // loading screen competing with the first.
     storeSupabaseSession();
     renderLoadingProbe();
     expect(splash()!.dataset.done).toBeUndefined();
-    expect(note()!.textContent).toBe('Signing you in…');
+    expect(splash()!.textContent).toBe('');
 
     await emit('INITIAL_SESSION', fakeSession());
     expect(splash()!.dataset.done).toBe('true');
@@ -391,5 +398,106 @@ describe('the boot splash', () => {
     // The app is released here and the login page carries the reconnecting message from now
     // on, so the splash has no business staying up.
     expect(splash()!.dataset.done).toBe('true');
+  });
+});
+
+describe('guest sessions', () => {
+  function GuestProbe() {
+    const { ensureGuestSession, authMode, isGuest, needsUsername } = useAuth();
+    return (
+      <button data-testid="play" onClick={() => void ensureGuestSession()}>
+        {`${authMode}|guest=${isGuest}|setup=${needsUsername}`}
+      </button>
+    );
+  }
+
+  function renderGuestProbe() {
+    render(
+      <AuthProvider>
+        <GuestProbe />
+      </AuthProvider>,
+    );
+  }
+
+  const probe = () => screen.getByTestId('play');
+
+  async function play() {
+    await act(async () => {
+      probe().click();
+    });
+  }
+
+  it('signs a playing guest in anonymously, tagged as a guest', async () => {
+    renderGuestProbe();
+    await emit('INITIAL_SESSION', null);
+    await play();
+
+    expect(signInAnonymously).toHaveBeenCalledWith({ options: { data: { login_kind: 'guest' } } });
+  });
+
+  it('leaves an existing session alone', async () => {
+    // Someone signed in who opens a local game: their own session already covers the
+    // recording, and a second anonymous one would split their history in two.
+    getSession.mockResolvedValue({ data: { session: fakeSession() }, error: null } as unknown);
+    renderGuestProbe();
+    await emit('INITIAL_SESSION', fakeSession());
+    await play();
+
+    expect(signInAnonymously).not.toHaveBeenCalled();
+  });
+
+  it('creates one guest, however many times it is asked', async () => {
+    // Every move of a game can ask, and each sign-in would otherwise be another user row.
+    renderGuestProbe();
+    await emit('INITIAL_SESSION', null);
+    await play();
+    await play();
+    await play();
+
+    expect(signInAnonymously).toHaveBeenCalledTimes(1);
+  });
+
+  it('still lets the game be played when anonymous sign-ins are switched off', async () => {
+    // A project setting, not something the player did. The local save is untouched and
+    // uploads at their next real login.
+    signInAnonymously.mockResolvedValueOnce({ error: { message: 'disabled' } } as never);
+    renderGuestProbe();
+    await emit('INITIAL_SESSION', null);
+    await play();
+
+    expect(probe().textContent).toBe('none|guest=true|setup=false');
+  });
+
+  it('counts a tagged anonymous session as a guest, not as the dev login', async () => {
+    renderGuestProbe();
+    await emit('INITIAL_SESSION', fakeSession(true, 'guest'));
+
+    expect(probe().textContent).toBe('guest|guest=true|setup=false');
+  });
+
+  it('still reads an untagged anonymous session as the dev login', async () => {
+    // Sessions created before the tag existed were all dev logins, and a dev login has to
+    // keep reaching online play for the two-client test to be possible. It also still picks
+    // a username, since it plays ranked games; only the guest mode skips /setup.
+    renderGuestProbe();
+    await emit('INITIAL_SESSION', fakeSession(true));
+
+    expect(probe().textContent).toBe('dev|guest=false|setup=true');
+  });
+
+  it('does not send a guest to pick a username', async () => {
+    // The backend makes a profile row for any session, guest included, with
+    // username_chosen false. Routing on that alone would ask someone who has not signed in
+    // for a public identity.
+    apiFetch.mockResolvedValue({
+      id: 'u1',
+      username: 'player_u1',
+      username_chosen: false,
+      elo: 1000,
+    } as unknown);
+    renderGuestProbe();
+    await emit('INITIAL_SESSION', fakeSession(true, 'guest'));
+
+    expect(probe().textContent).toBe('guest|guest=true|setup=false');
   });
 });

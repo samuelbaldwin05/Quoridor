@@ -3,10 +3,10 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Literal
+from typing import Annotated, Literal, get_args
 from uuid import UUID
 
-from pydantic import BaseModel, Field, StringConstraints, field_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
 # Supported clock lengths (seconds): 3 / 5 / 10 minutes. Shared by GameCreate,
 # ChallengeCreate, and the matchmaking JoinQueueRequest so an invalid clock is
@@ -109,20 +109,33 @@ class GameResultResponse(BaseModel):
 BotDifficulty = Literal["bot0", "bot1", "bot2", "extreme", "mcts"]
 
 
-class BotGameCreate(BaseModel):
-    """A completed single-player bot game reported by the client.
+# The offline modes a client can hand back for its own history. Both are single-device
+# games with no opponent account and nothing at stake, which is why they share one write
+# path; ranked and casual games are recorded by the server as they are played.
+LocalGameMode = Literal["vs_ai", "pass_and_play"]
+# Derived rather than retyped, so the query filters that read it cannot drift from the type.
+LOCAL_GAME_MODES: tuple[str, ...] = get_args(LocalGameMode)
 
-    History only: accepted as-is with NO server-side move validation, because there
-    is no opponent and nothing at stake (the worst case is a user faking their own
-    single-player history). `client_game_id` makes the write idempotent so the
-    one-time login backfill can re-send safely. winner_index 0 = the user, 1 = bot.
+
+class BotGameCreate(BaseModel):
+    """A local game reported by the client, for that player's own history.
+
+    History only: accepted as-is with NO server-side move validation, because there is no
+    opponent and nothing at stake (the worst case is a user faking their own offline
+    history). `client_game_id` makes the write idempotent so the login backfill can re-send
+    safely. winner_index 0 = the user (or the side they were playing in pass-and-play),
+    1 = the bot or the other side, and null for a game that was never finished.
     """
 
     client_game_id: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
     ]
-    ai_difficulty: BotDifficulty
-    winner_index: int = Field(ge=0, le=1)
+    mode: LocalGameMode = "vs_ai"
+    # Null on a pass-and-play game, which has no bot to name.
+    ai_difficulty: BotDifficulty | None = None
+    # Null on a game that was abandoned rather than played out. Recording it as a loss
+    # would put defeats in a player's history they never actually suffered.
+    winner_index: int | None = Field(default=None, ge=0, le=1)
     move_history: list[MoveNotation] = Field(default_factory=list, max_length=500)
 
     @field_validator("move_history")
@@ -130,28 +143,43 @@ class BotGameCreate(BaseModel):
     def _strip_blanks(cls, v: list[str]) -> list[str]:
         return [s for s in v if _NOTATION_RE.match(s)]
 
+    @model_validator(mode="after")
+    def _difficulty_matches_mode(self) -> BotGameCreate:
+        """A bot game names its bot; a pass-and-play game has none to name.
+
+        Enforced here rather than left to the database, where ai_difficulty is only a CHECK
+        over the allowed levels and NULL satisfies it either way.
+        """
+        if self.mode == "vs_ai" and self.ai_difficulty is None:
+            raise ValueError("ai_difficulty is required for a vs_ai game")
+        if self.mode == "pass_and_play" and self.ai_difficulty is not None:
+            raise ValueError("ai_difficulty does not apply to a pass_and_play game")
+        return self
+
 
 class BotGameRead(BaseModel):
     id: UUID
     client_game_id: str
-    ai_difficulty: BotDifficulty
-    winner_index: int
+    mode: LocalGameMode
+    ai_difficulty: BotDifficulty | None
+    winner_index: int | None
     status: GameStatus
     created: bool  # False when the game already existed (idempotent no-op)
 
 
 class BotGameSummary(BaseModel):
-    """One finished bot game, for the caller's own history list.
+    """One local game, for the caller's own history list.
 
-    Deliberately not a `GameSummary`: a bot game has no opponent and no Elo delta, so the
-    fields that list row exists to carry would all be null. `client_game_id` is here so a
-    client holding the same game in local storage can tell the two copies apart.
+    Deliberately not a `GameSummary`: these have no opponent and no Elo delta, so the fields
+    that list row exists to carry would all be null. `client_game_id` is here so a client
+    holding the same game in local storage can tell the two copies apart.
     """
 
     id: UUID
     client_game_id: str
-    ai_difficulty: BotDifficulty
-    result: Literal["win", "loss"]
+    mode: LocalGameMode
+    ai_difficulty: BotDifficulty | None
+    result: Literal["win", "loss", "unfinished"]
     move_count: int
     completed_at: datetime | None
 

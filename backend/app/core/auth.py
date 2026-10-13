@@ -163,10 +163,14 @@ async def get_current_user(
         # collide with them.
         email = payload.get("email") or f"{raw_id}@anonymous.local"
         user_metadata: dict = payload.get("user_metadata", {})
+        # An anonymous session is either a guest who started a game or the local dev login,
+        # told apart by the tag the client sets at sign-in. The name shows in that player's
+        # own game history, so a guest should not be labelled a dev player.
+        anonymous_name = "Guest" if user_metadata.get("login_kind") == "guest" else "Dev Player"
         display_name = (
             user_metadata.get("full_name")
             or user_metadata.get("display_name")
-            or (email.split("@")[0] if payload.get("email") else "Dev Player")
+            or (email.split("@")[0] if payload.get("email") else anonymous_name)
             or "Player"
         )
 

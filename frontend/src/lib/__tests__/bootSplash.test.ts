@@ -1,14 +1,17 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dismissBootSplash, resetBootSplashForTests, setBootSplashNote } from '@/lib/bootSplash';
+import {
+  dismissBootSplash,
+  holdBootSplash,
+  releaseBootSplash,
+  resetBootSplashForTests,
+} from '@/lib/bootSplash';
 
 function mountSplash() {
-  document.body.innerHTML =
-    '<div id="boot-splash"><p id="boot-splash-note"></p></div><div id="root"></div>';
+  document.body.innerHTML = '<div id="boot-splash"></div><div id="root"></div>';
 }
 
 const splash = () => document.getElementById('boot-splash');
-const note = () => document.getElementById('boot-splash-note');
 
 beforeEach(() => {
   resetBootSplashForTests();
@@ -22,11 +25,6 @@ afterEach(() => {
 });
 
 describe('bootSplash', () => {
-  it('writes the caption the app asks for', () => {
-    setBootSplashNote('Signing you in…');
-    expect(note()!.textContent).toBe('Signing you in…');
-  });
-
   it('fades before it leaves, so the app is uncovered rather than cut to', () => {
     dismissBootSplash();
     expect(splash()!.dataset.done).toBe('true');
@@ -36,12 +34,26 @@ describe('bootSplash', () => {
     expect(splash()).toBeNull();
   });
 
-  it('ignores a caption written after it has been dismissed', () => {
-    // Auth can settle while a recovery retry is still in flight; the splash is gone by then
-    // and putting words back on screen would be a resurrection.
+  it('stays up while held, and goes once released', () => {
+    // The OAuth callback holds it: that page lands with no session in storage yet, so auth
+    // resolves to "guest" for an instant and would otherwise pull the board away mid
+    // sign-in and flash a bare page.
+    holdBootSplash();
     dismissBootSplash();
-    setBootSplashNote('Reconnecting…');
-    expect(note()!.textContent).toBe('');
+    expect(splash()!.dataset.done).toBeUndefined();
+
+    releaseBootSplash();
+    dismissBootSplash();
+    expect(splash()!.dataset.done).toBe('true');
+  });
+
+  it('cannot be held again once it is gone', () => {
+    // Auth can settle while a recovery retry is still in flight. Putting the board back on
+    // screen after the app is visible would be a resurrection.
+    dismissBootSplash();
+    vi.advanceTimersByTime(500);
+    holdBootSplash();
+    expect(splash()).toBeNull();
   });
 
   it('can be dismissed twice without throwing', () => {
@@ -53,7 +65,8 @@ describe('bootSplash', () => {
   it('does nothing when there is no splash, as in a test or an embedded render', () => {
     document.body.innerHTML = '';
     expect(() => {
-      setBootSplashNote('Signing you in…');
+      holdBootSplash();
+      releaseBootSplash();
       dismissBootSplash();
     }).not.toThrow();
   });

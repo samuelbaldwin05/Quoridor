@@ -574,11 +574,38 @@ class TestRecordBotGame:
         )
         assert captured["payload"]["winner_id"] is None
 
+    def test_pass_and_play_is_recorded_with_no_bot(self, monkeypatch) -> None:
+        captured = self._patch_repo(monkeypatch, existing=None)
+        record_bot_game(
+            MagicMock(),
+            BotGameCreate(client_game_id="pnp", mode="pass_and_play", winner_index=0),
+            uuid4(),
+        )
+        payload = captured["payload"]
+        assert payload["mode"] == "pass_and_play"
+        assert payload["ai_difficulty"] is None
+
+    def test_unfinished_game_is_recorded_with_no_winner(self, monkeypatch) -> None:
+        """A game nobody won still happened. Recording it as a loss would put a defeat in
+        the player's history they never suffered, and dropping it loses the game."""
+        captured = self._patch_repo(monkeypatch, existing=None)
+        record_bot_game(
+            MagicMock(),
+            BotGameCreate(client_game_id="quit", ai_difficulty="bot2", winner_index=None),
+            uuid4(),
+        )
+        payload = captured["payload"]
+        assert payload["winner_index"] is None
+        assert payload["winner_id"] is None
+        # Matches how migration 023 retires an abandoned game: finished, with no winner.
+        assert payload["status"] == "finished"
+
     def test_duplicate_is_idempotent_noop(self, monkeypatch) -> None:
         caller = uuid4()
         stored = {
             "id": str(uuid4()),
             "client_game_id": "dup",
+            "mode": "vs_ai",
             "ai_difficulty": "bot1",
             "winner_index": 1,
             "status": "finished",
@@ -600,6 +627,7 @@ class TestRecordBotGame:
         stored = {
             "id": str(uuid4()),
             "client_game_id": "race",
+            "mode": "vs_ai",
             "ai_difficulty": "bot2",
             "winner_index": 0,
             "status": "finished",

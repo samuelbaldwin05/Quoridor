@@ -49,6 +49,15 @@ def test_anonymous_token_gets_an_email_of_its_own(monkeypatch) -> None:
     assert seen["display_name"] == "Dev Player"
 
 
+def test_a_guest_session_is_named_guest_not_dev_player(monkeypatch) -> None:
+    # Guests and the dev login are both anonymous sessions, told apart by the tag the client
+    # sets. The name shows in that player's own game history.
+    uid = uuid4()
+    seen = _capture(monkeypatch, {"sub": str(uid), "user_metadata": {"login_kind": "guest"}})
+    assert seen["display_name"] == "Guest"
+    assert seen["email"] == f"{uid}@anonymous.local"
+
+
 def test_anonymous_users_do_not_share_an_email(monkeypatch) -> None:
     first = _capture(monkeypatch, {"sub": str(uuid4())})
     second = _capture(monkeypatch, {"sub": str(uuid4())})

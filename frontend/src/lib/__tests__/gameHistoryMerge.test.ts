@@ -24,6 +24,7 @@ function botRow(over = {}) {
   return {
     id: 'server-uuid-1',
     client_game_id: 'game_1700000000_abcde',
+    mode: 'vs_ai' as const,
     ai_difficulty: 'bot2' as const,
     result: 'win' as const,
     move_count: 12,
@@ -86,5 +87,19 @@ describe('mergeHistory', () => {
       [localSave({ id: 'local-1', date: Date.parse('2026-07-04T00:00:00Z') })],
     );
     expect(merged.map((e) => e.id)).toEqual(['local-1', 'ranked-1', 'server-uuid-1']);
+  });
+
+  it('labels a pass-and-play game as itself rather than as a bot', () => {
+    const [entry] = mergeHistory(
+      null,
+      [botRow({ mode: 'pass_and_play', ai_difficulty: null })],
+      [],
+    );
+    expect(entry).toMatchObject({ opponentLabel: 'Pass & Play', isBot: false });
+  });
+
+  it('carries an unfinished result through rather than calling it a loss', () => {
+    const [entry] = mergeHistory(null, [botRow({ result: 'unfinished' })], []);
+    expect(entry!.outcome).toBe('unfinished');
   });
 });

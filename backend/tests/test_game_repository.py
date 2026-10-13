@@ -60,7 +60,7 @@ class TestGetBotGameByClientId:
         exec_result = MagicMock()
         exec_result.data = [{"id": "g1", "client_game_id": "c1"}]
         (
-            client.table.return_value.select.return_value.eq.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value
+            client.table.return_value.select.return_value.eq.return_value.eq.return_value.in_.return_value.limit.return_value.execute.return_value
         ) = exec_result
         row = game_repository.get_bot_game_by_client_id(client, "u1", "c1")
         assert row == {"id": "g1", "client_game_id": "c1"}
@@ -70,6 +70,33 @@ class TestGetBotGameByClientId:
         exec_result = MagicMock()
         exec_result.data = []
         (
-            client.table.return_value.select.return_value.eq.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value
+            client.table.return_value.select.return_value.eq.return_value.eq.return_value.in_.return_value.limit.return_value.execute.return_value
         ) = exec_result
         assert game_repository.get_bot_game_by_client_id(client, "u1", "c1") is None
+
+
+class TestLocalModeFiltering:
+    """The public ranked list and the caller's own local-game list have to agree on which
+    modes are local, in opposite directions. These assert the real PostgREST filter, because
+    getting it wrong leaks a player's pass-and-play games onto their public profile and the
+    mocked service tests cannot see it."""
+
+    def test_ranked_list_excludes_every_local_mode(self) -> None:
+        from postgrest import SyncPostgrestClient
+
+        client = SyncPostgrestClient("http://localhost/rest/v1")
+        query = client.table("games").select("*").not_.in_("mode", game_repository.LOCAL_GAME_MODES)
+        assert dict(query.request.params)["mode"] == "not.in.(vs_ai,pass_and_play)"
+
+    def test_local_list_includes_every_local_mode(self) -> None:
+        from postgrest import SyncPostgrestClient
+
+        client = SyncPostgrestClient("http://localhost/rest/v1")
+        query = client.table("games").select("*").in_("mode", game_repository.LOCAL_GAME_MODES)
+        assert dict(query.request.params)["mode"] == "in.(vs_ai,pass_and_play)"
+
+    def test_modes_are_derived_from_the_schema_type(self) -> None:
+        # Retyping the list in the repository is how the two drift apart.
+        from app.schemas.game import LOCAL_GAME_MODES
+
+        assert game_repository.LOCAL_GAME_MODES is LOCAL_GAME_MODES

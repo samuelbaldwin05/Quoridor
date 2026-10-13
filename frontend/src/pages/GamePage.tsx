@@ -39,7 +39,7 @@ export function GamePage() {
   });
 
   const audio = useAudio(state.settings.soundEnabled, state.settings.volume);
-  const { authMode } = useAuth();
+  const { authMode, ensureGuestSession } = useAuth();
 
   const {
     wallPreview,
@@ -73,11 +73,20 @@ export function GamePage() {
     if (state.game.status === 'finished') setShowWinLose(true);
   }, [state.game.status]);
 
-  // Persist a finished bot game to the backend (history only — no Elo/ranked impact).
-  // syncBotGame no-ops on pass-and-play saves (no difficulty). Guests skip and the
-  // game backfills on their next login; a failed upload is swallowed and retried by
-  // the backfill. lastSavedGameId only changes when a game is saved, so this fires
-  // once per finished game.
+  // A guest who plays gets an anonymous session, so this game can be recorded and the
+  // player counted once. Keyed on the first move rather than the mount: opening the board
+  // and walking away is not someone who played. Idempotent, so a reload mid-game reuses
+  // the session it already has.
+  const hasPlayed = state.moveHistory.length > 0;
+  useEffect(() => {
+    if (hasPlayed) void ensureGuestSession();
+  }, [hasPlayed, ensureGuestSession]);
+
+  // Persist a finished local game to the backend (history only, no Elo or ranked impact).
+  // Covers bot and pass-and-play. Without a session there is nobody to attribute it to, so
+  // it stays in local storage and the backfill uploads it at the next login; a failed
+  // upload is swallowed and retried the same way. lastSavedGameId only changes when a game
+  // is saved, so this fires once per finished game.
   useEffect(() => {
     if (!state.lastSavedGameId || authMode === 'none') return;
     const saved = loadGame(state.lastSavedGameId);

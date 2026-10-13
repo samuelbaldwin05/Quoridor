@@ -694,7 +694,64 @@ The client holds the same game twice: the local save keys the pair through
 `client_game_id`, which is the local id. `lib/gameHistoryMerge.ts` prefers the local copy
 when both exist, since it is already in hand where the server copy costs a fetch.
 
-Still not recorded, and deliberately so for now: pass-and-play games (no `ai_difficulty`, so
-nothing identifies the opponent), a guest's bot games before they sign in (they backfill on
-the next login from local storage, which keeps the last 50), and a bot game abandoned without
-resigning (no winner, so nothing is saved even locally).
+Since widened to cover every local game, not just bot games. A game that never reached the
+backend exists in exactly one browser and dies with its site data, which is the one thing in
+local storage that cannot be reconstructed. `POST /games/bot` now takes a `mode` of `vs_ai`
+or `pass_and_play`, a null `ai_difficulty` for pass-and-play, and a null `winner_index` for a
+game nobody won. An unfinished game is stored as `finished` with no winner, which is how
+migration 023 already retires an abandoned game, and reads back as `unfinished` rather than
+as a loss: `winner_id` is NULL both when the other side won and when nobody did, so the
+result has to come off `winner_index`.
+
+Both local modes are now excluded from the public ranked list, derived from one
+`LOCAL_GAME_MODES` tuple so the two filters cannot drift apart. Getting that wrong would put
+a player's pass-and-play games on their public profile.
+
+Still not recorded: a guest's games before they sign in, which backfill from local storage on
+their next login (capped at the last 50 saves), and a bot game abandoned without resigning,
+which is never written locally in the first place because `saveGame` only runs on a win or a
+resignation.
+
+## A guest who plays gets an anonymous session, and KPIs are views
+
+Four KPIs are wanted: games played, online games played, unique users including
+non-authenticated ones, and authenticated users. Three of them were already derivable from
+the database. The fourth was not measurable at all, because a guest had no server-side
+identity: their games lived in one browser's local storage and nowhere else.
+
+So `useAuth.ensureGuestSession` signs a guest in anonymously, and `GamePage` calls it on the
+first move of a local game. Two things follow. The game can be recorded through the
+endpoints that already exist, since the request carries a real token. And the player is
+countable once.
+
+Why the first move rather than page load: a session created by opening the board would count
+someone who never played, and inflating the number is the failure mode that makes it
+useless. Site visits are a separate measurement and belong in an analytics tool, not in
+`auth.users`.
+
+A guest stays a guest. `isGuest` covers the new mode, so online play, friends and the
+members-only bot tiers still need a real sign-in, and `needsUsername` now excludes the guest
+mode so nobody is asked for a public username before signing in. The dev login still gets
+/setup, since it plays ranked games locally.
+`NavSidebar` shows "Guest" ahead of any rating, because a guest profile row carries a
+starting Elo and showing it would be the same lie the online button used to tell.
+
+The dev login is also an anonymous session, so both are tagged at sign-in with
+`login_kind` ('guest' or 'dev') and the KPI views count only the guests. Untagged anonymous
+users predate the tag and were dev logins. Tagging beats branching on environment, which
+would have made a dev login in a hosted environment count as a player.
+
+Rejected: a `client_id` in local storage plus an events table. It avoids creating auth rows,
+but it is a migration, an endpoint and an unauthenticated ingest path, and it would not have
+let a guest's games be recorded. Also rejected: inferring users from IP addresses, which is
+not something the app has or should collect.
+
+Known costs, accepted: anonymous users count toward Supabase MAU; one browser is one user,
+so clearing site data reads as a new person; and anonymous sign-in is open to anything that
+can load the page, so crawlers can create rows (Supabase rate-limits it, and anonymous users
+with no games can be pruned).
+
+The KPIs themselves are views (migration 025), restricted to `service_role`, not a counters
+table. Numbers before 2026-10-12 are gone except where a returning player's backfill lands
+them; that is a limit of having added this late, not something a different design would have
+fixed.

@@ -186,3 +186,22 @@ class TestListBotGames:
         monkeypatch.setattr(game_repository, "list_bot_games_for_user", fake)
         assert game_service.list_bot_games(CLIENT, uuid4(), 5, 10) == []
         assert seen == {"limit": 5, "offset": 10}
+
+    def test_unfinished_is_not_reported_as_a_loss(self, monkeypatch) -> None:
+        # winner_id is NULL both when the bot won and when nobody did, so winner_index is
+        # the only field that separates the two.
+        row = _bot_row(winner_index=None)
+        monkeypatch.setattr(
+            game_repository, "list_bot_games_for_user", lambda c, uid, lim, off: [row]
+        )
+        (summary,) = game_service.list_bot_games(CLIENT, UUID(row["player1_id"]))
+        assert summary.result == "unfinished"
+
+    def test_pass_and_play_carries_its_mode_and_no_difficulty(self, monkeypatch) -> None:
+        row = _bot_row(mode="pass_and_play", ai_difficulty=None)
+        monkeypatch.setattr(
+            game_repository, "list_bot_games_for_user", lambda c, uid, lim, off: [row]
+        )
+        (summary,) = game_service.list_bot_games(CLIENT, UUID(row["player1_id"]))
+        assert summary.mode == "pass_and_play"
+        assert summary.ai_difficulty is None

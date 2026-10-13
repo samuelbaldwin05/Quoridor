@@ -94,13 +94,24 @@ export function didUserWin(game: Pick<SavedGame, 'winner' | 'userRole'>): boolea
   return gameOutcome(game) === 'win';
 }
 
-// Finished bot games saved locally but not yet persisted to the backend. Full
-// records (moves included) so the caller can serialize and upload them.
-export function listUnsyncedBotGames(): SavedGame[] {
-  return loadAll().filter((g) => g.difficulty != null && g.winner != null && !g.synced);
+/**
+ * Local games saved here but not yet persisted to the backend. Full records (moves
+ * included) so the caller can serialize and upload them.
+ *
+ * Covers bot and pass-and-play games, finished or not. Online games are excluded by their
+ * `serverGameId`, which means the backend recorded them as they were played. A game with no
+ * moves is excluded too: there is nothing in it to keep.
+ */
+export function listUnsyncedGames(): SavedGame[] {
+  return loadAll().filter((g) => !g.synced && g.serverGameId == null && g.moves.length > 0);
 }
 
-// Mark a saved bot game as persisted so the login backfill never re-uploads it.
+/** Which of the two offline modes a save is, for the backend's `mode` column. */
+export function localGameMode(game: Pick<SavedGame, 'difficulty'>): 'vs_ai' | 'pass_and_play' {
+  return game.difficulty != null ? 'vs_ai' : 'pass_and_play';
+}
+
+// Mark a saved game as persisted so the login backfill never re-uploads it.
 export function markGameSynced(id: string): void {
   const games = loadAll();
   const idx = games.findIndex((g) => g.id === id);
