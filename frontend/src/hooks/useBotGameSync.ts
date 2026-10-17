@@ -2,9 +2,11 @@ import { useEffect, useRef } from 'react';
 import { syncPendingBotGames } from '@/lib/botGameSync';
 import { useAuth } from './useAuth';
 
-// Backfill local bot-game history to the backend once per authenticated session.
-// Runs when the user is signed in (dev or Google); a sign-out re-arms it so the
-// next login syncs again. Unsynced games only upload once the user next logs in.
+// Backfill local game history to the backend once per session. Runs for any session
+// (guest, dev or Google); a sign-out re-arms it so the next one syncs again.
+//
+// This is the retroactive half of the recording: games played in this browser before there
+// was ever a session, including every guest game, upload the first time one exists.
 export function useBotGameSync(): void {
   const { authMode, isLoading } = useAuth();
   const didSync = useRef(false);

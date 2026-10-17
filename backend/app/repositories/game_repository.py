@@ -7,6 +7,7 @@ from supabase import Client
 
 from app.core.exceptions import ConflictError, DatabaseError
 from app.repositories._pg_errors import is_unique_violation
+from app.schemas.game import LOCAL_GAME_MODES
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +52,10 @@ def list_finished_games_for_user(
 ) -> list[dict]:
     """Finished games the user played against another player, newest first. Raw rows.
 
-    Excludes vs_ai (single-player bot) games: those are persisted for history/analysis
-    only and must not surface in the public ranked-history list, which shows Elo deltas
-    and an opponent. Opponent/player names are resolved to their CURRENT username at read
-    time (see _attach_current_names) so a later username change is reflected in history.
+    Excludes the local modes (vs_ai and pass_and_play): those are persisted for the player's
+    own history only and must not surface in this public list, which shows Elo deltas and an
+    opponent. Opponent/player names are resolved to their CURRENT username at read time (see
+    _attach_current_names) so a later username change is reflected in history.
     """
     uid = str(user_id)
     try:
@@ -63,7 +64,7 @@ def list_finished_games_for_user(
             .select("*")
             .or_(f"player1_id.eq.{uid},player2_id.eq.{uid}")
             .eq("status", "finished")
-            .neq("mode", "vs_ai")
+            .not_.in_("mode", LOCAL_GAME_MODES)
             .order("completed_at", desc=True)
             .range(offset, offset + limit - 1)  # PostgREST range is inclusive
             .execute()
@@ -76,16 +77,16 @@ def list_finished_games_for_user(
 def list_bot_games_for_user(client: Client, user_id: UUID, limit: int, offset: int) -> list[dict]:
     """The caller's finished bot games, newest first. Raw rows.
 
-    The counterpart to the vs_ai exclusion in list_finished_games_for_user: bot games are
-    kept out of the public ranked list and read back here instead, scoped to the one player
-    who played them (they are always player1 on a vs_ai row).
+    The counterpart to the local-mode exclusion in list_finished_games_for_user: these games
+    are kept out of the public ranked list and read back here instead, scoped to the one
+    player who played them (they are always player1 on a local row).
     """
     try:
         resp = (
             client.table("games")
             .select("*")
             .eq("player1_id", str(user_id))
-            .eq("mode", "vs_ai")
+            .in_("mode", LOCAL_GAME_MODES)
             .eq("status", "finished")
             .order("completed_at", desc=True)
             .range(offset, offset + limit - 1)  # PostgREST range is inclusive
@@ -104,7 +105,7 @@ def get_bot_game_by_client_id(client: Client, player1_id: UUID, client_game_id: 
             .select("*")
             .eq("player1_id", str(player1_id))
             .eq("client_game_id", client_game_id)
-            .eq("mode", "vs_ai")
+            .in_("mode", LOCAL_GAME_MODES)
             .limit(1)
             .execute()
         )

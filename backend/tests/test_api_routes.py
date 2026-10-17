@@ -240,6 +240,7 @@ class TestBotGameRoute:
         stored = BotGameRead(
             id=uuid4(),
             client_game_id="local-1",
+            mode="vs_ai",
             ai_difficulty="bot2",
             winner_index=0,
             status="finished",

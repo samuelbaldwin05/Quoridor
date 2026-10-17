@@ -59,14 +59,6 @@
         text-align: center;
       }
 
-      .app-loading-text {
-        min-height: 1.2em;
-        color: rgba(255, 255, 255, 0.45);
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        font-size: 13px;
-        margin: 0;
-      }
-
       /* ── Loading board ───────────────────────────────────────────────────────────
          A miniature game playing itself while auth resolves. One 6s loop, all of it in
          keyframes so it costs nothing but compositing. */
@@ -229,7 +221,7 @@
     <!-- Painted from the first frame, before the bundle has downloaded. It lives outside
          #root so React mounting cannot tear it down and restart the animation; the app
          dismisses it through lib/bootSplash.ts once auth has resolved. -->
-    <div id="boot-splash" class="app-loading" role="status" aria-live="polite">
+    <div id="boot-splash" class="app-loading" role="status" aria-label="Loading">
       <svg
         class="loading-board"
         viewBox="-6 -6 108 108"
@@ -251,9 +243,6 @@
           <circle class="loading-board-pawn is-light" cx="28" cy="8" r="5.5" />
         </g>
       </svg>
-      <!-- Empty on purpose. Nothing here has read storage yet, so the app fills this in
-           once it knows whether there is a session to restore. -->
-      <p id="boot-splash-note" class="app-loading-text"></p>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
