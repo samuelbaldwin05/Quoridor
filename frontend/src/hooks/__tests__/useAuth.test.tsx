@@ -87,8 +87,7 @@ beforeEach(() => {
   getSession.mockResolvedValue({ data: { session: null }, error: null } as unknown);
   apiFetch.mockResolvedValue({} as unknown);
   resetBootSplashForTests();
-  document.body.innerHTML =
-    '<div id="boot-splash"></div><div id="app-root"></div>';
+  document.body.innerHTML = '<div id="boot-splash"></div><div id="app-root"></div>';
 });
 
 afterEach(() => {
