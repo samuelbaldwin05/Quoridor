@@ -703,6 +703,12 @@ migration 023 already retires an abandoned game, and reads back as `unfinished` 
 as a loss: `winner_id` is NULL both when the other side won and when nobody did, so the
 result has to come off `winner_index`.
 
+Both name columns are filled in on the way in: the caller's username for player1, and the
+bot's tier label (or "Player 2" for pass-and-play) for the side with no account. A row
+carrying a player id and no name reads as an anonymous player everywhere names are shown,
+and the opponent has no user row for a read-time lookup to resolve later, which is the part
+`_attach_current_names` cannot cover.
+
 Both local modes are now excluded from the public ranked list, derived from one
 `LOCAL_GAME_MODES` tuple so the two filters cannot drift apart. Getting that wrong would put
 a player's pass-and-play games on their public profile.

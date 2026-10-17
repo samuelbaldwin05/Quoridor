@@ -11,7 +11,7 @@ Open work only. Reasoning and deferral rationale live in [DECISIONS.md](DECISION
 [CRIT] [HIGH] [MED] [LOW]. Locations are `path` references; re-grep if they drift.
 History of completed work is in git.
 
-Both suites green as of 2026-10-12: backend 444, frontend 461.
+Both suites green as of 2026-10-17: backend 448, frontend 461.
 
 ## Needs verification (you are here to test)
 

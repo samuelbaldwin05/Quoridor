@@ -95,6 +95,14 @@ class TestLocalModeFiltering:
         query = client.table("games").select("*").in_("mode", game_repository.LOCAL_GAME_MODES)
         assert dict(query.request.params)["mode"] == "in.(vs_ai,pass_and_play)"
 
+    def test_the_local_list_query_itself_covers_both_modes(self) -> None:
+        """Asserting the constant is not enough: the filter that shipped read only vs_ai,
+        so a pass-and-play game was written and then never listed back."""
+        client = MagicMock()
+        game_repository.list_bot_games_for_user(client, "u1", 20, 0)
+        mode_filters = [call.args for call in client.mock_calls if call[0].endswith("in_")]
+        assert ("mode", game_repository.LOCAL_GAME_MODES) in mode_filters
+
     def test_modes_are_derived_from_the_schema_type(self) -> None:
         # Retyping the list in the repository is how the two drift apart.
         from app.schemas.game import LOCAL_GAME_MODES

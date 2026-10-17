@@ -15,7 +15,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.engine import NotationError, apply_move, parse_move, replay, validate_history_winner
-from app.repositories import game_repository
+from app.repositories import game_repository, user_repository
 from app.schemas.game import (
     BotGameCreate,
     BotGameRead,
@@ -43,6 +43,19 @@ DISCONNECT_FORFEIT_MIN_SECONDS = 12
 # being honored on that discrepancy alone; a genuine flag clears it comfortably, since the
 # claimant only makes the claim once their own view of the opponent's clock hit zero.
 FLAG_CLAIM_MARGIN_SECONDS = 10
+
+# What to write into games.player2_name for a local game, which has no opponent account to
+# resolve a name from. The bot tiers mirror the frontend's own labels (hooks/gameReducer.ts),
+# so a replay names the opponent the same way whichever end rendered it; 'bot0' is retired
+# from selection but still labels older games.
+BOT_NAMES: dict[str, str] = {
+    "bot0": "Beginner Bot (retired)",
+    "bot1": "Easy Bot",
+    "bot2": "Medium Bot",
+    "extreme": "Hard Bot",
+    "mcts": "Extreme Bot",
+}
+PASS_AND_PLAY_OPPONENT_NAME = "Player 2"
 
 
 def _seconds_since(iso_timestamp: str | None) -> float | None:
@@ -333,7 +346,9 @@ def record_bot_game(
     Bot games are low-stakes and single-player, so this path deliberately does NOT
     touch Elo, ranked stats, leaderboards, or games_played, and does NOT validate the
     reported result or move history (there is no opponent and nothing at stake). The
-    game is recorded as player1 = the authenticated user, player2 = NULL (the bot).
+    game is recorded as player1 = the authenticated user, player2 = NULL (the bot, or the
+    other side of a pass-and-play game, neither of which has an account). Both name columns
+    are still filled in, since a row with an id and no name reads as an anonymous player.
 
     Idempotent on client_game_id: a re-send (e.g. the login backfill) returns the
     already-stored row instead of inserting a duplicate.
@@ -343,6 +358,9 @@ def record_bot_game(
         return _to_bot_read(existing, created=False)
 
     caller_str = str(caller_id)
+    # Best effort: a missing user row leaves the name NULL rather than failing a write whose
+    # only job is to keep the game.
+    player = user_repository.get_user(supabase, caller_id)
     payload = {
         "mode": body.mode,
         # "finished" with a NULL winner is how this schema already records a game nobody
@@ -357,6 +375,15 @@ def record_bot_game(
         # real opponent, so there is no ranked or Elo impact either way.
         "winner_id": caller_str if body.winner_index == 0 else None,
         "winner_index": body.winner_index,
+        # Snapshotted the way the ranked path snapshots them (migration 010), so a replay
+        # has both sides named without a second lookup. The bot has no user row, so its
+        # name is the only record of which tier was played beyond ai_difficulty itself.
+        "player1_name": player.username if player else None,
+        "player2_name": (
+            BOT_NAMES.get(body.ai_difficulty or "", "Bot")
+            if body.mode == "vs_ai"
+            else PASS_AND_PLAY_OPPONENT_NAME
+        ),
         "ai_difficulty": body.ai_difficulty,
         "client_game_id": body.client_game_id,
         "move_history": body.move_history,

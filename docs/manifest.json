@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-13T02:36:35Z",
-  "head": "1d9b096",
+  "generated_at": "2026-10-17T20:17:42Z",
+  "head": "3d36c14",
   "docs": {
     "docs/ARCHITECTURE.md": {
       "title": "Architecture",
@@ -15,6 +15,7 @@
       "last_edit_date": "2026-08-18",
       "stale": true,
       "unreviewed_code_commits": [
+        "e47ebcc",
         "50bf862",
         "e0e8202",
         "192e5b0",
@@ -46,9 +47,9 @@
       "title": "Backlog",
       "reviewed_at": "0e3abee",
       "covers": [],
-      "content_sha": "4d003ab13a5c",
-      "last_edit_commit": "f2dbe9d",
-      "last_edit_date": "2026-10-07",
+      "content_sha": "d8bae1892b0d",
+      "last_edit_commit": "e47ebcc",
+      "last_edit_date": "2026-10-13",
       "stale": null,
       "unreviewed_code_commits": []
     },
@@ -56,9 +57,9 @@
       "title": "Decisions",
       "reviewed_at": "0e3abee",
       "covers": [],
-      "content_sha": "d167960998c1",
-      "last_edit_commit": "1eff960",
-      "last_edit_date": "2026-10-07",
+      "content_sha": "95c467afb879",
+      "last_edit_commit": "e47ebcc",
+      "last_edit_date": "2026-10-13",
       "stale": null,
       "unreviewed_code_commits": []
     },
@@ -73,8 +74,8 @@
         "backend/Dockerfile"
       ],
       "content_sha": "1705b4eb1dde",
-      "last_edit_commit": "50bf862",
-      "last_edit_date": "2026-10-11",
+      "last_edit_commit": "e47ebcc",
+      "last_edit_date": "2026-10-13",
       "stale": true,
       "unreviewed_code_commits": [
         "ee9c7eb",
